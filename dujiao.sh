@@ -20,7 +20,7 @@ fi
 }
 
 
-read -p "输入IP:8087" domain
+read -p "输入IP" domain
 
 echo ${domain}
 
@@ -69,6 +69,27 @@ services:
     restart: always
     volumes:
       - ./redis:/data:rw
+EOF
+
+read -p "商城名字?" app_name 
+
+checkStr app_name
+
+app_name=`echo ${app_name} | sed 's: :-:g'`
+
+read -p "开通Https[Y/N]" is_https
+
+if [ -z "${is_https}" ] ;then
+    is_https='N'
+fi
+
+if [ ${is_https} == "Y" ] ; then
+    app_url=https://${domain}
+else
+    app_url=http://${domain}
+fi
+
+echo app_url is $app_url
 
 touch env.conf
 chmod 777 env.conf
