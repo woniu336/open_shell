@@ -40,7 +40,7 @@ services:
     container_name: faka
     environment:
         # - INSTALL=false
-        - INSTALL=true
+        - INSTALL=false
         # - MODIFY=true
     volumes:
       - ./env.conf:/dujiaoka/.env:rw
@@ -125,7 +125,7 @@ SESSION_LIFETIME=120
 # 缓存配置
 # file 为磁盘文件  redis 为内存级别
 # redis 为内存需要安装好 redis 服务端并配置
-CACHE_DRIVER=redis
+CACHE_DRIVER=file
 
 # 异步消息队列
 # sync 为同步  redis 为异步
