@@ -48,7 +48,7 @@ services:
       - ./storage:/dujiaoka/storage:rw
       # - ./favicon.ico:/dujiaoka/public/favicon.ico
     ports:
-      - 80:80
+      - 1088:1088
     restart: always
  
   db:
