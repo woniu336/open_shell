@@ -20,7 +20,7 @@ fi
 }
 
 
-read -p "输入域名" domain
+read -p "输入IP和端口号" domain
 
 echo ${domain}
 
