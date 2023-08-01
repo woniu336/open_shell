@@ -100,7 +100,7 @@ APP_ENV=local
 APP_KEY=${app_key}
 APP_DEBUG=false
 APP_URL=${app_url}
-#ADMIN_HTTPS=true
+ADMIN_HTTPS=true
 
 LOG_CHANNEL=stack
 
