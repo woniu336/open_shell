@@ -40,7 +40,7 @@ services:
     container_name: faka
     environment:
         # - INSTALL=false
-        - INSTALL=false
+        - INSTALL=true
         # - MODIFY=true
     volumes:
       - ./env.conf:/dujiaoka/.env:rw
@@ -100,7 +100,7 @@ APP_ENV=local
 APP_KEY=${app_key}
 APP_DEBUG=false
 APP_URL=${app_url}
-ADMIN_HTTPS=true
+#ADMIN_HTTPS=true
 
 LOG_CHANNEL=stack
 
