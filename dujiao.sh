@@ -40,7 +40,7 @@ services:
     container_name: faka
     environment:
         # - INSTALL=false
-        - INSTALL=true
+        - INSTALL=false
         # - MODIFY=true
     volumes:
       - ./env.conf:/dujiaoka/.env:rw
