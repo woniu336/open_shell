@@ -36,7 +36,7 @@ cat <<EOF >docker-compose.yaml
 version: "3"
 services:
   faka:
-    image: ghcr.io/apocalypsor/dujiaoka:latest
+    image: stilleshan/dujiaoka
     container_name: faka
     environment:
         # - INSTALL=false
@@ -125,7 +125,7 @@ SESSION_LIFETIME=120
 # 缓存配置
 # file 为磁盘文件  redis 为内存级别
 # redis 为内存需要安装好 redis 服务端并配置
-CACHE_DRIVER=file
+CACHE_DRIVER=redis
 
 # 异步消息队列
 # sync 为同步  redis 为异步
