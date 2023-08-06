@@ -36,7 +36,7 @@ cat <<EOF >docker-compose.yaml
 version: "3"
 services:
   faka:
-    image: stilleshan/dujiaoka
+    image: ghcr.io/apocalypsor/dujiaoka:latest
     container_name: faka
     environment:
         # - INSTALL=false
@@ -48,7 +48,7 @@ services:
       - ./storage:/dujiaoka/storage:rw
       # - ./favicon.ico:/dujiaoka/public/favicon.ico
     ports:
-      - 1088:80
+      - 8090:80
     restart: always
  
   db:
@@ -125,7 +125,7 @@ SESSION_LIFETIME=120
 # 缓存配置
 # file 为磁盘文件  redis 为内存级别
 # redis 为内存需要安装好 redis 服务端并配置
-CACHE_DRIVER=redis
+CACHE_DRIVER=file
 
 # 异步消息队列
 # sync 为同步  redis 为异步
@@ -143,7 +143,7 @@ ADMIN_ROUTE_PREFIX=/admin
 
 EOF
 
-sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
 docker-compose up -d 
