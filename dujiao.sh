@@ -20,7 +20,7 @@ fi
 }
 
 
-read -p "输入IP和端口号" domain
+read -p "输入域名" domain
 
 echo ${domain}
 
@@ -71,7 +71,7 @@ services:
       - ./redis:/data:rw
 EOF
 
-read -p "商城名字?" app_name 
+read -p "店铺名字?" app_name 
 
 checkStr app_name
 
