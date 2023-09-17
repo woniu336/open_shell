@@ -23,6 +23,15 @@ else
     exit 1
 fi
 
+# 针对iptables的放行端口规则（如果您使用的是iptables）
+iptables -I INPUT -p tcp --dport $new_ssh_port -j ACCEPT
+iptables -D INPUT -p tcp --dport 22 -j ACCEPT
+
+# 针对firewalld的放行端口规则（如果您使用的是firewalld）
+# firewall-cmd --zone=public --permanent --add-port=$new_ssh_port/tcp
+# firewall-cmd --zone=public --permanent --remove-port=22/tcp
+# firewall-cmd --reload
+
 # 重启SSH服务
 if [ -f /etc/redhat-release ]; then
     # CentOS系统
@@ -35,4 +44,4 @@ else
     exit 1
 fi
 
-echo "SSH端口已成功修改为 $new_ssh_port。"
+echo "SSH端口已成功修改为 $new_ssh_port，并已配置防火墙规则。"
