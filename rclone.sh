@@ -464,7 +464,7 @@ EOL
                 read -p "请输入目标路径: " destination_path
 
                 # 执行拷贝操作
-                rclone copy "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=15 --ignore-errors --buffer-size=64M --check-first --checkers=10 --drive-acknowledge-abuse
+                rclone copy "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                 echo "拷贝操作已完成."
                 ;;
             2)
@@ -473,7 +473,7 @@ EOL
                 read -p "请输入目标路径: " destination_path
 
                 # 执行同步操作
-                rclone sync "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=15 --ignore-errors --buffer-size=64M --check-first --checkers=10 --drive-acknowledge-abuse
+                rclone sync "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                 echo "同步操作已完成."
                 ;;
             3)
@@ -515,11 +515,11 @@ EOL
 
                                     # 执行拷贝操作，根据是否有排除规则来选择是否使用过滤规则文件
                                     if [ -f /root/.config/rclone/filter-file.txt ]; then
-                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=10 --ignore-errors --buffer-size=64M --check-first --checkers=10 --drive-acknowledge-abuse --filter-from /root/.config/rclone/filter-file.txt
+                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse --filter-from /root/.config/rclone/filter-file.txt
                                         echo "网盘互拷操作已完成."
                                         rm /root/.config/rclone/filter-file.txt # 删除临时的过滤规则文件
                                     else
-                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=10 --ignore-errors --buffer-size=64M --check-first --checkers=10 --drive-acknowledge-abuse
+                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                                         echo "网盘互拷操作已完成."
                                     fi
                                     ;;
@@ -555,7 +555,7 @@ PS3=""  # 清除select结构的提示符
                                     1)
                                         read -p "请输入本地路径: " local_path
                                         # 执行文件复制操作
-                                        rclone copy "$selected_directory" "$local_path" --ignore-existing -u -v -P --transfers=15 --ignore-errors --buffer-size=64M --check-first --checkers=10 --drive-acknowledge-abuse
+                                        rclone copy "$selected_directory" "$local_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                                         echo "文件已复制到本地路径：$local_path"
                                         ;;
                                     2)
