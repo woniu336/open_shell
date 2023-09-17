@@ -1,5 +1,11 @@
 ### 一键脚本
 
+路飞工具箱
+
+```shell
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh
+```
+
 rclone工具箱
 
 ```shell
