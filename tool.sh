@@ -21,7 +21,9 @@ echo "16. rclone工具箱"
 echo "17. 安装宝塔面板"
 echo "18. 安装docker"
 echo "19. 修改SSH端口"
-echo "20. 退出"
+echo "20. 科技lion一键脚本工具"
+echo "21. docker项目"
+echo "22. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
@@ -257,7 +259,15 @@ fi
         # 修改SSH端口
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/change_ssh_port.sh && chmod +x change_ssh_port.sh && ./change_ssh_port.sh
         ;;
-    20)
+	    20)
+        # 修改SSH端口      
+        curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
+        ;;
+	    21)
+        # 修改SSH端口      
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker666.sh && chmod +x docker666.sh && ./docker666.sh
+        ;;
+    22)
         # 退出
         echo "退出脚本。"
         exit 0
