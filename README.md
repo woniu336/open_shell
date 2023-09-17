@@ -1,7 +1,12 @@
 
->"`路飞工具箱`，如一枚闪亮的`多面宝石`，集聚了无尽的`服务器魔法`、`Docker魔力`、`VPS技巧`和`建站艺术`。它犹如一座技术仙境，凭借其神奇力量，为您敞开通往数字世界的大门。
+## 路飞工具箱
 
->curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh
+##### 如一枚闪亮的多面宝石，集聚了无尽的服务器魔法、Docker魔力、VPS技巧和建站艺术。它犹如一座技术仙境，凭借其神奇力量，为您敞开通往数字世界的大门。
+
+
+```
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh
+```
 
 这个令人陶醉的工具箱，仿佛一个智慧的大师，将您引领至技术的巅峰。不论您是服务器新手，还是Docker的高级术士，或者是渴望创建壮丽网站的梦想家，路飞工具箱都是您的绝佳伙伴。
 
