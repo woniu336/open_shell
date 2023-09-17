@@ -11,6 +11,13 @@ curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && 
 ```
 
 
+
+```shell
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker.sh && chmod +x docker.sh && ./docker.sh
+```
+
+
+
 ```shell
 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/uninstall_docker.sh && chmod +x uninstall_docker.sh && ./uninstall_docker.sh
 ```
