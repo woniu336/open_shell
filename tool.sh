@@ -2,40 +2,43 @@
 
 # 显示菜单选项
 echo "请选择要执行的操作："
-echo "1. 测试CPU性能"
-echo "2. VPS检测"
-echo "3. 磁盘真实性能读写测试"
-echo "4. 三网测速脚本"
-echo "5. 三网回程测试脚本"
-echo "6. 三网回程延迟测试脚本"
-echo "7. 解锁状态查看"
-echo "8. 流媒体解锁测试脚本"
-echo "9. 解锁tiktok状态"
-echo "10. 一键开启BBR"
-echo "11. 一键重装系统(DD)"
-echo "12. 更新组件"
-echo "13. 升级packages"
-echo "14. 查看系统现有内核"
-echo "15. 谷歌云一键重装"
-echo "16. rclone工具箱"
-echo "17. 安装宝塔面板"
-echo "18. 安装docker"
-echo "19. 修改SSH端口"
-echo "20. 科技lion一键脚本工具"
-echo "21. docker项目"
-echo "22. 退出"
+echo "1. rclone工具箱"
+echo "2. 安装纯净宝塔面板"
+echo "3. 科技lion一键脚本工具"
+echo "4. docker工具软件"
+echo "5. 谷歌云一键重装"
+echo "6. 安装docker"
+echo "7. 卸载docker"
+echo "8. 解锁状态查看"
+echo "9. 流媒体解锁测试脚本"
+echo "10. 解锁tiktok状态"
+echo "11. 三网回程测试脚本"
+echo "12. 三网测速脚本"
+echo "13. 三网回程延迟测试脚本"
+echo "14. 一键开启BBR"
+echo "15. 一键重装系统(DD)"
+echo "16. VPS系统信息"
+echo "17. 测试CPU性能"
+echo "18. 修改SSH端口"
+echo "19. 更改时区为中国"
+echo "20. 优化DNS地址"
+echo "21. 磁盘真实性能读写测试"
+echo "22. 更新组件"
+echo "23. 升级packages"
+echo "24. 查看系统现有内核"
+echo "25. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
 
 # 执行用户选择的操作
 case $choice in
-    1)
+    17)
         # 执行测试CPU性能操作
         apt update -y && apt install -y curl wget sudo
         curl -sL yabs.sh | bash -s -- -i -5
         ;;
-    2)
+    16)
         # 执行VPS检测操作
         echo "请选择要执行的VPS检测脚本："
         echo "1. 脚本1"
@@ -49,17 +52,17 @@ case $choice in
             echo "无效的脚本选择。"
         fi
         ;;
-    3)
+    21)
         # 执行磁盘真实性能读写测试操作
         echo "开始进行磁盘真实性能读写测试..."
         dd bs=64k count=4k if=/dev/zero of=/tmp/test oflag=dsync
         echo "测试完成。"
         ;;
-    4)
+    12)
         # 执行三网测速脚本操作
         bash <(curl -Lso- https://git.io/superspeed_uxh)
         ;;
-    5)
+    11)
         # 执行三网回程测试脚本操作
         echo "请选择要执行的三网回程测试脚本："
         echo "1. 脚本1"
@@ -73,23 +76,23 @@ case $choice in
             echo "无效的脚本选择。"
         fi
         ;;
-    6)
+    13)
         # 执行三网回程延迟测试脚本操作
         wget -qO- git.io/besttrace | bash
         ;;
-    7)
+    8)
         # 执行解锁状态查看操作
         bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh)
         ;;
-    8)
+    9)
         # 执行流媒体解锁测试脚本操作
         bash <(curl -L -s check.unlock.media)
         ;;
-    9)
+    10)
         # 执行解锁tiktok状态操作
         wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash
         ;;
-    10)
+    14)
         # 执行一键开启BBR脚本操作
         echo "请选择要执行的BBR脚本："
         echo "1. 脚本1"
@@ -106,7 +109,7 @@ case $choice in
             echo "无效的脚本选择。"
         fi
         ;;
-    11)
+    15)
         # 执行一键重装系统(DD)操作
         echo "请选择要执行的系统重装脚本："
         echo "1. 脚本1"
@@ -201,19 +204,19 @@ elif [ "$reinstall_choice" == "2" ]; then
             echo "无效的脚本选择。"
         fi
         ;;
-    12)
+    22)
         # 执行更新组件操作
         apt update -y && apt install -y curl && apt install -y socat && apt install wget -y
         ;;
-    13)
+    23)
         # 执行升级packages操作
         sudo bash -c "apt update -y && apt install wget curl sudo vim git -y"
         ;;
-    14)
+    24)
         # 查看系统现有内核
         dpkg  -l|grep linux-image
         ;;
-    15)
+    5)
     # 提示用户输入谷歌云服务器内网IP
 read -p "请输入谷歌云服务器内网IP地址（例如10.146.0.3）: " google_cloud_ip
 
@@ -230,6 +233,7 @@ echo "自动计算的网关: $google_cloud_gateway"
 echo "密码: 123456"
 echo "SSH端口: 22"
 echo "重装版本: Ubuntu 20.04"
+echo "提醒: 仅在谷歌云(debian11)测试有效"
 read -p "是否要继续执行一键安装操作？(y/n): " confirm
 
 if [ "$confirm" == "y" ]; then
@@ -243,31 +247,43 @@ else
     echo "已取消操作。"
 fi
 ;;
-        16)
+        1)
         # rclone工具箱
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
         ;;
-	    17)
+	    2)
         # 安装宝塔面板
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
         ;;
-	    18)
+	    6)
         # 安装docker
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker.sh && chmod +x docker.sh && ./docker.sh
         ;;
-	    19)
+		7)
+        # 卸载docker
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/uninstall_docker.sh && chmod +x uninstall_docker.sh && ./uninstall_docker.sh
+        ;;
+	    18)
         # 修改SSH端口
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/change_ssh_port.sh && chmod +x change_ssh_port.sh && ./change_ssh_port.sh
         ;;
-	    20)
-        # 修改SSH端口      
+	    3)
+        # 科技lion一键脚本工具      
         curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
         ;;
-	    21)
-        # 修改SSH端口      
+	    4)
+        # docker工具软件     
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker666.sh && chmod +x docker666.sh && ./docker666.sh
         ;;
-    22)
+		19)
+        # 更改时区为中国    
+        timedatectl set-timezone Asia/Shanghai && hwclock --systohc
+        ;;
+		20)
+        # 优化DNS地址    
+        echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
+        ;;
+    25)
         # 退出
         echo "退出脚本。"
         exit 0
