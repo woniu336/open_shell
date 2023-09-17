@@ -17,7 +17,11 @@ echo "12. 更新组件"
 echo "13. 升级packages"
 echo "14. 查看系统现有内核"
 echo "15. 谷歌云一键重装"
-echo "16. 退出"
+echo "16. rclone工具箱"
+echo "17. 安装宝塔面板"
+echo "18. 安装docker"
+echo "19. 修改SSH端口"
+echo "20. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
@@ -223,7 +227,7 @@ echo "内网IP地址: $google_cloud_ip"
 echo "自动计算的网关: $google_cloud_gateway"
 echo "密码: 123456"
 echo "SSH端口: 22"
-echo "系统版本: Ubuntu 20.04"
+echo "重装版本: Ubuntu 20.04"
 read -p "是否要继续执行一键安装操作？(y/n): " confirm
 
 if [ "$confirm" == "y" ]; then
@@ -237,7 +241,23 @@ else
     echo "已取消操作。"
 fi
 ;;
-    16)
+        16)
+        # rclone工具箱
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
+        ;;
+	    17)
+        # 安装宝塔面板
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
+        ;;
+	    18)
+        # 安装docker
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker.sh && chmod +x docker.sh && ./docker.sh
+        ;;
+	    19)
+        # 修改SSH端口
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/change_ssh_port.sh && chmod +x change_ssh_port.sh && ./change_ssh_port.sh
+        ;;
+    20)
         # 退出
         echo "退出脚本。"
         exit 0
