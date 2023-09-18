@@ -3,7 +3,12 @@
 # 显示菜单选项
 while true; do
 clear
-figlet -f big LUFEI
+if command -v figlet &> /dev/null; then
+    figlet "LUFEI"
+else
+    echo "LUFEI"
+fi
+
 echo -e "\033[96m路飞工具箱 v3.0 （支持 Ubuntu，Debian，Centos系统）\033[0m"
 echo "------------------------"
 echo "请选择要执行的操作："
