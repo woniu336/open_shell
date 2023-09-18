@@ -26,8 +26,7 @@ echo "21. 磁盘真实性能读写测试"
 echo "22. 更新组件"
 echo "23. 升级packages"
 echo "24. 查看系统现有内核"
-echo "25. 谷歌云一键重装"
-echo "26. 退出"
+echo "25. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
@@ -217,37 +216,6 @@ elif [ "$reinstall_choice" == "2" ]; then
         # 查看系统现有内核
         dpkg  -l|grep linux-image
         ;;
-    25)
-    # 提示用户输入谷歌云服务器内网IP
-read -p "请输入谷歌云服务器内网IP地址（例如10.146.0.3）: " google_cloud_ip
-
-# 提取IP地址的前三位数字
-ip_prefix=$(echo "$google_cloud_ip" | cut -d '.' -f 1-3)
-
-# 自动计算网关，将第四位数字设置为1
-google_cloud_gateway="$ip_prefix.1"
-
-# 提示用户确认信息并继续
-echo "您输入的信息如下："
-echo "内网IP地址: $google_cloud_ip"
-echo "自动计算的网关: $google_cloud_gateway"
-echo "密码: 123456"
-echo "SSH端口: 22"
-echo "重装版本: Ubuntu 20.04"
-echo "提醒: 仅在谷歌云(debian11)测试有效"
-read -p "是否要继续执行一键安装操作？(y/n): " confirm
-
-if [ "$confirm" == "y" ]; then
-    # 更新系统并安装必要的软件
-    apt update -y
-    apt install -y wget sudo
-
-    # 执行一键安装操作
-    bash <(wget --no-check-certificate -qO- 'https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh') --ip-addr $google_cloud_ip --ip-gate $google_cloud_gateway --ip-mask 255.255.255.0 -u 20.04 -v 64 -p 123456 -port 22
-else
-    echo "已取消操作。"
-fi
-;;
         1)
         # rclone工具箱
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
@@ -258,7 +226,7 @@ fi
         ;;
 	    5)
         # 更多神器
-        # curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/soso.sh && chmod +x soso.sh && ./soso.sh
         ;;
 	    6)
         # 安装docker
@@ -288,7 +256,7 @@ fi
         # 优化DNS地址    
         echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
         ;;
-    26)
+    25)
         # 退出
         echo "退出脚本。"
         exit 0
