@@ -15,9 +15,10 @@ ssh-keygen -t rsa -b 4096 -C "$github_email"
 echo "请复制以下公钥内容并添加到GitHub SSH Keys:"
 cat ~/.ssh/id_rsa.pub
 
-echo "然后，请访问以下链接添加公钥到GitHub SSH Keys："
-echo "https://github.com/settings/ssh/new"
-echo "你可以为公钥添加任意名称，然后粘贴复制的公钥内容并点击添加。"
+echo ""
+
+echo "添加公钥地址: https://github.com/settings/ssh/new"
+
 
 # 2. 建立私人仓库
 echo "第二步：创建私人GitHub仓库"
@@ -27,6 +28,10 @@ read
 # 3. 配置本地仓库
 echo "第三步：配置本地仓库"
 read -p "请输入你的网站目录路径: " website_path
+
+# 在这里添加命令以添加例外规则
+echo "为了确保Git忽略 $website_path 目录的权限问题，运行以下命令："
+git config --global --add safe.directory "$website_path"
 
 # 输入数据库信息
 read -p "请输入你的数据库用户名: " db_username
@@ -56,7 +61,7 @@ git add -A
 git commit -m "初始备份"
 
 # 推送到GitHub
-git push -u origin master
+git push -f origin master
 
 # 6. 设置定时备份
 echo "第六步：设置定时备份"
