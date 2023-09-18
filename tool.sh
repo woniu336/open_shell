@@ -21,66 +21,54 @@ read -p "请输入操作编号: " choice
 # 执行用户选择的操作
 case $choice in
 
-	1)
+	    1)
+        # rclone工具箱
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
+        ;;
+	    2)
+        # 安装纯净宝塔面板
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
+        ;;
+	    3)
+        # 科技lion一键脚本工具
+		clear
+        curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
+        ;;
+		4)
         # 证书SSL申请
+		clear
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl.sh && chmod +x ssl.sh && ./ssl.sh
         ;;
-    16)
-        # 执行VPS检测操作
-        echo "请选择要执行的VPS检测脚本："
-        echo "1. 脚本1"
-        echo "2. 脚本2"
-        read -p "请输入脚本编号: " vps_choice
-        if [ "$vps_choice" == "1" ]; then
-            wget -q https://github.com/Aniverse/A/raw/i/a && bash a
-        elif [ "$vps_choice" == "2" ]; then
-            wget -qO- bench.sh | bash
-        else
-            echo "无效的脚本选择。"
-        fi
+	    5)
+        # docker安装卸载
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/dockerpro.sh && chmod +x dockerpro.sh && ./dockerpro.sh
         ;;
-    21)
-        # 执行磁盘真实性能读写测试操作
-        echo "开始进行磁盘真实性能读写测试..."
-        dd bs=64k count=4k if=/dev/zero of=/tmp/test oflag=dsync
-        echo "测试完成。"
+	    6)
+        # docker软件应用      
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker666.sh && chmod +x docker666.sh && ./docker666.sh
         ;;
-    12)
-        # 执行三网测速脚本操作
-        bash <(curl -Lso- https://git.io/superspeed_uxh)
+	    7)
+        # 测试脚本合集    
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/vps.sh && chmod +x vps.sh && ./vps.sh
         ;;
-    11)
-        # 执行三网回程测试脚本操作
-        echo "请选择要执行的三网回程测试脚本："
-        echo "1. 脚本1"
-        echo "2. 脚本2"
-        read -p "请输入脚本编号: " mtr_choice
-        if [ "$mtr_choice" == "1" ]; then
-            curl https://raw.githubusercontent.com/zhucaidan/mtr_trace/main/mtr_trace.sh|bash
-        elif [ "$mtr_choice" == "2" ]; then
-            curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh
-        else
-            echo "无效的脚本选择。"
-        fi
+		8)
+        # 系统工具    
+		clear
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/xitong.sh && chmod +x xitong.sh && ./xitong.sh
         ;;
-    13)
-        # 执行三网回程延迟测试脚本操作
-        wget -qO- git.io/besttrace | bash
+		9)
+        # 其他工具   
+		clear
+        echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
         ;;
-    8)
-        # 执行解锁状态查看操作
-        bash <(curl -Ls https://cdn.jsdelivr.net/gh/missuo/OpenAI-Checker/openai.sh)
-        ;;
-    9)
-        # 执行流媒体解锁测试脚本操作
-        bash <(curl -L -s check.unlock.media)
-        ;;
-    10)
-        # 执行解锁tiktok状态操作
-        wget -qO- https://github.com/yeahwu/check/raw/main/check.sh | bash
-        ;;
-    14)
+        10)
         # 执行一键开启BBR脚本操作
+		clear
         echo "请选择要执行的BBR脚本："
         echo "1. 脚本1"
         echo "2. 脚本2"
@@ -96,8 +84,9 @@ case $choice in
             echo "无效的脚本选择。"
         fi
         ;;
-    15)
+        11)
         # 执行一键重装系统(DD)操作
+		clear
         echo "请选择要执行的系统重装脚本："
         echo "1. 脚本1"
         echo "2. 脚本2"
@@ -191,59 +180,7 @@ elif [ "$reinstall_choice" == "2" ]; then
             echo "无效的脚本选择。"
         fi
         ;;
-    22)
-        # 执行更新组件操作
-        apt update -y && apt install -y curl && apt install -y socat && apt install wget -y
-        ;;
-    23)
-        # 执行升级packages操作
-        sudo bash -c "apt update -y && apt install wget curl sudo vim git -y"
-        ;;
-    24)
-        # 查看系统现有内核
-        dpkg  -l|grep linux-image
-        ;;
-        1)
-        # rclone工具箱
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
-        ;;
-	    2)
-        # 安装宝塔面板
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
-        ;;
-	    5)
-        # 更多神器
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/soso.sh && chmod +x soso.sh && ./soso.sh
-        ;;
-	    6)
-        # 安装docker
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker.sh && chmod +x docker.sh && ./docker.sh
-        ;;
-		7)
-        # 卸载docker
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/uninstall_docker.sh && chmod +x uninstall_docker.sh && ./uninstall_docker.sh
-        ;;
-	    18)
-        # 修改SSH端口
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/change_ssh_port.sh && chmod +x change_ssh_port.sh && ./change_ssh_port.sh
-        ;;
-	    3)
-        # 科技lion一键脚本工具      
-        curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
-        ;;
-	    4)
-        # docker工具软件     
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker666.sh && chmod +x docker666.sh && ./docker666.sh
-        ;;
-		19)
-        # 更改时区为中国    
-        timedatectl set-timezone Asia/Shanghai && hwclock --systohc
-        ;;
-		20)
-        # 优化DNS地址    
-        echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
-        ;;
-    25)
+    0)
         # 退出
         echo "退出脚本。"
         exit 0
