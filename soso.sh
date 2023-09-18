@@ -18,7 +18,7 @@ while true; do
         3)
             # 安装docker
             bash <(curl -sSL https://raw.githubusercontent.com/SuperManito/LinuxMirrors/main/DockerInstallation.sh)
-
+            ;;
         2)
             # 谷歌云一键重装
             # 提示用户输入谷歌云服务器内网IP
