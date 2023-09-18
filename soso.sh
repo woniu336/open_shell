@@ -3,30 +3,13 @@
 while true; do
     clear
     echo "请选择操作:"
-    echo "1) 证书SSL申请"
-    echo "2) 谷歌云一键重装"
-	echo "3) 安装docker"
-	echo "4) 设置脚本快捷键"
+    echo "1) 谷歌云一键重装"
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
     case $choice in
+
         1)
-            # 证书SSL申请
-            curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl.sh && chmod +x ssl.sh && ./ssl.sh
-            ;;
-			
-        3)
-            # 安装docker
-            bash <(curl -sSL https://raw.githubusercontent.com/SuperManito/LinuxMirrors/main/DockerInstallation.sh)
-            ;;
-        4)
-             clear
-              read -p "请输入你的快捷按键: " kuaijiejian
-              echo "alias $kuaijiejian='curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh'" >> ~/.bashrc
-              echo "快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。"
-              ;;
-        2)
             # 谷歌云一键重装
             # 提示用户输入谷歌云服务器内网IP
             read -p "请输入谷歌云服务器内网IP地址（例如10.146.0.3）: " google_cloud_ip

@@ -65,7 +65,7 @@ case $choice in
 		9)
         # 其他工具   
 		clear
-        echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/soso.sh && chmod +x soso.sh && ./soso.sh
         ;;
         10)
         # 执行一键开启BBR脚本操作
