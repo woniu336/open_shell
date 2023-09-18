@@ -6,7 +6,7 @@ echo "1. rclone工具箱"
 echo "2. 安装纯净宝塔面板"
 echo "3. 科技lion一键脚本工具"
 echo "4. docker工具软件"
-echo "5. 谷歌云一键重装"
+echo "5. 更多神器"
 echo "6. 安装docker"
 echo "7. 卸载docker"
 echo "8. 解锁状态查看"
@@ -26,7 +26,8 @@ echo "21. 磁盘真实性能读写测试"
 echo "22. 更新组件"
 echo "23. 升级packages"
 echo "24. 查看系统现有内核"
-echo "25. 退出"
+echo "25. 谷歌云一键重装"
+echo "26. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
@@ -216,7 +217,7 @@ elif [ "$reinstall_choice" == "2" ]; then
         # 查看系统现有内核
         dpkg  -l|grep linux-image
         ;;
-    5)
+    25)
     # 提示用户输入谷歌云服务器内网IP
 read -p "请输入谷歌云服务器内网IP地址（例如10.146.0.3）: " google_cloud_ip
 
@@ -255,6 +256,10 @@ fi
         # 安装宝塔面板
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
         ;;
+	    5)
+        # 更多神器
+        # curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bt.sh && chmod +x bt.sh && ./bt.sh
+        ;;
 	    6)
         # 安装docker
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/docker.sh && chmod +x docker.sh && ./docker.sh
@@ -283,7 +288,7 @@ fi
         # 优化DNS地址    
         echo -e "options timeout:1 attempts:1 rotate\nnameserver 1.1.1.1\nnameserver 8.8.8.8" >/etc/resolv.conf;
         ;;
-    25)
+    26)
         # 退出
         echo "退出脚本。"
         exit 0
