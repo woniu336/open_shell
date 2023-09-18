@@ -4,6 +4,7 @@ while true; do
     clear
     echo "请选择操作:"
     echo "1) 谷歌云一键重装"
+	echo "2) 未完待续..."
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
