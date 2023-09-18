@@ -1,4 +1,58 @@
 #!/bin/bash
+# 6. 设置定时备份
+function set_backup_schedule {
+    # 完整的备份脚本路径
+    backup_script="$HOME/backup.sh"
+
+    # 检查备份脚本是否已存在
+    if [ -e "$backup_script" ]; then
+        read -p "备份脚本 $backup_script 已经存在，是否要重命名现有备份脚本并继续设置定时备份？ (Y/N): " rename_response
+        if [ "$rename_response" != "Y" ] && [ "$rename_response" != "y" ]; then
+            echo "取消设置定时备份。"
+            return
+        else
+            read -p "请输入新的备份脚本名称（例如，new_backup）: " new_backup_script
+            # 消耗换行符
+            read -n 1 -s
+            backup_script="$HOME/$new_backup_script.sh"
+        fi
+    fi
+
+    echo "设置定时备份"
+    read -p "请输入备份的时间（例如，05:15）: " backup_time
+    read -p "请输入网站目录路径（例如，/www/wwwroot/judog.cc）: " website_path
+    read -p "请输入数据库用户名: " db_username
+    read -s -p "请输入数据库密码: " db_password
+    echo  # 在密码输入后添加一个换行
+    read -p "请输入数据库名称: " db_name
+    read -p "请输入备份文件名（例如，backup.sql）: " backup_file
+
+    # 创建备份脚本
+    echo "#!/bin/bash" > "$backup_script"
+    echo "" >> "$backup_script"
+    echo "# 切换到网站目录" >> "$backup_script"
+    echo "cd $website_path || exit 1" >> "$backup_script"
+    echo "" >> "$backup_script"
+    echo "# 备份数据库" >> "$backup_script"
+    echo "mysqldump -u$db_username -p$db_password $db_name > $backup_file" >> "$backup_script"
+    echo "" >> "$backup_script"
+    echo "# 提交更改到Git仓库" >> "$backup_script"
+    echo 'git add -A' >> "$backup_script"
+    echo 'git commit -m "备份时间：$(date +\%Y\%m\%d\%H\%M)"' >> "$backup_script"
+    echo 'git push -f origin master' >> "$backup_script"
+
+    # 添加备份脚本的执行权限
+    chmod +x "$backup_script"
+
+    # 输出设置完成的提示（绿色高亮）
+    echo -e "\e[32m备份脚本已生成并保存到 $backup_script，设置完成，操作成功！\e[0m"
+
+# 设置定时备份
+    echo "设置定时备份任务"
+    (crontab -l 2>/dev/null; echo "$backup_time * * * bash $backup_script > ~/siteback.log 2>&1") | crontab -
+
+}
+
 
 while :
 do
@@ -31,6 +85,7 @@ ssh-keygen -t rsa -b 4096 -C "$github_email"
 
 # 输出公钥以供用户复制并添加到GitHub SSH Keys
 echo "请复制以下公钥内容并添加到GitHub SSH Keys:"
+echo  # 添加一个换行
 cat ~/.ssh/id_rsa.pub
 echo -e "\n添加公钥地址: https://github.com/settings/ssh/new"
             ;;
@@ -50,13 +105,6 @@ read -p "请输入你的网站目录路径: " website_path
 echo "为了确保Git忽略 $website_path 目录的权限问题，运行以下命令："
 git config --global --add safe.directory "$website_path"
 
-# 输入数据库信息
-read -p "请输入你的数据库用户名: " db_username
-read -s -p "请输入你的数据库密码: " db_password
-echo  # 在密码输入后添加一个换行
-read -p "请输入你的数据库名称: " db_name
-read -p "请输入备份文件的名称（例如，backup.sql）: " backup_file
-
 # 输入GitHub仓库信息
 read -p "请输入你的GitHub用户名: " github_username
 read -p "请输入你的GitHub私人仓库名称: " github_repo_name
@@ -71,11 +119,27 @@ git remote add origin "git@github.com:$github_username/$github_repo_name.git"
            # 4. 备份数据库
 echo "第四步：备份数据库"
 cd "$website_path" || exit 1
+# 输入数据库信息
+read -p "请输入你的数据库用户名: " db_username
+read -p "请输入你的数据库密码: " db_password
+echo  # 在密码输入后添加一个换行
+read -p "请输入你的数据库名称: " db_name
+read -p "请输入备份文件的名称（例如，backup.sql）: " backup_file
 mysqldump -u"$db_username" -p"$db_password" "$db_name" > "$backup_file"
             ;;
         5)
-            # 初次备份
-            echo "第五步：初次备份"
+# 5. 初次备份
+echo "第五步：初次备份"
+
+# 提示用户输入备份目录
+read -p "请输入你的网站备份目录路径: " backup_dir
+
+# 将备份目录路径添加到备份文件名中
+backup_file="$backup_dir/$backup_file"
+
+# 切换到备份目录
+cd "$backup_dir" || exit 1
+
 # 将更改提交到本地Git仓库
 git add -A
 git commit -m "初始备份"
@@ -84,21 +148,9 @@ git commit -m "初始备份"
 git push -f origin master
             ;;
         6)
-            # 设置定时备份
-           # 6. 设置定时备份
-echo "第六步：设置定时备份"
-read -p "请输入备份的时间（例如，05:15）: " backup_time
+# 设置定时备份
+            set_backup_schedule
 
-# 创建备份脚本
-echo "$backup_time * * * * cd $website_path && mysqldump -u$db_username -p$db_password $db_name > $backup_file && git add -A && git commit -m '备份时间：\$(date +\%Y\%m\%d\%H\%M)' && git push -f origin master" > backup.sh
-
-# 添加备份脚本的执行权限
-chmod +x backup.sh
-
-# 将备份脚本添加为定时任务
-(crontab -l 2>/dev/null; echo "$backup_time * * * * $website_path/backup.sh") | crontab -
-
-echo "设置完成，操作成功！"
             ;;
         7)
             # 强制Pull网站数据
