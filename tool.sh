@@ -13,6 +13,7 @@ echo "8. 系统工具"
 echo "9. 其他工具"
 echo "10. 一键开启BBR"
 echo "11. 一键重装系统(DD)"
+echo "12. 设置脚本快捷键"
 echo "0. 退出"
 
 # 提示用户选择操作
@@ -179,6 +180,13 @@ elif [ "$reinstall_choice" == "2" ]; then
         else
             echo "无效的脚本选择。"
         fi
+        ;;
+	    12)
+		# 设置脚本快捷键
+        clear
+        read -p "请输入你的快捷按键: " kuaijiejian
+        echo "alias $kuaijiejian='curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh'" >> ~/.bashrc
+        echo "快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。"
         ;;
     0)
         # 退出
