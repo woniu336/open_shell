@@ -70,116 +70,12 @@ case $choice in
         10)
         # 执行一键开启BBR脚本操作
 		clear
-        echo "请选择要执行的BBR脚本："
-        echo "1. 脚本1"
-        echo "2. 脚本2"
-        read -p "请输入脚本编号: " bbr_choice
-        if [ "$bbr_choice" == "1" ]; then
-            echo "net.core.default_qdisc=fq"  >>  /etc/sysctl.conf
-            echo "net.ipv4.tcp_congestion_control=bbr"  >>  /etc/sysctl.conf
-            sysctl -p
-            lsmod | grep bbr
-        elif [ "$bbr_choice" == "2" ]; then
-            wget -N --no-check-certificate "https://raw.githubusercontent.com/chiakge/Linux-NetSpeed/master/tcp.sh" && chmod +x tcp.sh && ./tcp.sh
-        else
-            echo "无效的脚本选择。"
-        fi
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bbr.sh && chmod +x bbr.sh && ./bbr.sh
         ;;
         11)
         # 执行一键重装系统(DD)操作
 		clear
-        echo "请选择要执行的系统重装脚本："
-        echo "1. 脚本1"
-        echo "2. 脚本2"
-        echo "3. 脚本3"
-        read -p "请输入脚本编号: " reinstall_choice
-        if [ "$reinstall_choice" == "1" ]; then
-            wget --no-check-certificate -qO InstallNET.sh 'https://raw.githubusercontent.com/leitbogioro/Tools/master/Linux_reinstall/InstallNET.sh' && chmod a+x InstallNET.sh
-            echo "请选择要重装的系统："
-            echo "a. Debian 11"
-            echo "b. Ubuntu 20.04"
-            echo "c. CentOS 7"
-            read -p "请输入系统编号: " os_choice
-            if [ "$os_choice" == "a" ]; then
-                # 提示用户名、密码和SSH端口
-                echo "您选择了执行 Debian 11 重装操作。"
-                echo "用户名: root"
-                echo "密码: LeitboGi0ro"
-                echo "SSH端口: 22"
-                read -p "是否确定要继续执行？(y/n): " confirm
-                if [ "$confirm" == "y" ]; then
-                    bash InstallNET.sh -debian 11
-                else
-                    echo "已取消操作。"
-                fi
-            elif [ "$os_choice" == "b" ]; then
-                # 提示用户名、密码和SSH端口
-                echo "您选择了执行 Ubuntu 20.04 重装操作。"
-                echo "用户名: root"
-                echo "密码: LeitboGi0ro"
-                echo "SSH端口: 22"
-                read -p "是否确定要继续执行？(y/n): " confirm
-                if [ "$confirm" == "y" ]; then
-                    bash InstallNET.sh -ubuntu 20.04
-                else
-                    echo "已取消操作。"
-                fi
-            elif [ "$os_choice" == "c" ]; then
-                # 提示用户名、密码和SSH端口
-                echo "您选择了执行 CentOS 7 重装操作。"
-                echo "用户名: root"
-                echo "密码: LeitboGi0ro"
-                echo "SSH端口: 22"
-                read -p "是否确定要继续执行？(y/n): " confirm
-                if [ "$confirm" == "y" ]; then
-                    bash InstallNET.sh -centos 7
-                else
-                    echo "已取消操作。"
-                fi
-            else
-                echo "无效的系统选择。"
-            fi
-elif [ "$reinstall_choice" == "2" ]; then
-            # 提示用户选择系统
-            echo "请选择要执行的系统重装脚本："
-            echo "a. Debian 11"
-            echo "b. Ubuntu 20.04"
-            read -p "请输入系统编号: " os_choice
-            if [ "$os_choice" == "a" ]; then
-                # 提示用户名、密码和SSH端口
-                echo "您选择了执行 Debian 11 重装操作。"
-                echo "用户名: root"
-                echo "密码: 123456"
-                echo "SSH端口: 22"
-                read -p "是否确定要继续执行？(y/n): " confirm
-                if [ "$confirm" == "y" ]; then
-                    bash <(wget --no-check-certificate -qO- 'https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh') -d 11 -v 64 -p 123456 -port 22
-                else
-                    echo "已取消操作。"
-                fi
-            elif [ "$os_choice" == "b" ]; then
-                # 提示用户名、密码和SSH端口
-                echo "您选择了执行 Ubuntu 20.04 重装操作。"
-                echo "用户名: root"
-                echo "密码: 123456"
-                echo "SSH端口: 22"
-                read -p "是否确定要继续执行？(y/n): " confirm
-                if [ "$confirm" == "y" ]; then
-                    bash <(wget --no-check-certificate -qO- 'https://raw.githubusercontent.com/MoeClub/Note/master/InstallNET.sh') -u 20.04 -v 64 -p 123456 -port 22
-                else
-                    echo "已取消操作。"
-                fi
-            else
-                echo "无效的系统选择。"
-            fi
-        elif [ "$reinstall_choice" == "3" ]; then
-            # 提示默认密码
-            echo "正在执行脚本3的操作..."
-            echo "默认密码: Pwd@CentOS 或 Pwd@Linux"
-            wget --no-check-certificate -O AutoReinstall.sh https://git.io/AutoReinstall.sh && bash AutoReinstall.sh
-        else
-            echo "无效的脚本选择。"
-        fi
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/vpsnew.sh && chmod +x vpsnew.sh && ./vpsnew.sh
         ;;
 	    12)
 		# 设置脚本快捷键
