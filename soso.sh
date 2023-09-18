@@ -5,6 +5,7 @@ while true; do
     echo "请选择操作:"
     echo "1) 证书SSL申请"
     echo "2) 谷歌云一键重装"
+	echo "3) 安装docker"
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
@@ -13,6 +14,11 @@ while true; do
             # 证书SSL申请
             curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl.sh && chmod +x ssl.sh && ./ssl.sh
             ;;
+			
+        3)
+            # 安装docker
+            bash <(curl -sSL https://raw.githubusercontent.com/SuperManito/LinuxMirrors/main/DockerInstallation.sh)
+
         2)
             # 谷歌云一键重装
             # 提示用户输入谷歌云服务器内网IP
