@@ -4,7 +4,7 @@
 while true; do
 clear
 figlet -f big LUFEI
-echo -e "\033[96m路飞工具箱 v3.0 （支持 Ubuntu，Debian 系统）\033[0m"
+echo -e "\033[96m路飞工具箱 v3.0 （支持 Ubuntu，Debian，Centos系统）\033[0m"
 echo "------------------------"
 echo "请选择要执行的操作："
 echo "1. rclone工具箱"
