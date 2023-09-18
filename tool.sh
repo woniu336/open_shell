@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # 显示菜单选项
+while true; do
+clear
+figlet -f big LUFEI
+echo -e "\033[96m路飞工具箱 v3.0 （支持 Ubuntu，Debian 系统）\033[0m"
+echo "------------------------"
 echo "请选择要执行的操作："
 echo "1. rclone工具箱"
 echo "2. 安装纯净宝塔面板"
@@ -8,14 +13,14 @@ echo "3. 科技lion一键脚本工具"
 echo "4. 证书SSL申请"
 echo "5. docker安装卸载"
 echo "6. docker软件应用"
-echo "7. 测试脚本合集"
+echo -e "\033[33m7. 测试脚本合集 ▶ \033[0m"
 echo "8. 系统工具"
 echo "9. 其他工具"
 echo "10. 一键开启BBR"
 echo "11. 一键重装系统(DD)"
 echo "12. 设置脚本快捷键"
 echo "0. 退出"
-
+echo "------------------------"
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
 
@@ -84,12 +89,18 @@ case $choice in
         echo "alias $kuaijiejian='curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh'" >> ~/.bashrc
         echo "快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。"
         ;;
-    0)
-        # 退出
-        echo "退出脚本。"
-        exit 0
-        ;;
-    *)
-        echo "无效的操作选择。"
-        ;;
+  0)
+    clear
+    exit
+    ;;
+
+  *)
+    echo "无效的输入!"
+
 esac
+  echo -e "\033[0;32m操作完成\033[0m"
+  echo "按任意键继续..."
+  read -n 1 -s -r -p ""
+  echo ""
+  clear
+done
