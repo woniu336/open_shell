@@ -68,7 +68,7 @@ echo "第六步：设置定时备份"
 read -p "请输入备份的时间（例如，05:15）: " backup_time
 
 # 创建备份脚本
-echo "$backup_time * * * * cd $website_path && mysqldump -u$db_username -p$db_password $db_name > $backup_file && git add -A && git commit -m '备份时间：\$(date +\%Y\%m\%d\%H\%M)' && git push origin master" > backup.sh
+echo "$backup_time * * * * cd $website_path && mysqldump -u$db_username -p$db_password $db_name > $backup_file && git add -A && git commit -m '备份时间：\$(date +\%Y\%m\%d\%H\%M)' && git push -f origin master" > backup.sh
 
 # 添加备份脚本的执行权限
 chmod +x backup.sh
