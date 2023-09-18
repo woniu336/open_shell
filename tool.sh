@@ -5,38 +5,25 @@ echo "请选择要执行的操作："
 echo "1. rclone工具箱"
 echo "2. 安装纯净宝塔面板"
 echo "3. 科技lion一键脚本工具"
-echo "4. docker工具软件"
-echo "5. 更多神器"
-echo "6. 安装docker"
-echo "7. 卸载docker"
-echo "8. 解锁状态查看"
-echo "9. 流媒体解锁测试脚本"
-echo "10. 解锁tiktok状态"
-echo "11. 三网回程测试脚本"
-echo "12. 三网测速脚本"
-echo "13. 三网回程延迟测试脚本"
-echo "14. 一键开启BBR"
-echo "15. 一键重装系统(DD)"
-echo "16. VPS系统信息"
-echo "17. 测试CPU性能"
-echo "18. 修改SSH端口"
-echo "19. 更改时区为中国"
-echo "20. 优化DNS地址"
-echo "21. 磁盘真实性能读写测试"
-echo "22. 更新组件"
-echo "23. 升级packages"
-echo "24. 查看系统现有内核"
-echo "25. 退出"
+echo "4. 证书SSL申请"
+echo "5. docker安装卸载"
+echo "6. docker软件应用"
+echo "7. 测试脚本合集"
+echo "8. 系统工具"
+echo "9. 其他工具"
+echo "10. 一键开启BBR"
+echo "11. 一键重装系统(DD)"
+echo "0. 退出"
 
 # 提示用户选择操作
 read -p "请输入操作编号: " choice
 
 # 执行用户选择的操作
 case $choice in
-    17)
-        # 执行测试CPU性能操作
-        apt update -y && apt install -y curl wget sudo
-        curl -sL yabs.sh | bash -s -- -i -5
+
+	1)
+        # 证书SSL申请
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl.sh && chmod +x ssl.sh && ./ssl.sh
         ;;
     16)
         # 执行VPS检测操作
