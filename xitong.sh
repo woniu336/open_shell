@@ -13,15 +13,27 @@ while true; do
 
     case $option in
         1)
-            # 更新系统组件
-            clear
-            if [[ -f /etc/redhat-release ]]; then
-                sudo yum update -y && sudo yum install -y wget curl socat sudo vim git
-            elif [[ -f /etc/lsb-release ]]; then
-                sudo apt update -y && sudo apt upgrade -y && sudo apt install -y wget curl socat sudo vim git
-            else
-                echo "未知的系统类型，无法执行更新操作。"
-            fi
+# 检测系统类型
+if [ -f /etc/os-release ]; then
+    source /etc/os-release
+    if [[ $ID == "ubuntu" || $ID == "debian" ]]; then
+        # Debian/Ubuntu系统
+        sudo apt update -y && sudo apt upgrade -y
+        sudo apt install -y wget curl socat sudo vim git
+    elif [[ $ID == "centos" || $ID == "rhel" ]]; then
+        # CentOS/RHEL系统
+        sudo yum update -y
+        sudo yum install -y wget curl socat sudo vim git
+    else
+        echo "不支持的系统类型: $ID"
+        exit 1
+    fi
+else
+    echo "未知的系统类型，无法执行更新操作。"
+    exit 1
+fi
+
+echo "系统更新和软件安装完成。"
             ;;
         2)
             # 查看系统现有内核
