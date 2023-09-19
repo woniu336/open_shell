@@ -24,26 +24,27 @@ while true; do
         3)
             # 卸载 Docker 和清理
 			clear
-            if [ -f /etc/redhat-release ]; then
-                # CentOS 卸载 Docker
-                sudo yum remove -y docker \
-                docker-client \
-                docker-client-latest \
-                docker-common \
-                docker-latest \
-                docker-latest-logrotate \
-                docker-logrotate \
-                docker-selinux \
-                docker-engine-selinux \
-                docker-engine
-            elif [ -f /etc/lsb-release ]; then
-                # Debian / Ubuntu 卸载 Docker
-                sudo apt-get remove -y docker docker-engine docker.io containerd runc
-                sudo apt-get purge -y docker-ce docker-ce-cli containerd.io
-            else
-                echo "不支持的操作系统。"
-                exit 1
-            fi
+if [ -f /etc/redhat-release ]; then
+    # CentOS 卸载 Docker
+    sudo yum remove -y docker \
+    docker-client \
+    docker-client-latest \
+    docker-common \
+    docker-latest \
+    docker-latest-logrotate \
+    docker-logrotate \
+    docker-selinux \
+    docker-engine-selinux \
+    docker-engine
+elif [ -f /etc/lsb-release ] || [ -f /etc/debian_version ]; then
+    # Debian / Ubuntu 卸载 Docker
+    sudo apt-get remove -y docker docker-engine docker.io containerd runc
+    sudo apt-get purge -y docker-ce docker-ce-cli containerd.io
+else
+    echo "不支持的操作系统。"
+    exit 1
+fi
+
 
             # 删除 Docker 数据目录
             sudo rm -rf /var/lib/docker
