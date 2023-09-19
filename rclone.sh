@@ -19,25 +19,29 @@ while true; do
 
 
         1)
-            if command -v rclone &>/dev/null; then
-                echo "rclone已安装."
-            else
-                if [ -f /etc/os-release ]; then
-                    source /etc/os-release
-                    if [[ $ID == "ubuntu" ]]; then
-                        sudo apt-get install curl unzip && sudo apt-get install fuse3 &&
-                        curl https://rclone.org/install.sh | sudo bash
-                    elif [[ $ID == "centos" ]]; then
-                        sudo yum install curl unzip fuse3 -y &&
-                        curl https://rclone.org/install.sh | sudo bash
-                    else
-                        echo "不支持的操作系统."
-                    fi
-                else
-                    echo "不支持的操作系统."
-                fi
-                echo "rclone安装完成."
-            fi
+#!/bin/bash
+
+if command -v rclone &>/dev/null; then
+    echo "rclone已安装."
+else
+    if [ -f /etc/os-release ]; then
+        source /etc/os-release
+        if [[ $ID == "ubuntu" || $ID == "debian" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y curl unzip fuse3
+            curl https://rclone.org/install.sh | sudo bash
+        elif [[ $ID == "centos" ]]; then
+            sudo yum install -y curl unzip fuse3
+            curl https://rclone.org/install.sh | sudo bash
+        else
+            echo "不支持的操作系统."
+        fi
+    else
+        echo "不支持的操作系统."
+    fi
+    echo "rclone安装完成."
+fi
+
             ;;
         2)
             # 添加网盘的操作
