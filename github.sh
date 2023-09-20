@@ -1,45 +1,79 @@
 #!/bin/bash
 # 6. 设置定时备份
+
 function set_backup_schedule {
     # 完整的备份脚本路径
     backup_script="$HOME/backup.sh"
 
     # 检查备份脚本是否已存在
     if [ -e "$backup_script" ]; then
-        read -p "备份脚本 $backup_script 已经存在，是否要重命名现有备份脚本并继续设置定时备份？ (Y/N): " rename_response
-        if [ "$rename_response" != "Y" ] && [ "$rename_response" != "y" ]; then
+        read -p "备份脚本 $backup_script 已经存在，是否要继续设置定时备份？ (Y/N): " continue_response
+        if [ "$continue_response" != "Y" ] && [ "$continue_response" != "y" ]; then
             echo "取消设置定时备份。"
             return
-        else
-            read -p "请输入新的备份脚本名称（例如，new_backup）: " new_backup_script
-            # 消耗换行符
-            read -n 1 -s
-            backup_script="$HOME/$new_backup_script.sh"
         fi
     fi
 
-    echo "设置定时备份"
-    read -p "请输入备份的时间（例如，05:15）: " backup_time
-    read -p "请输入网站目录路径（例如，/www/wwwroot/judog.cc）: " website_path
-    read -p "请输入数据库用户名: " db_username
-    read -s -p "请输入数据库密码: " db_password
-    echo  # 在密码输入后添加一个换行
-    read -p "请输入数据库名称: " db_name
-    read -p "请输入备份文件名（例如，backup.sql）: " backup_file
+    # 提示是否需要修改备份时间
+    read -p "是否需要修改备份时间？ (Y/N): " modify_time_response
+    if [ "$modify_time_response" == "Y" ] || [ "$modify_time_response" == "y" ]; then
+        read -p "请输入新的备份时间（例如，21:20）: " new_backup_time
+        # 提示输入备份天数间隔
+        read -p "请输入备份间隔的天数: " backup_interval
+    else
+        # 从备份脚本中提取备份时间和天数间隔
+        old_backup_time=$(grep -Po 'backup_time=\K[^ ]+' "$backup_script")
+        old_backup_interval=$(grep -Po 'backup_interval=\K[^ ]+' "$backup_script")
+        new_backup_time="$old_backup_time"
+        backup_interval="$old_backup_interval"
+    fi
+
+    # 检查是否需要使用原有信息
+    use_existing_info="N"
+    if [ -e "$backup_script" ]; then
+        read -p "是否使用原有信息设置备份？ (Y/N): " use_existing_info
+    fi
+
+    if [ "$use_existing_info" == "Y" ] || [ "$use_existing_info" == "y" ]; then
+        # 从备份脚本中提取信息
+        if [ -e "$backup_script" ]; then
+            website_path=$(grep -Po 'website_path=\K[^ ]+' "$backup_script")
+            db_username=$(grep -Po 'db_username=\K[^ ]+' "$backup_script")
+            db_password=$(grep -Po 'db_password=\K[^ ]+' "$backup_script")
+            db_name=$(grep -Po 'db_name=\K[^ ]+' "$backup_script")
+            backup_file=$(grep -Po 'backup_file=\K[^ ]+' "$backup_script")
+        else
+            echo "备份脚本不存在或内容不正确。请手动输入备份信息。"
+        fi
+    else
+        read -p "请输入网站目录路径（例如，/www/wwwroot/judog.cc）: " website_path
+        read -p "请输入数据库用户名: " db_username
+        read -s -p "请输入数据库密码: " db_password
+        echo  # 在密码输入后添加一个换行
+        read -p "请输入数据库名称: " db_name
+        read -p "请输入备份文件名（例如，backup.sql）: " backup_file
+    fi
 
     # 创建备份脚本
     echo "#!/bin/bash" > "$backup_script"
     echo "" >> "$backup_script"
     echo "# 切换到网站目录" >> "$backup_script"
-    echo "cd $website_path || exit 1" >> "$backup_script"
+    echo "website_path=$website_path" >> "$backup_script"
+    echo "cd \$website_path || exit 1" >> "$backup_script"
     echo "" >> "$backup_script"
     echo "# 备份数据库" >> "$backup_script"
-    echo "mysqldump -u$db_username -p$db_password $db_name > $backup_file" >> "$backup_script"
+    echo "db_username=$db_username" >> "$backup_script"
+    echo "db_password=$db_password" >> "$backup_script"
+    echo "db_name=$db_name" >> "$backup_script"
+    echo "backup_file=$backup_file" >> "$backup_script"
+    echo 'mysqldump -u$db_username -p$db_password $db_name > $backup_file' >> "$backup_script"
     echo "" >> "$backup_script"
     echo "# 提交更改到Git仓库" >> "$backup_script"
     echo 'git add -A' >> "$backup_script"
     echo 'git commit -m "备份时间：$(date +\%Y\%m\%d\%H\%M)"' >> "$backup_script"
-    echo 'git push -f origin master' >> "$backup_script"
+    
+    # 提交更改到Git仓库并设置默认分支为 main
+    echo 'git push -f origin main' >> "$backup_script"
 
     # 添加备份脚本的执行权限
     chmod +x "$backup_script"
@@ -47,11 +81,16 @@ function set_backup_schedule {
     # 输出设置完成的提示（绿色高亮）
     echo -e "\e[32m备份脚本已生成并保存到 $backup_script，设置完成，操作成功！\e[0m"
 
-# 设置定时备份
-    echo "设置定时备份任务"
-    (crontab -l 2>/dev/null; echo "$backup_time * * * bash $backup_script > ~/siteback.log 2>&1") | crontab -
+    # 转换时间格式为cron表达式
+    cron_minute=$(echo "$new_backup_time" | cut -d':' -f2)
+    cron_hour=$(echo "$new_backup_time" | cut -d':' -f1)
+    cron_day_interval="*/$backup_interval"
 
+    # 设置定时备份任务
+    echo "设置定时备份任务"
+    (crontab -l 2>/dev/null; echo "$cron_minute $cron_hour $cron_day_interval * * bash $backup_script > ~/siteback.log 2>&1") | crontab -
 }
+
 
 
 while :
@@ -323,7 +362,7 @@ echo "${green}网站已成功备份到$remote_name仓库。选择的远程分支
     exit 1
   fi
 else
-  echo -e "\e[31m请返回第三步操作,终止后续命令\e[0m"
+  echo -e "\e[31m没有关联远程仓库,请先执行第三步操作\e[0m"
   exit 1
 fi
 
