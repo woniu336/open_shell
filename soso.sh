@@ -5,6 +5,7 @@ while true; do
     echo "请选择操作:"
     echo "1) 谷歌云一键重装"
 	echo "2) Linux开源面板"
+	echo "3) Frps内网穿透"
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
@@ -17,7 +18,15 @@ while true; do
 		  curl -fsSL https://cdn.jsdelivr.net/gh/midoks/mdserver-web@latest/scripts/install.sh | bash
 		  ;;
 
+        3)
+		  # Frps内网穿透
+		  
+wget https://raw.githubusercontent.com/mvscode/frps-onekey/master/install-frps.sh -O ./install-frps.sh
+chmod 700 ./install-frps.sh
+./install-frps.sh install
 
+		  
+		  ;;
         1)
             # 谷歌云一键重装
             # 提示用户输入谷歌云服务器内网IP
