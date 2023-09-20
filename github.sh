@@ -57,7 +57,8 @@ function set_backup_schedule {
 while :
 do
     clear
-    echo "欢迎使用网站备份工具"
+    echo -e "\e[32m网站备份到github或gitee 默认main分支\e[0m"
+	echo "------------------------"
     echo "1. 配置Git SSH密钥"
     echo "2. 创建GitHub私人仓库"
     echo "3. 配置本地仓库"
@@ -119,9 +120,9 @@ echo -e "\e[32m验证关联中...\e[0m"  # 绿色高亮提示
 
 # 尝试SSH连接GitHub
 if ssh -T git@github.com 2>&1 | grep "successfully authenticated" > /dev/null; then
-  echo -e "\e[32m关联成功\e[0m"  # 验证成功时的绿色高亮提示
+  echo -e "\e[32m连接github成功\e[0m"  # 验证成功时的绿色高亮提示
 else
-  echo -e "\e[31m关联失效\e[0m"  # 验证失败时的红色高亮提示
+  echo -e "\e[31m连接失效\e[0m"  # 验证失败时的红色高亮提示
 fi
 
 
@@ -129,21 +130,16 @@ fi
         2)
             # 创建GitHub私人仓库
             # 2. 创建GitHub私人仓库
-echo "第二步：创建私人GitHub仓库"
-echo "请手动创建一个私人GitHub仓库。然后，按回车键继续..."
+echo -e "\e[1;32m第二步：创建私人GitHub仓库\e[0m"
+echo -e "\e[1;32m请手动创建一个私人GitHub仓库。然后，按回车键继续...\e[0m"
 read
             ;;
         3)
 # 3. 配置本地仓库
-# 定义 ANSI 转义序列来设置绿色文本
-GREEN='\033[0;32m'
 
-# 重置文本样式
-RESET='\033[0m'
-
-echo "第三步：配置本地仓库"
+echo -e "\e[32m第三步：配置本地仓库\e[0m"
 # 提示用户输入网站目录路径，并应用绿色高亮
-echo -e "${GREEN}请输入你的网站目录路径:${RESET}"
+echo "请输入你的网站目录路径:"
 read website_path
 
 # 切换到网站目录
@@ -191,7 +187,7 @@ else
 fi
 
 # 输出配置信息
-echo "已配置的远程仓库别名和URL如下："
+echo -e "\e[32m已配置的远程仓库别名和URL如下：\e[0m"
 git remote -v
 
 
@@ -210,24 +206,128 @@ read -p "请输入备份文件的名称（例如，backup.sql）: " backup_file
 mysqldump -u"$db_username" -p"$db_password" "$db_name" > "$backup_file"
             ;;
         5)
+#!/bin/bash
+
 # 5. 初次备份
-echo "第五步：初次备份"
+
+# 提示用户正在检测与GitHub的连通性
+echo -e "\e[32m正在检测与GitHub的连通性...\e[0m"
+
+# 检测与GitHub的连通性
+if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+  echo -e "\e[32m已连接上GitHub,继续\e[0m"
+else
+  echo -e "\e[31m连接GitHub失效,请返回第一步操作,终止后续命令\e[0m"
+  exit 1
+fi
+
+echo -e "\e[32m第五步：网站备份\e[0m"
 
 # 提示用户输入备份目录
-read -p "请输入你的网站备份目录路径: " backup_dir
-
-# 将备份目录路径添加到备份文件名中
-backup_file="$backup_dir/$backup_file"
+read -p "请输入网站备份目录: " backup_dir
 
 # 切换到备份目录
 cd "$backup_dir" || exit 1
 
-# 将更改提交到本地Git仓库
-git add -A
-git commit -m "初始备份"
+# 获取当前日期并将其格式化为所需的形式
+backup_time=$(date +'%Y-%m-%d')
 
-# 推送到GitHub
-git push -f origin master
+# 获取远程仓库名
+remote_name=$(git remote get-url origin | grep -oE 'github\.com[:/][^/]+/[^/]+\.git' | cut -d '/' -f 2 | cut -d '.' -f 1)
+
+# 检查是否已存在.git目录
+if [ -d ".git" ]; then
+  # 检查是否已关联远程仓库URL
+  if git remote -v | grep -q "origin"; then
+    echo -e "\e[32m已关联远程仓库: $remote_name\e[0m"
+
+    # 确认是否继续（默认是yes）
+    read -p "是否继续备份并推送到GitHub? (yes/no) [yes]: " continue_backup
+
+    # 如果用户没有输入或输入的是 "yes"，则继续执行
+    if [ -z "$continue_backup" ] || [ "$continue_backup" == "yes" ]; then
+      # 继续备份和推送操作
+      echo "继续备份并推送到GitHub"
+    else
+      echo "终止脚本执行"
+      exit 1
+    fi
+
+    # 添加所有更改到暂存区
+    git add .
+
+    # 提交所有更改，包括备份时间
+    git commit -m "备份时间:$backup_time"
+
+    # 获取远程仓库 URL
+    remote_url=$(git config --get remote.origin.url)
+
+    # 获取远程仓库的默认分支
+    default_branch=$(git ls-remote --symref "$remote_url" HEAD | grep "refs/heads/" | cut -d/ -f3)
+
+    # 如果无法获取默认分支，提示用户输入GitHub用户名和仓库名
+    if [ -z "$default_branch" ]; then
+      echo "无法获取默认分支，请手动输入GitHub用户名和仓库名："
+      read -p "GitHub用户名: " github_username
+      read -p "GitHub仓库名: " github_repo
+
+      if [ -z "$github_username" ] || [ -z "$github_repo" ]; then
+        echo "GitHub用户名和仓库名不能为空。"
+        exit 1
+      fi
+
+      # 添加远程仓库，并将默认分支设置为 "main"
+      git remote add origin "git@github.com:$github_username/$github_repo.git"
+      git branch -M main
+      git push -u origin main
+
+      echo "网站已成功备份到新的GitHub仓库: $github_username/$github_repo，默认分支为main"
+      exit 0 # 备份到新的仓库后退出脚本
+    fi
+
+    echo "选择要合并的远程分支:"
+    echo "1) main"
+    echo "2) master"
+    read -p "输入选择 (默认为main): " branch_choice
+
+    case $branch_choice in
+      1) selected_branch="main";;
+      2) selected_branch="master";;
+      *) selected_branch="main";;
+    esac
+
+    if [ "$selected_branch" != "$default_branch" ]; then
+      # 远程默认分支不是选择的分支，将分支更改为选择的分支
+      git push origin :"$default_branch"   # 删除原有分支
+      git branch -M "$selected_branch"     # 创建新的选择的分支
+      git push -u origin "$selected_branch" # 推送新创建的分支到远程仓库
+    fi
+
+# 合并远程分支到本地分支并自动解决冲突
+git fetch origin "$selected_branch"
+git checkout "$selected_branch"
+git merge -X theirs "origin/$selected_branch" --no-edit
+
+# 推送到GitHub的选择的分支
+git push -f origin "$selected_branch"
+
+green=$(tput setaf 2)
+reset=$(tput sgr0)
+
+echo "${green}网站已成功备份到$remote_name仓库。选择的远程分支是: $selected_branch${reset}"
+
+
+    
+  else
+    echo -e "\e[31m未关联远程仓库URL，请返回第三步操作,终止后续命令\e[0m"
+    exit 1
+  fi
+else
+  echo -e "\e[31m请返回第三步操作,终止后续命令\e[0m"
+  exit 1
+fi
+
+
             ;;
         6)
 # 设置定时备份
