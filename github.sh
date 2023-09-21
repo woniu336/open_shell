@@ -106,6 +106,7 @@ do
     echo "6. 设置定时备份"
     echo "7. 强制Pull网站数据"
     echo "8. 修改定时计划"
+	echo "9. 删除远程仓库分支"
     echo "0. 退出"
     read -p "请选择操作(1/2/3/4/5/6/7/8/9): " choice
 
@@ -174,6 +175,8 @@ echo -e "\e[1;32m请手动创建一个私人GitHub仓库。然后，按回车键
 read
             ;;
         3)
+
+
 # 3. 配置本地仓库
 
 echo -e "\e[32m第三步：配置本地仓库\e[0m"
@@ -181,12 +184,14 @@ echo -e "\e[32m第三步：配置本地仓库\e[0m"
 echo "请输入你的网站目录路径:"
 read website_path
 
+# 检查目录是否存在
+if [ ! -d "$website_path" ]; then
+  echo -e "\e[31m目录路径不存在，请检查\e[0m"
+  exit 1
+fi
+
 # 切换到网站目录
 cd "$website_path" || exit 1
-
-# 在这里添加命令以添加例外规则
-#echo "为了确保Git忽略 $website_path 目录的权限问题，运行以下命令："
-git config --global --add safe.directory "$website_path"
 
 # 检查是否已存在.git目录
 if [ -d "$website_path/.git" ]; then
@@ -194,19 +199,14 @@ if [ -d "$website_path/.git" ]; then
   if git remote -v | grep "origin" > /dev/null; then
     # 如果存在远程仓库别名 "origin"，询问用户是否保留、覆盖或添加新的仓库信息
     echo "已存在的远程仓库别名和URL如下："
-    git remote -v
-    read -p "请选择操作 (1=保留, 2=覆盖, 3=添加新的): " choice
+    echo -e "\e[32m$(git remote -v)\e[0m"
+    read -p "请选择操作 (1=默认, 2=覆盖): " choice
     if [ "$choice" == "2" ]; then
       read -p "请输入新的GitHub用户名: " github_username
       read -p "请输入新的GitHub私人仓库名称: " github_repo_name
       # 覆盖现有的远程仓库别名 "origin"
       git remote rm origin
       git remote add origin "git@github.com:$github_username/$github_repo_name.git"
-    elif [ "$choice" == "3" ]; then
-      read -p "请输入新的GitHub用户名: " github_username
-      read -p "请输入新的GitHub私人仓库名称: " github_repo_name
-      # 添加新的远程仓库别名 "origin"
-      git remote set-url --add origin "git@github.com:$github_username/$github_repo_name.git"
     fi
   else
     # 不存在远程仓库别名 "origin"，要求用户输入GitHub仓库信息
@@ -225,10 +225,36 @@ else
   git remote add origin "git@github.com:$github_username/$github_repo_name.git"
 fi
 
-# 输出配置信息
-echo -e "\e[32m已配置的远程仓库别名和URL如下：\e[0m"
-git remote -v
+# 提示检测
 
+echo -e "\e[32m远程仓库检查中...\e[0m"
+
+
+# 验证远程仓库是否存在
+if git ls-remote --exit-code origin; then
+  echo -e "\e[32m远程仓库存在\e[0m"
+else
+  echo -e "\e[31m远程仓库不存在\e[0m"
+  exit 1
+fi
+
+# 提示用户输入GitHub用户名
+read -p "再次验证你的GitHub用户名: " input_username
+
+# 输出配置信息
+echo -e "已配置的远程仓库别名和URL如下："
+echo -e "\e[32m$(git remote -v)\e[0m"
+
+# 检查是否已经成功关联
+if git remote -v | grep -q "origin.*git@github.com:$input_username/"; then
+  echo -e "\e[32m已成功关联远程仓库\e[0m"
+else
+  echo -e "\e[31m未关联到自己的GitHub仓库\e[0m"
+  exit 1
+fi
+
+
+exit 0
 
             ;;
         4)
@@ -257,7 +283,7 @@ if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
   echo -e "\e[32m已连接上GitHub,继续\e[0m"
 else
   echo -e "\e[31m连接GitHub失效,请返回第一步操作,终止后续命令\e[0m"
-  exit 1
+  exit
 fi
 
 echo -e "\e[32m第五步：网站备份\e[0m"
@@ -265,6 +291,11 @@ echo -e "\e[32m第五步：网站备份\e[0m"
 # 提示用户输入备份目录
 read -p "请输入网站备份目录: " backup_dir
 
+# 检查目录是否存在
+if [ ! -d "$backup_dir" ]; then
+  echo -e "\e[31m目录路径不存在，请检查\e[0m"
+
+fi
 # 切换到备份目录
 cd "$backup_dir" || exit 1
 
@@ -280,23 +311,14 @@ if [ -d ".git" ]; then
   if git remote -v | grep -q "origin"; then
     echo -e "\e[32m已关联远程仓库: $remote_name\e[0m"
 
-    # 确认是否继续（默认是yes）
-    read -p "是否继续备份并推送到GitHub? (yes/no) [yes]: " continue_backup
+    echo -e "\e[32m正在检测远程仓库所有分支...\e[0m"
 
-    # 如果用户没有输入或输入的是 "yes"，则继续执行
-    if [ -z "$continue_backup" ] || [ "$continue_backup" == "yes" ]; then
-      # 继续备份和推送操作
-      echo "继续备份并推送到GitHub"
-    else
-      echo "终止脚本执行"
-      exit 1
-    fi
+# 添加所有更改到暂存区，将输出重定向到 /dev/null
+git add . > /dev/null 2>&1
 
-    # 添加所有更改到暂存区
-    git add .
+# 提交所有更改，包括备份时间，将输出重定向到 /dev/null
+git commit -m "备份时间:$backup_time" > /dev/null 2>&1
 
-    # 提交所有更改，包括备份时间
-    git commit -m "备份时间:$backup_time"
 
     # 获取远程仓库 URL
     remote_url=$(git config --get remote.origin.url)
@@ -306,7 +328,7 @@ if [ -d ".git" ]; then
 
     # 如果无法获取默认分支，提示用户输入GitHub用户名和仓库名
     if [ -z "$default_branch" ]; then
-      echo "无法获取默认分支，请手动输入GitHub用户名和仓库名："
+      echo "检测到一个空的远程仓库，请手动输入GitHub用户名和仓库名："
       read -p "GitHub用户名: " github_username
       read -p "GitHub仓库名: " github_repo
 
@@ -324,39 +346,60 @@ if [ -d ".git" ]; then
       exit 0 # 备份到新的仓库后退出脚本
     fi
 
-    echo "选择要合并的远程分支:"
-    echo "1) main"
-    echo "2) master"
-    read -p "输入选择 (默认为main): " branch_choice
+    # 获取远程仓库的所有分支
+    remote_branches=$(git ls-remote --heads "$remote_url" | cut -f2 | cut -d/ -f3)
 
-    case $branch_choice in
-      1) selected_branch="main";;
-      2) selected_branch="master";;
-      *) selected_branch="main";;
-    esac
+    # 打印远程仓库的所有分支供用户选择
 
-    if [ "$selected_branch" != "$default_branch" ]; then
-      # 远程默认分支不是选择的分支，将分支更改为选择的分支
-      git push origin :"$default_branch"   # 删除原有分支
-      git branch -M "$selected_branch"     # 创建新的选择的分支
-      git push -u origin "$selected_branch" # 推送新创建的分支到远程仓库
-    fi
+    echo "远程仓库的所有分支:"
+    branch_options=()
+    for branch in $remote_branches; do
+      branch_options+=("$branch")
+      echo "${#branch_options[@]}) $branch"
+    done
 
-# 合并远程分支到本地分支并自动解决冲突
-git fetch origin "$selected_branch"
-git checkout "$selected_branch"
-git merge -X theirs "origin/$selected_branch" --no-edit
-
-# 推送到GitHub的选择的分支
-git push -f origin "$selected_branch"
-
-green=$(tput setaf 2)
-reset=$(tput sgr0)
-
-echo "${green}网站已成功备份到$remote_name仓库。选择的远程分支是: $selected_branch${reset}"
+    # 询问用户选择分支
+    while true; do
+      read -p "请选择一个分支 (1-${#branch_options[@]}), 或输入新分支名称: " branch_choice
+      if [[ "$branch_choice" =~ ^[0-9]+$ ]] && [ "$branch_choice" -ge 1 ] && [ "$branch_choice" -le "${#branch_options[@]}" ]; then
+        selected_branch="${branch_options[$branch_choice-1]}"
+        break
+      elif [ -n "$branch_choice" ]; then
+        # 用户选择了添加新的分支
+        selected_branch="$branch_choice"
+        # 注意: 这里不要使用 selected_branch，因为用户输入的是新分支名称
+        break
+      else
+        echo "请选择一个分支或输入新分支名称。"
+      fi
+    done
 
 
-    
+    echo -e "\e[32m正在同步到所选分支中...\e[0m"
+
+# 分支合并操作 - 只在选择的分支与默认分支不同时执行
+if [ "$selected_branch" != "$default_branch" ]; then
+  git branch -M "$selected_branch"     # 创建新的选择的分支
+  git push -u origin "$selected_branch" # 推送新创建的分支到远程仓库
+fi
+
+
+
+    # 合并远程分支到本地分支并自动解决冲突
+    git fetch origin "$selected_branch"
+    git checkout "$selected_branch"
+    git merge -X theirs "origin/$selected_branch" --no-edit
+
+
+  # 推送到GitHub的选择的分支
+  git push -f origin "$selected_branch"
+  
+  
+    green=$(tput setaf 2)
+    reset=$(tput sgr0)
+
+    echo "${green}网站已成功备份到$remote_name仓库。选择的远程分支是: $selected_branch${reset}"
+
   else
     echo -e "\e[31m未关联远程仓库URL，请返回第三步操作,终止后续命令\e[0m"
     exit 1
@@ -406,6 +449,11 @@ fi
             # 更新定时任务
             (crontab -l 2>/dev/null | grep -v "$website_path/backup.sh"; echo "$new_backup_time * * * * $website_path/backup.sh") | crontab -
             ;;
+		9)
+		   # 删除远程仓库分支
+		   git push origin --delete test
+		   
+		   ;;
         0)
             # 退出脚本
             echo "退出脚本"
