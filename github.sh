@@ -273,31 +273,87 @@ mysqldump -u"$db_username" -p"$db_password" "$db_name" > "$backup_file"
         5)
 #!/bin/bash
 
-# 5. 初次备份
+check_github_connectivity() {
+  echo -e "\e[32m正在检测与GitHub的连通性...\e[0m"
+  if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+    echo -e "\e[32m已连接上GitHub，继续\e[0m"
+  else
+    echo -e "\e[31m连接GitHub失效，请返回第一步操作，终止后续命令\e[0m"
+    exit 1
+  fi
+}
 
-# 提示用户正在检测与GitHub的连通性
-echo -e "\e[32m正在检测与GitHub的连通性...\e[0m"
+get_database_info() {
+  read -p "请输入数据库用户名: " db_username
+  read -s -p "请输入数据库密码: " db_password
+  echo # 在密码输入后添加一个换行
+  read -p "请输入数据库名称: " db_name
 
-# 检测与GitHub的连通性
-if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-  echo -e "\e[32m已连接上GitHub,继续\e[0m"
-else
-  echo -e "\e[31m连接GitHub失效,请返回第一步操作,终止后续命令\e[0m"
-  exit
-fi
+  # 统一使用backup.txt和backup.sql作为默认值
+  backup_name="backup.txt"
+  backup_file="backup.sql"
+
+  # 将信息写入.txt文件，存储在/root/lufei/datainfo/目录中
+  echo "db_username=$db_username" > "/root/lufei/datainfo/$backup_name"
+  echo "db_password=$db_password" >> "/root/lufei/datainfo/$backup_name"
+  echo "db_name=$db_name" >> "/root/lufei/datainfo/$backup_name"
+  echo "backup_file=$backup_file" >> "/root/lufei/datainfo/$backup_name"
+}
+
+backup_database() {
+  if mysqldump -h localhost -u "$db_username" -p"$db_password" "$db_name" > "$back_dir/$backup_file"; then
+    echo -e "\e[32m数据库备份完成，存放目录: $back_dir/\e[0m"
+  else
+    echo -e "\e[31m数据库备份失败,请检查数据库信息是否有误\e[0m"
+    exit 1
+  fi
+}
 
 echo -e "\e[32m第五步：网站备份\e[0m"
 
-# 提示用户输入备份目录
 read -p "请输入网站备份目录: " backup_dir
 
-# 检查目录是否存在
 if [ ! -d "$backup_dir" ]; then
   echo -e "\e[31m目录路径不存在，请检查\e[0m"
-
+  exit 1
 fi
-# 切换到备份目录
+
 cd "$backup_dir" || exit 1
+
+check_github_connectivity
+
+back_dir="$backup_dir/lufei/backup"
+if [ ! -d "$back_dir" ]; then
+  mkdir -p "$back_dir"
+fi
+
+echo "请确认是否需要备份数据库 (y/n): "
+read -r need_backup_db
+
+if [ "$need_backup_db" = "y" ]; then
+  if [ -f "/root/lufei/datainfo/backup.txt" ]; then
+    read -p "发现已有数据库信息，是否要使用原有信息？(y/n): " use_existing_info
+    if [ "$use_existing_info" = "y" ]; then
+      source "/root/lufei/datainfo/backup.txt"
+      backup_database
+    elif [ "$use_existing_info" = "n" ]; then
+      get_database_info
+      backup_database
+    else
+      echo "无效的输入，请输入 'y' 或 'n' 来确认是否使用原有数据库信息。"
+      exit 1
+    fi
+  else
+    get_database_info
+    backup_database
+  fi
+elif [ "$need_backup_db" = "n" ]; then
+  echo -e "\e[32m不需要备份数据库，继续后续操作\e[0m"
+else
+  echo "无效的输入，请输入 'y' 或 'n' 来确认是否需要备份数据库。"
+  exit 1
+fi
+
 
 # 获取当前日期并将其格式化为所需的形式
 backup_time=$(date +'%Y-%m-%d')
@@ -407,7 +463,7 @@ fi
 else
   echo -e "\e[31m没有关联远程仓库,请先执行第三步操作\e[0m"
   exit 1
-fi
+ fi
 
 
             ;;
