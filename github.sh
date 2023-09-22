@@ -293,11 +293,17 @@ get_database_info() {
   backup_name="backup.txt"
   backup_file="backup.sql"
 
+  # 自动创建datainfo目录，如果不存在
+  datainfo_dir="/root/lufei/datainfo"
+  if [ ! -d "$datainfo_dir" ]; then
+    mkdir -p "$datainfo_dir"
+  fi
+
   # 将信息写入.txt文件，存储在/root/lufei/datainfo/目录中
-  echo "db_username=$db_username" > "/root/lufei/datainfo/$backup_name"
-  echo "db_password=$db_password" >> "/root/lufei/datainfo/$backup_name"
-  echo "db_name=$db_name" >> "/root/lufei/datainfo/$backup_name"
-  echo "backup_file=$backup_file" >> "/root/lufei/datainfo/$backup_name"
+  echo "db_username=$db_username" > "$datainfo_dir/$backup_name"
+  echo "db_password=$db_password" >> "$datainfo_dir/$backup_name"
+  echo "db_name=$db_name" >> "$datainfo_dir/$backup_name"
+  echo "backup_file=$backup_file" >> "$datainfo_dir/$backup_name"
 }
 
 backup_database() {
