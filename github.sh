@@ -1,9 +1,62 @@
 #!/bin/bash
-# 6. 设置定时备份
+# 设置定时备份
+
+# 检查SSH与GitHub服务器的连接状态
+check_github_connectivity() {
+    echo -e "\e[32m正在检测与GitHub的连通性...\e[0m"
+
+    # 尝试SSH连接到GitHub
+    github_status=$(ssh -T git@github.com 2>&1)
+
+    if echo "$github_status" | grep -q "successfully authenticated"; then
+        github_message="\e[32m已连接上GitHub，继续\e[0m"
+    else
+        github_message="\e[31mSSH连接到GitHub服务器失败，请检查SSH密钥和GitHub配置。\e[0m"
+        echo "$github_message"
+        exit 1
+    fi
+
+    echo -e "$github_message"
+}
+
+# 添加检查本地仓库与远程仓库的关联函数
+check_remote_association() {
+    local git_dir="$1/.git"
+    
+    if [ -d "$git_dir" ]; then
+        # 本地仓库存在，检查是否关联了远程仓库
+        remote_url=$(git -C "$1" config --get remote.origin.url)
+        if [ -n "$remote_url" ]; then
+            echo -e "\e[32m本地仓库已关联远程仓库：$remote_url\e[0m"
+        else
+            echo -e "\e[31m本地仓库未关联远程仓库，请关联后再继续\e[0m"
+            exit 1
+        fi
+    else
+        echo -e "\e[31m本地仓库目录不存在，请检查路径\e[0m"
+        exit 1
+    fi
+}
 
 function set_backup_schedule {
+
+    # 提示输入网站备份目录
+    read -p "请输入网站备份目录: " website_path
+
+    # 在这里嵌入检查GitHub连接的函数
+    check_github_connectivity
+	
+   # 检查本地仓库与远程仓库的关联
+    check_remote_association "$website_path"
+
     # 备份脚本路径
     backup_script="$HOME/backup.sh"
+    
+    # 创建备份目录
+    backup_dir="$website_path/lufei/backup"
+    if [ ! -d "$backup_dir" ]; then
+        mkdir -p "$backup_dir"
+    fi
 
     # 检查备份脚本是否已存在
     if [ -e "$backup_script" ]; then
@@ -26,22 +79,29 @@ function set_backup_schedule {
         read -p "是否使用原有信息设置备份？ (Y/N): " use_existing_info
     fi
 
-if [ "$use_existing_info" == "Y" ] || [ "$use_existing_info" == "y" ]; then
-    # 从备份脚本中提取信息
-    if [ -e "$backup_script" ]; then
-        source "$backup_script" # 导入备份脚本中的变量
-    else
-        echo "备份脚本不存在或内容不正确。请手动输入备份信息。"
+    if [ "$use_existing_info" != "Y" ] && [ "$use_existing_info" != "y" ]; then
+        read -p "请输入网站备份目录: " website_path
     fi
-else
-    read -p "请输入网站目录路径（例如，/www/wwwroot/judog.cc）: " website_path
-    read -p "请输入数据库用户名: " db_username
-    read -s -p "请输入数据库密码: " db_password
-    echo  # 在密码输入后添加一个换行
-    read -p "请输入数据库名称: " db_name
-    backup_file="backup.sql" # 统一使用backup.sql作为默认值
-fi
 
+    # 添加选择备份到哪个分支的功能
+    echo -e "\e[32m正在检测远程仓库所有分支...\e[0m"
+    branches=$(git -C "$website_path" ls-remote --heads "$remote_url" | cut -f2 | sed 's/refs\/heads\///')
+    PS3=""  # 清除select结构的提示符
+    echo "输入序号选择备份到哪个分支:"
+    select branch in $branches; do
+        if [ -n "$branch" ]; then
+            echo "已选择备份到分支: $branch"
+            break
+        else
+            echo "无效的选择，请重新选择。"
+        fi
+    done
+
+    # 在备份脚本中使用用户选择的分支进行推送
+    if [ "$branch" != "$(git -C "$website_path" symbolic-ref --short HEAD)" ]; then
+        # 如果用户选择的分支与当前分支不同，切换到用户选择的分支
+        git -C "$website_path" checkout "$branch"
+    fi
 
     # 创建备份脚本
     echo "#!/bin/bash" > "$backup_script"
@@ -49,48 +109,18 @@ fi
     echo "# 切换到网站目录" >> "$backup_script"
     echo "website_path=\"$website_path\"" >> "$backup_script"
     echo "cd \"\$website_path\" || exit 1" >> "$backup_script"
-    echo "" >> "$backup_script"
-    echo "# 备份数据库" >> "$backup_script"
-    echo "db_username=\"$db_username\"" >> "$backup_script"
-    echo "db_password=\"$db_password\"" >> "$backup_script"
-    echo "db_name=\"$db_name\"" >> "$backup_script"
-    echo "backup_file=\"$backup_file\"" >> "$backup_script"
-    echo "backup_dir=\"$website_path/lufei/backup\"" >> "$backup_script"
-    echo 'mysqldump -u"$db_username" -p"$db_password" "$db_name" > "$backup_dir/$backup_file"' >> "$backup_script"
 
     echo "" >> "$backup_script"
     echo "# 提交更改到Git仓库" >> "$backup_script"
     echo 'git add -A' >> "$backup_script"
     echo 'git commit -m "备份时间：$(date +\%Y\%m\%d\%H\%M)"' >> "$backup_script"
-
-    # 添加选择备份到哪个分支的功能
-    remote_url=$(git -C "$website_path" config --get remote.origin.url)
-    echo -e "\e[32m远程仓库地址: $remote_url\e[0m"
-	echo -e "\e[32m正在检测远程仓库所有分支...\e[0m"
-    branches=$(git -C "$website_path" ls-remote --heads "$remote_url" | cut -f2 | sed 's/refs\/heads\///')
-	PS3=""  # 清除select结构的提示符
-    echo "请选择备份到哪个分支:"
-    select branch in $branches; do
-        if [ -n "$branch" ]; then
-            echo "已选择备份到分支: $branch"
-			# 切换到所选分支
-            git branch -m "$branch"
-            # 修改提交更改的命令，将更改推送到所选的分支
-            echo "git push -f origin $branch" >> "$backup_script"
-            break
-        else
-            echo "无效的选择，请重新选择。"
-        fi
-    done  
-
-
-
+    echo "git push -f origin $branch" >> "$backup_script"  # 推送更改到用户选择的分支
 
     # 添加备份脚本的执行权限
     chmod +x "$backup_script"
 
     # 输出设置完成的提示（绿色高亮）
-    echo -e "\e[32m备份脚本已生成并保存到 $backup_script，设置完成，操作成功！\e[0m"
+    echo -e "\e[32m设置完成,备份脚本路径: $backup_script\e[0m"
 
     # 转换时间格式为cron表达式
     cron_minute=$(echo "$new_backup_time" | cut -d':' -f2)
@@ -109,25 +139,24 @@ fi
 }
 
 
+
 while :
 do
     clear
-    echo -e "\e[32m网站备份到github或gitee 默认main分支\e[0m"
+    echo -e "\e[32m网站备份到github 默认main分支\e[0m"
 	echo "------------------------"
-    echo "1. 配置Git SSH密钥"
-    echo "2. 创建GitHub私人仓库"
-    echo "3. 配置本地仓库"
-    echo "4. 备份数据库"
-    echo "5. 进行初次备份"
+    echo "1. 创建GitHub仓库"
+    echo "2. 连接GitHub服务器"
+    echo "3. 关联GitHub仓库"
+    echo "4. 网站备份"
+    echo "5. 网站还原"
     echo "6. 设置定时备份"
-    echo "7. 强制Pull网站数据"
-    echo "8. 修改定时计划"
-	echo "9. 删除远程仓库分支"
+    echo "7. 修改定时计划"
     echo "0. 退出"
-    read -p "请选择操作(1/2/3/4/5/6/7/8/9): " choice
+    read -p "请选择操作(1/2/3/4/5/6/7/0): " choice
 
     case $choice in
-        1)
+        2)
 # 检查是否存在~/.gitconfig文件
 if [ -f ~/.gitconfig ]; then
   # 读取~/.gitconfig中的用户名和邮箱
@@ -183,7 +212,7 @@ fi
 
 
             ;;
-        2)
+        1)
             # 创建GitHub私人仓库
             # 2. 创建GitHub私人仓库
 echo -e "\e[1;32m第二步：创建私人GitHub仓库\e[0m"
@@ -191,7 +220,14 @@ echo -e "\e[1;32m请手动创建一个私人GitHub仓库。然后，按回车键
 read
             ;;
         3)
-
+# 检测SSH连接到GitHub服务器是否正常
+echo -e "\e[32m检测SSH连接到GitHub服务器是否正常...\e[0m"
+if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+  echo -e "\e[32m成功连接上github服务器\e[0m"
+else
+  echo -e "\e[31mSSH连接失败，请检查您的SSH配置\e[0m"
+  exit 1
+fi
 
 # 3. 配置本地仓库
 
@@ -208,6 +244,8 @@ fi
 
 # 切换到网站目录
 cd "$website_path" || exit 1
+
+git config --global --add safe.directory "$website_path"
 
 # 检查是否已存在.git目录
 if [ -d "$website_path/.git" ]; then
@@ -245,10 +283,9 @@ fi
 
 echo -e "\e[32m远程仓库检查中...\e[0m"
 
-
-# 验证远程仓库是否存在
-if git ls-remote --exit-code origin; then
-  echo -e "\e[32m远程仓库存在\e[0m"
+  # 检查是否已关联远程仓库URL
+  if git remote -v | grep -q "origin"; then
+    echo -e "\e[32m已关联远程仓库: $remote_name\e[0m"
 else
   echo -e "\e[31m远程仓库不存在\e[0m"
   exit 1
@@ -274,19 +311,6 @@ exit 0
 
             ;;
         4)
-            # 备份数据库
-           # 4. 备份数据库
-echo "第四步：备份数据库"
-cd "$website_path" || exit 1
-# 输入数据库信息
-read -p "请输入你的数据库用户名: " db_username
-read -p "请输入你的数据库密码: " db_password
-echo  # 在密码输入后添加一个换行
-read -p "请输入你的数据库名称: " db_name
-read -p "请输入备份文件的名称（例如，backup.sql）: " backup_file
-mysqldump -u"$db_username" -p"$db_password" "$db_name" > "$backup_file"
-            ;;
-        5)
 #!/bin/bash
 
 check_github_connectivity() {
@@ -331,7 +355,7 @@ backup_database() {
   fi
 }
 
-echo -e "\e[32m第五步：网站备份\e[0m"
+echo -e "\e[32m第4步：网站备份\e[0m"
 
 read -p "请输入网站备份目录: " backup_dir
 
@@ -389,7 +413,7 @@ if [ -d ".git" ]; then
   if git remote -v | grep -q "origin"; then
     echo -e "\e[32m已关联远程仓库: $remote_name\e[0m"
 
-    echo -e "\e[32m正在检测远程仓库所有分支...\e[0m"
+    echo "正在检测远程仓库所有分支..."
 
 # 添加所有更改到暂存区，将输出重定向到 /dev/null
 git add . > /dev/null 2>&1
@@ -420,25 +444,26 @@ git commit -m "备份时间:$backup_time" > /dev/null 2>&1
       git branch -M main
       git push -u origin main
 
-      echo "网站已成功备份到新的GitHub仓库: $github_username/$github_repo，默认分支为main"
+      GREEN='\033[32m'
+RESET='\033[0m'
+
+echo -e "${GREEN}备份成功!${RESET}"
+
       exit 0 # 备份到新的仓库后退出脚本
     fi
 
-    # 获取远程仓库的所有分支
-    remote_branches=$(git ls-remote --heads "$remote_url" | cut -f2 | cut -d/ -f3)
+# 列出远程分支并以数字序号方式提示选择
 
-    # 打印远程仓库的所有分支供用户选择
-
-    echo "远程仓库的所有分支:"
-    branch_options=()
-    for branch in $remote_branches; do
-      branch_options+=("$branch")
-      echo "${#branch_options[@]}) $branch"
-    done
+echo -e "\e[32m远程分支列表：\e[0m"
+git fetch --all
+branch_options=($(git branch -r | grep -v '\->' | sed 's/origin\///'))
+for i in "${!branch_options[@]}"; do
+    echo "$((i + 1)): ${branch_options[$i]}"
+done
 
     # 询问用户选择分支
     while true; do
-      read -p "请选择一个分支 (1-${#branch_options[@]}), 或输入新分支名称: " branch_choice
+      read -p "输入序号选择分支: " branch_choice
       if [[ "$branch_choice" =~ ^[0-9]+$ ]] && [ "$branch_choice" -ge 1 ] && [ "$branch_choice" -le "${#branch_options[@]}" ]; then
         selected_branch="${branch_options[$branch_choice-1]}"
         break
@@ -463,7 +488,7 @@ fi
 
 
 
-    # 合并远程分支到本地分支并自动解决冲突
+    # 合并远程分支到本地分支并自动解决冲突,theirs策略会优先选择远程仓库的更改，忽略本地的更改
     git fetch origin "$selected_branch"
     git checkout "$selected_branch"
     git merge -X theirs "origin/$selected_branch" --no-edit
@@ -476,7 +501,7 @@ fi
     green=$(tput setaf 2)
     reset=$(tput sgr0)
 
-    echo "${green}网站已成功备份到$remote_name仓库。选择的远程分支是: $selected_branch${reset}"
+    echo "${green}备份成功!"
 
   else
     echo -e "\e[31m未关联远程仓库URL，请返回第三步操作,终止后续命令\e[0m"
@@ -494,29 +519,84 @@ else
             set_backup_schedule
 
             ;;
-        7)
-            # 强制Pull网站数据
-echo "第七步：强制Pull网站数据"
-
-cd "$website_path" || exit 1
-
-# 检查是否存在未提交的本地更改
-if git diff --quiet; then
-    git pull --force origin master
-    echo "网站数据已成功强制更新。"
+        5)
+#!/bin/bash
+# 检测SSH连接到GitHub服务器是否正常
+echo -e "\e[32m正在检测与GitHub的连通性...\e[0m"
+if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
+  echo -e "\e[32m成功连接上GitHub!\e[0m"
 else
-    echo "警告: 本地有未提交的更改，强制Pull将覆盖这些更改。"
-    read -p "是否继续？(y/n): " confirm
-    if [ "$confirm" == "y" ] || [ "$confirm" == "Y" ]; then
-        git reset --hard origin/master
-        git pull --force origin master
-        echo "网站数据已成功强制更新。"
+  echo -e "\e[31m连接GitHub失败，请检查您的SSH配置\e[0m"
+  exit 1
+fi
+
+echo -e "\e[32m第5步：网站还原\e[0m"
+
+# 提示输入网站还原目录
+read -p "请输入网站还原目录: " website_path
+cd "$website_path" || exit 1
+git config --global --add safe.directory "$website_path"
+
+# 检查是否是一个有效的本地仓库
+if [ -d .git ]; then
+    echo "本地仓库存在。"
+else
+    echo -e "\e[32m本地仓库不存在，正在初始化...\e[0m"
+    git init  # 初始化本地仓库
+    read -p "请输入GitHub用户名: " github_username
+	# 设置 Git 的用户名
+    read -p "请输入GitHub仓库名: " github_repo_name
+	git remote add origin "git@github.com:$github_username/$github_repo_name.git"
+    echo "远程仓库已关联到本地仓库。"
+fi
+
+# 列出远程分支并以数字序号方式提示选择
+echo -e "\e[32m正在检测远程仓库所有分支...\e[0m"
+echo -e "\e[32m远程分支列表：\e[0m"
+git fetch --all
+branches=($(git branch -r | grep -v '\->' | sed 's/origin\///'))
+for i in "${!branches[@]}"; do
+    echo "$((i + 1)): ${branches[$i]}"
+done
+
+read -p $'\e[32m输入序号选择从哪个分支还原: \e[0m' branch_number
+
+if [[ "$branch_number" =~ ^[0-9]+$ ]]; then
+    if [ "$branch_number" -ge 1 ] && [ "$branch_number" -le "${#branches[@]}" ]; then
+        selected_branch="${branches[$branch_number - 1]}"
+        # 在执行 pull 前提示本地数据将被覆盖，并确认是否继续
+        read -p $'\e[32m警告：本地数据将被覆盖，是否继续？(y/n): \e[0m' confirm
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+            git fetch origin "$selected_branch"
+            git reset --hard "origin/$selected_branch"
+            echo -e "\e[32m还原成功!\e[0m"
+
+            # 检查并删除多出文件和文件夹
+            echo "检查本地多余文件和文件夹..."
+            clean_output=$(git clean -nd | sed 's/^Would remove //' | sed 's/^Removing //')  # 存储并处理输出
+            if echo "$clean_output" | grep -q "[a-zA-Z0-9]"; then
+                echo "$clean_output"  # 打印多余文件和文件夹列表
+                read -p $'\e[32m是否删除多余文件和文件夹？(y/n): \e[0m' clean_confirm
+                if [ "$clean_confirm" = "y" ] || [ "$clean_confirm" = "Y" ]; then
+                    git clean -df  # 实际删除多出文件和文件夹
+                    echo -e "\e[32m多余文件和文件夹已删除。\e[0m"
+                else
+                    echo -e "\e[32m未删除多余文件和文件夹。\e[0m"
+                fi
+            else
+                echo -e "\e[32m没有多余文件和文件夹。\e[0m"
+            fi
+        else
+            echo "操作已取消。"
+        fi
     else
-        echo "操作已取消。"
+        echo "无效的选择。"
     fi
+else
+    echo "无效的选择。"
 fi
             ;;
-        8)
+        7)
             # 修改定时计划
             echo "第八步：修改定时计划"
             read -p "请输入新的备份时间（例如，05:15）: " new_backup_time
@@ -527,11 +607,6 @@ fi
             # 更新定时任务
             (crontab -l 2>/dev/null | grep -v "$website_path/backup.sh"; echo "$new_backup_time * * * * $website_path/backup.sh") | crontab -
             ;;
-		9)
-		   # 删除远程仓库分支
-		   git push origin --delete test
-		   
-		   ;;
         0)
             # 退出脚本
             echo "退出脚本"
