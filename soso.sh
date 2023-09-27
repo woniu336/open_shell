@@ -6,6 +6,7 @@ while true; do
     echo "1) 谷歌云一键重装"
 	echo "2) Linux开源面板"
 	echo "3) Frps内网穿透"
+	echo "4) cloudflared隧道"
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
@@ -26,6 +27,15 @@ chmod 700 ./install-frps.sh
 ./install-frps.sh install
 
 		  
+		  ;;
+		  
+		 4)
+		  # cloudflared隧道
+		  
+		  
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/cloudflared.sh && chmod +x cloudflared.sh && ./cloudflared.sh
+
+		
 		  ;;
         1)
             # 谷歌云一键重装
