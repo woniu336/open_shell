@@ -8,7 +8,7 @@ while true; do
         case $REPLY in
             1)
                 # 脚本一: 创建隧道
-                source <(curl -s https://raw.githubusercontent.com/cloudflare/cloudflared/main/scripts/cloudflared-installer)
+                source <(wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb && sudo dpkg -i cloudflared-linux-amd64.deb)
                 mkdir -p "$HOME/.cloudflared"
                 echo -e "\e[32m请复制以下网址到浏览器中，然后选择域名完成验证，如已验证成功请忽略~\e[0m"
                 cloudflared tunnel login
