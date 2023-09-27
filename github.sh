@@ -148,8 +148,8 @@ do
     echo "1. 创建GitHub仓库"
     echo "2. 连接GitHub服务器"
     echo "3. 关联GitHub仓库"
-    echo "4. 网站备份"
-    echo "5. 网站还原"
+    echo "4. 推送到github"
+    echo "5. 拉取到本地"
     echo "6. 设置定时备份"
     echo "7. 修改定时计划"
     echo "0. 退出"
@@ -187,7 +187,7 @@ read -p "" github_email
 fi
 
 # 生成SSH密钥
-echo -e "\e[32m第一步：配置Git SSH密钥\e[0m"  # 绿色高亮提示
+echo -e "\e[32m第 2 步：连接GitHub服务器\e[0m"  # 绿色高亮提示
 
 ssh-keygen -t rsa -b 4096 -C "$github_email" -N "" -f ~/.ssh/id_rsa
 
@@ -205,9 +205,9 @@ echo -e "\e[32m验证关联中...\e[0m"  # 绿色高亮提示
 
 # 尝试SSH连接GitHub
 if ssh -T git@github.com 2>&1 | grep "successfully authenticated" > /dev/null; then
-  echo -e "\e[32m连接github成功\e[0m"  # 验证成功时的绿色高亮提示
+  echo -e "\e[32m连接github成功!\e[0m"  # 验证成功时的绿色高亮提示
 else
-  echo -e "\e[31m连接失效\e[0m"  # 验证失败时的红色高亮提示
+  echo -e "\e[31m连接github失效\e[0m"  # 验证失败时的红色高亮提示
 fi
 
 
@@ -215,7 +215,7 @@ fi
         1)
             # 创建GitHub私人仓库
             # 2. 创建GitHub私人仓库
-echo -e "\e[1;32m第二步：创建私人GitHub仓库\e[0m"
+echo -e "\e[1;32m第 1 步：创建私人GitHub仓库\e[0m"
 echo -e "\e[1;32m请手动创建一个私人GitHub仓库。然后，按回车键继续...\e[0m"
 read
             ;;
@@ -231,7 +231,7 @@ fi
 
 # 3. 配置本地仓库
 
-echo -e "\e[32m第三步：配置本地仓库\e[0m"
+echo -e "\e[32m第 3 步：关联GitHub仓库\e[0m"
 # 提示用户输入网站目录路径，并应用绿色高亮
 echo "请输入你的网站目录路径:"
 read website_path
@@ -318,7 +318,7 @@ check_github_connectivity() {
   if ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
     echo -e "\e[32m已连接上GitHub，继续\e[0m"
   else
-    echo -e "\e[31m连接GitHub失效，请返回第一步操作，终止后续命令\e[0m"
+    echo -e "\e[31m连接GitHub失效，请返回第 2 步操作，终止后续命令\e[0m"
     exit 1
   fi
 }
@@ -355,7 +355,7 @@ backup_database() {
   fi
 }
 
-echo -e "\e[32m第4步：网站备份\e[0m"
+echo -e "\e[32m第 4 步：推送到github\e[0m"
 
 read -p "请输入网站备份目录: " backup_dir
 
@@ -364,7 +364,32 @@ if [ ! -d "$backup_dir" ]; then
   exit 1
 fi
 
+# 切换到备份目录，如果切换失败，则退出
 cd "$backup_dir" || exit 1
+
+# 提示用户是否需要排除文件或文件夹
+read -p "是否需要排除文件或文件夹 (y/n)? " answer
+
+if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+    # 提示用户输入要排除的文件或文件夹名称
+    read -p "请输入要排除的文件或文件夹名称: " exclude_name
+
+    # 检查是否存在该名称的文件
+    if [ -f "$exclude_name" ]; then
+        echo "$exclude_name" >> .gitignore
+    fi
+
+    # 检查是否存在该名称的文件夹
+    if [ -d "$exclude_name" ]; then
+        echo "$exclude_name/" >> .gitignore
+    fi
+
+    # 提示用户 .gitignore 文件已更新
+    echo "已将以下内容添加到 .gitignore 文件:"
+    echo "$exclude_name 或 $exclude_name/（取决于存在的类型）"
+else
+    echo "没有添加任何排除规则到 .gitignore 文件。"
+fi
 
 check_github_connectivity
 
@@ -447,7 +472,7 @@ git commit -m "备份时间:$backup_time" > /dev/null 2>&1
       GREEN='\033[32m'
 RESET='\033[0m'
 
-echo -e "${GREEN}备份成功!${RESET}"
+echo -e "${GREEN}推送成功!${RESET}"
 
       exit 0 # 备份到新的仓库后退出脚本
     fi
@@ -501,7 +526,7 @@ fi
     green=$(tput setaf 2)
     reset=$(tput sgr0)
 
-    echo "${green}备份成功!"
+    echo "${green}推送成功!"
 
   else
     echo -e "\e[31m未关联远程仓库URL，请返回第三步操作,终止后续命令\e[0m"
@@ -530,7 +555,7 @@ else
   exit 1
 fi
 
-echo -e "\e[32m第5步：网站还原\e[0m"
+echo -e "\e[32m第 5 步：拉取到本地\e[0m"
 
 # 提示输入网站还原目录
 read -p "请输入网站还原目录: " website_path
@@ -569,7 +594,7 @@ if [[ "$branch_number" =~ ^[0-9]+$ ]]; then
         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
             git fetch origin "$selected_branch"
             git reset --hard "origin/$selected_branch"
-            echo -e "\e[32m还原成功!\e[0m"
+            echo -e "\e[32m拉取成功!\e[0m"
 
             # 检查并删除多出文件和文件夹
             echo "检查本地多余文件和文件夹..."
@@ -597,15 +622,70 @@ else
 fi
             ;;
         7)
-            # 修改定时计划
-            echo "第八步：修改定时计划"
-            read -p "请输入新的备份时间（例如，05:15）: " new_backup_time
+clear
+# 备份脚本的路径
+backup_script="/root/backup.sh"
 
-            # 编辑现有备份脚本
-            sed -i "s/$backup_time/$new_backup_time/g" backup.sh
+# 日志文件路径
+log_file="~/siteback.log"
 
-            # 更新定时任务
-            (crontab -l 2>/dev/null | grep -v "$website_path/backup.sh"; echo "$new_backup_time * * * * $website_path/backup.sh") | crontab -
+# 显示菜单
+function display_menu() {
+    echo "请选择操作:"
+    echo "1. 设置新的备份时间"
+    echo "2. 删除现有定时任务"
+    echo "3. 退出"
+}
+
+# 获取用户选择
+function get_choice() {
+    read -p "请输入选项 (1/2/3): " choice
+    case "$choice" in
+        1) set_new_backup_time ;;
+        2) remove_existing_cronjob ;;
+        3) exit 0 ;;
+        *) echo "无效的选项，请重新选择。" ; get_choice ;;
+    esac
+}
+
+# 设置新的备份时间
+function set_new_backup_time() {
+    read -p "请输入新的备份时间（格式：HH:MM，例如：21:09）: " new_backup_time
+    # 解析小时和分钟
+    cron_hour=$(echo "$new_backup_time" | cut -d':' -f1)
+    cron_minute=$(echo "$new_backup_time" | cut -d':' -f2)
+
+    read -p "请输入备份间隔（每隔几天执行一次，例如：1表示每天，2表示每隔两天）: " backup_interval
+    
+    # 生成cron表达式
+    cron_day_interval="*/$backup_interval"
+
+    # 移除旧的定时任务
+    (crontab -l 2>/dev/null | grep -vF "backup.sh") | crontab -
+    
+    # 设置新的定时备份任务
+    (crontab -l 2>/dev/null; echo "$cron_minute $cron_hour * * $cron_day_interval bash $backup_script > $log_file 2>&1") | crontab -
+    
+    echo -e "\e[32m新的备份时间已设置。\e[0m"
+}
+
+# 删除现有的定时任务
+function remove_existing_cronjob() {
+    existing_cronjob=$(crontab -l 2>/dev/null | grep -F "backup.sh")
+    if [ -n "$existing_cronjob" ]; then
+        (crontab -l 2>/dev/null | grep -vF "backup.sh") | crontab -
+        echo -e "\e[32m现有的定时任务已删除。\e[0m"
+    else
+        echo "没有找到包含备份脚本的定时任务。"
+    fi
+}
+
+# 主菜单循环
+while true; do
+    display_menu
+    get_choice
+done
+
             ;;
         0)
             # 退出脚本
