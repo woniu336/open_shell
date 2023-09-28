@@ -312,6 +312,77 @@ delete_schedule_task() {
     read -p "按任意键返回主菜单..."
 }
 
+# 函数：数据库备份
+backup_database() {
+
+    echo "数据库备份"
+    echo -e "\e[32m请输入网站目录:\e[0m"  # 绿色高亮提示
+    read -p "" source_cloud_path
+
+    # 检查网站备份目录是否存在，如果不存在则创建
+    if [ ! -d "$source_cloud_path" ]; then
+        mkdir -p "$source_cloud_path"
+        echo -e "\e[32m网站目录已创建: $source_cloud_path\e[0m"
+    fi
+
+    # 进入网站备份目录
+    cd "$source_cloud_path" || exit 1
+
+    # 创建 backup 目录（如果不存在）
+    backup_dir="backup"
+    if [ ! -d "$backup_dir" ]; then
+        mkdir -p "$backup_dir"
+        echo -e "\e[32m创建备份目录: $backup_dir\e[0m"
+    fi
+
+    # 检查是否存在数据库信息文件 info.txt
+    info_dir="/root/s3"
+    info_file="$info_dir/info.txt"
+
+    if [ ! -d "$info_dir" ]; then
+        mkdir -p "$info_dir"
+        echo -e "\e[32m创建数据库信息目录: $info_dir\e[0m"
+    fi
+
+    if [ -f "$info_file" ]; then
+        echo -e "\e[32m已检测到数据库信息文件 info.txt。\e[0m"
+        read -p "是否使用原有数据库信息？(yes/no): " use_existing_info
+        if [ "$use_existing_info" == "yes" ]; then
+            # 从 info.txt 文件读取数据库信息
+            db_info=$(cat "$info_file")
+        else
+            # 提示用户输入数据库信息
+            echo -e "\e[32m请输入数据库信息\e[0m"
+            read -p "数据库用户名: " db_username
+            read -p "数据库密码: " db_password
+            read -p "数据库名称: " db_name
+            # 将数据库信息写入 info.txt 文件
+            echo "$db_username:$db_password:$db_name" > "$info_file"
+        fi
+    else
+        # 创建 info.txt 文件并提示用户输入数据库信息
+        touch "$info_file"
+        echo -e "\e[32m请输入数据库信息\e[0m"
+        read -p "数据库用户名: " db_username
+        read -p "数据库密码: " db_password
+        read -p "数据库名称: " db_name
+        # 将数据库信息写入 info.txt 文件
+        echo "$db_username:$db_password:$db_name" > "$info_file"
+    fi
+
+    # 备份数据库到 backup.sql 文件
+    backup_file="backup.sql"
+    if mysqldump -h localhost -u "$db_username" -p"$db_password" "$db_name" > "$backup_dir/$backup_file"; then
+        echo -e "\e[32m数据库备份完成，备份文件: $source_cloud_path/$backup_dir/$backup_file\e[0m"
+    else
+        echo -e "\e[31m数据库备份失败,请检查数据库信息是否有误\e[0m"
+        exit 1
+    fi
+
+    read -p "按任意键返回主菜单..."
+}
+
+
 # 主菜单
 while true; do
     clear
@@ -320,8 +391,9 @@ while true; do
     echo "1) 绑定S3存储"
     echo "2) 网站备份"
     echo "3) 网站还原"
-    echo "4) 计划任务"
-    echo "5) 退出"
+	echo "4) 备份数据库"  # 添加备份数据库选项
+    echo "5) 计划任务"
+    echo "0) 退出"
 
     read -p "请输入选项 (1/2/3/4/5): " choice
 
@@ -341,7 +413,11 @@ while true; do
         3)
             website_restore
             ;;
-        4)
+		4)
+            backup_database  # 调用备份数据库函数
+            ;;
+
+        5)
                         # 进入子菜单
             while true; do
                 clear
@@ -368,7 +444,7 @@ while true; do
                 esac
             done
             ;;
-        5)
+        0)
             # 退出
             echo "退出脚本."
             exit
