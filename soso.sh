@@ -7,6 +7,8 @@ while true; do
 	echo "2) Linux开源面板"
 	echo "3) Frps内网穿透"
 	echo "4) cloudflared隧道"
+	echo "5) 一键开启BBR"
+	echo "6) github工具"
     echo "0) 返回上一层"
     read -p "请输入操作编号: " choice
 
@@ -34,6 +36,23 @@ chmod 700 ./install-frps.sh
 		  
 		  
 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/cloudflared.sh && chmod +x cloudflared.sh && ./cloudflared.sh
+
+		
+		  ;;
+		  
+		  5)
+		  # 开启bbr
+		  
+		  
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bbr.sh && chmod +x bbr.sh && ./bbr.sh
+
+		
+		  ;;
+		  6)
+		  # github工具
+		  
+		  
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/github.sh && chmod +x github.sh && ./github.sh
 
 		
 		  ;;

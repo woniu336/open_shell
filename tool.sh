@@ -21,7 +21,7 @@ echo "6. docker软件应用"
 echo -e "\033[33m7. 测试脚本合集 ▶ \033[0m"
 echo "8. 系统工具"
 echo "9. 其他工具"
-echo "10. 一键开启BBR"
+echo "10. 网站备份"
 echo "11. 一键重装系统(DD)"
 echo "12. 设置脚本快捷键"
 echo "0. 退出"
@@ -78,9 +78,9 @@ case $choice in
         curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/soso.sh && chmod +x soso.sh && ./soso.sh
         ;;
         10)
-        # 执行一键开启BBR脚本操作
+        # 执行网站备份
 		clear
-        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/bbr.sh && chmod +x bbr.sh && ./bbr.sh
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/s3.sh && chmod +x s3.sh && ./s3.sh
         ;;
         11)
         # 执行一键重装系统(DD)操作
