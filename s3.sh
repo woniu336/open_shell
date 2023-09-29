@@ -207,6 +207,8 @@ add_schedule_task() {
     echo "添加计划任务"
     echo -e "\e[32m请输入备份时间（24小时制，例如 21:05）:\e[0m"  # 绿色高亮提示
     read -p "" new_backup_time
+	echo -e "\e[32m请输入备份时间间隔的天数:\e[0m"  # 绿色高亮提示
+    read -p "" backup_interval_days
     echo -e "\e[32m请输入网站目录:\e[0m"  # 绿色高亮提示
     read -p "" source_cloud_path
     echo -e "\e[32m请输入云盘配置名称:\e[0m"  # 绿色高亮提示
@@ -291,9 +293,9 @@ add_schedule_task() {
         done
         rclone_command="$rclone_command $exclude_flags"
     fi
-
-    # 添加新的计划任务，设置月份为通配符 *
-    (crontab -l ; echo "$cron_minute $cron_hour * * * $rclone_command") | crontab -
+	
+	# 添加新的计划任务，设置月份为通配符 *，并加上备份时间间隔的天数
+    (crontab -l ; echo "$cron_minute $cron_hour */$backup_interval_days * * $rclone_command") | crontab -
 
     echo -e "\e[32m计划任务已添加.\e[0m"
     sleep 2 # 暂停2秒以便用户看到成功提示
@@ -349,7 +351,33 @@ if [ -f /root/s3/info.txt ]; then
         echo "db_name=\"$db_name\"" >> /root/s3/info.txt
         echo -e "\e[32m数据库信息已写入info.txt文件。\e[0m"
     fi
+else
+    # 如果文件不存在，提示用户输入数据库信息
+    if [ -z "$db_username" ]; then
+        read -p "请输入数据库用户名: " db_username
+    fi
+
+    if [ -z "$db_password" ]; then
+        read -s -p "请输入数据库密码: " db_password
+        echo # 换行
+    fi
+
+    if [ -z "$db_name" ]; then
+        read -p "请输入数据库名称: " db_name
+    fi
+
+    # 新建目录并生成info.txt文件
+    if [ ! -d /root/s3 ]; then
+        mkdir -p /root/s3
+    fi
+
+    # 写入数据库信息到info.txt文件
+    echo "db_username=\"$db_username\"" > /root/s3/info.txt
+    echo "db_password=\"$db_password\"" >> /root/s3/info.txt
+    echo "db_name=\"$db_name\"" >> /root/s3/info.txt
+    echo -e "\e[32m数据库信息已写入info.txt文件。\e[0m"
 fi
+
 
 
     # 提示用户输入云盘配置名称
@@ -475,7 +503,9 @@ fi
 
 
     # 提示用户输入定时备份的时间
-    read -p "请输入定时备份的时间（例如21:05，代表晚上21点5分）: " backup_time
+    read -p "请输入定时备份的时间（例如21:05）: " backup_time
+	read -p "请输入备份时间间隔的天数: " backup_interval_days
+
 
     # 解析小时和分钟
     cron_hour=$(echo "$backup_time" | cut -d':' -f1)
@@ -538,8 +568,9 @@ EOL
 	    # 删除旧的计划任务（如果存在）
     crontab -l | grep -v "updata.sh" | crontab -
 
-    # 添加定时任务
-    (crontab -l 2>/dev/null; echo "$cron_minute $cron_hour * * * /bin/bash /root/s3/updata.sh") | crontab -
+	# 添加新的计划任务，设置月份为通配符 *，并加上备份时间间隔的天数
+    (crontab -l 2>/dev/null; echo "$cron_minute $cron_hour */$backup_interval_days * * /bin/bash /root/s3/updata.sh") | crontab -
+
     echo -e "\e[32m已添加定时备份任务。\e[0m"
     # 提示用户按任意键返回主菜单
     read -n 1 -s -r -p "按任意键返回主菜单..."
