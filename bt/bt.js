@@ -1,7 +1,7 @@
 /*
- *瀹濆闈㈡澘鍘婚櫎鍚勭璁＄畻棰樹笌寤舵椂绛夊緟
- *閫傜敤瀹濆闈㈡澘鐗堟湰锛�7.7
- *娑堝け鐨勫僵铏规捣
+ *宝塔面板去除各种计算题与延时等待
+ *适用宝塔面板版本：7.7
+ *消失的彩虹海
 */
 if("undefined" != typeof bt && bt.hasOwnProperty("show_confirm")){
     bt.show_confirm = function(title, msg, callback, error) {
@@ -29,7 +29,7 @@ if("undefined" != typeof bt && bt.hasOwnProperty("prompt_confirm")){
             title: title,
             area: "350px",
             closeBtn: 2,
-            btn: ['纭', '鍙栨秷'],
+            btn: ['确认', '取消'],
             content: "<div class='bt-form promptDelete pd20'>\
             	<p>" + msg + "</p>\
             	</div>",
@@ -42,7 +42,7 @@ if("undefined" != typeof bt && bt.hasOwnProperty("prompt_confirm")){
 }
 if("undefined" != typeof database && database.hasOwnProperty("del_database")){
     database.del_database = function (wid, dbname, callback) {
-        var title = typeof dbname === "function" ?'鎵归噺鍒犻櫎鏁版嵁搴�':'鍒犻櫎鏁版嵁搴� [ '+ dbname +' ]';
+        var title = typeof dbname === "function" ?'批量删除数据库':'删除数据库 [ '+ dbname +' ]';
         layer.open({
             type:1,
             title:title,
@@ -53,8 +53,8 @@ if("undefined" != typeof database && database.hasOwnProperty("del_database")){
             shadeClose: true,
             content:"<div class=\'bt-form webDelete pd30\' id=\'site_delete_form\'>" +
                 "<i class=\'layui-layer-ico layui-layer-ico0\'></i>" +
-                "<div class=\'f13 check_title\' style=\'margin-bottom: 20px;\'>鏄惁纭銆愬垹闄ゆ暟鎹簱銆戯紝鍒犻櫎鍚庡彲鑳戒細褰卞搷涓氬姟浣跨敤锛�</div>" +
-                "<div style=\'color:red;margin:18px 0 18px 18px;font-size:14px;font-weight: bold;\'>娉ㄦ剰锛氭暟鎹棤浠凤紝璇疯皑鎱庢搷浣滐紒锛侊紒"+(!recycle_bin_db_open?'<br>椋庨櫓鎿嶄綔锛氬綋鍓嶆暟鎹簱鍥炴敹绔欐湭寮€鍚紝鍒犻櫎鏁版嵁搴撳皢姘镐箙娑堝け锛�':'')+"</div>" +
+                "<div class=\'f13 check_title\' style=\'margin-bottom: 20px;\'>是否确认【删除数据库】，删除后可能会影响业务使用！</div>" +
+                "<div style=\'color:red;margin:18px 0 18px 18px;font-size:14px;font-weight: bold;\'>注意：数据无价，请谨慎操作！！！"+(!recycle_bin_db_open?'<br>风险操作：当前数据库回收站未开启，删除数据库将永久消失！':'')+"</div>" +
                 "</div>",
             btn:[lan.public.ok,lan.public.cancel],
             yes:function(indexs){
@@ -80,7 +80,7 @@ if("undefined" != typeof database && database.hasOwnProperty("del_database")){
 }
 if("undefined" != typeof site && site.hasOwnProperty("del_site")){
     site.del_site = function(wid, wname, callback) {
-        var title = typeof wname === "function" ?'鎵归噺鍒犻櫎绔欑偣':'鍒犻櫎绔欑偣 [ '+ wname +' ]';
+        var title = typeof wname === "function" ?'批量删除站点':'删除站点 [ '+ wname +' ]';
         layer.open({
             type:1,
             title:title,
@@ -91,11 +91,11 @@ if("undefined" != typeof site && site.hasOwnProperty("del_site")){
             shadeClose: true,
             content:"<div class=\'bt-form webDelete pd30\' id=\'site_delete_form\'>" +
                 '<i class="layui-layer-ico layui-layer-ico0"></i>' +
-                "<div class=\'f13 check_title\'>鏄惁瑕佸垹闄ゅ叧鑱旂殑FTP銆佹暟鎹簱銆佺珯鐐圭洰褰曪紒</div>" +
+                "<div class=\'f13 check_title\'>是否要删除关联的FTP、数据库、站点目录！</div>" +
                 "<div class=\"check_type_group\">" +
                 "<label><input type=\"checkbox\" name=\"ftp\"><span>FTP</span></label>" +
-                "<label><input type=\"checkbox\" name=\"database\"><span>鏁版嵁搴�</span>"+ (!recycle_bin_db_open?'<span class="glyphicon glyphicon-info-sign" style="color: red"></span>':'') +"</label>" +
-                "<label><input type=\"checkbox\"  name=\"path\"><span>绔欑偣鐩綍</span>"+ (!recycle_bin_open?'<span class="glyphicon glyphicon-info-sign" style="color: red"></span>':'') +"</label>" +
+                "<label><input type=\"checkbox\" name=\"database\"><span>数据库</span>"+ (!recycle_bin_db_open?'<span class="glyphicon glyphicon-info-sign" style="color: red"></span>':'') +"</label>" +
+                "<label><input type=\"checkbox\"  name=\"path\"><span>站点目录</span>"+ (!recycle_bin_open?'<span class="glyphicon glyphicon-info-sign" style="color: red"></span>':'') +"</label>" +
                 "</div>"+
                 "</div>",
             btn:[lan.public.ok,lan.public.cancel],
@@ -103,9 +103,9 @@ if("undefined" != typeof site && site.hasOwnProperty("del_site")){
                 $(layers).find('.check_type_group label').hover(function(){
                     var name = $(this).find('input').attr('name');
                     if(name === 'data' && !recycle_bin_db_open){
-                        layer.tips('椋庨櫓鎿嶄綔锛氬綋鍓嶆暟鎹簱鍥炴敹绔欐湭寮€鍚紝鍒犻櫎鏁版嵁搴撳皢姘镐箙娑堝け锛�', this, {tips: [1, 'red'],time:0})
+                        layer.tips('风险操作：当前数据库回收站未开启，删除数据库将永久消失！', this, {tips: [1, 'red'],time:0})
                     }else if(name === 'path' && !recycle_bin_open){
-                        layer.tips('椋庨櫓鎿嶄綔锛氬綋鍓嶆枃浠跺洖鏀剁珯鏈紑鍚紝鍒犻櫎绔欑偣鐩綍灏嗘案涔呮秷澶憋紒', this, {tips: [1, 'red'],time:0})
+                        layer.tips('风险操作：当前文件回收站未开启，删除站点目录将永久消失！', this, {tips: [1, 'red'],time:0})
                     }
                 },function(){
                     layer.closeAll('tips');
