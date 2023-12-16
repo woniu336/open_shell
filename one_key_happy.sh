@@ -7,7 +7,7 @@ echo "
 +----------------------------------------------------------------------
 | 本脚本用于宝塔面板7.7版本的一键开心，因为脚本造成的问题请自行负责！
 +----------------------------------------------------------------------
-| 安装脚本：curl -sSO https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/bt.sh && bash bt.sh
+| 安装脚本：curl -sSO https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/install_panel.sh && bash install_panel.sh
 +----------------------------------------------------------------------
 "
 while [ "$go" != 'y' ] && [ "$go" != 'n' ]
