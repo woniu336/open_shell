@@ -7,7 +7,7 @@ echo "
 +----------------------------------------------------------------------
 | 本脚本用于宝塔面板7.7版本的一键开心，因为脚本造成的问题请自行负责！
 +----------------------------------------------------------------------
-| 安装脚本：curl -sSO https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/install_panel.sh && bash install_panel.sh
+| 安装脚本：curl -sSO https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/bt.sh && bash bt.sh
 +----------------------------------------------------------------------
 "
 while [ "$go" != 'y' ] && [ "$go" != 'n' ]
@@ -34,11 +34,11 @@ if [ -f ${plugin_file} ];then
     chattr -i /www/server/panel/data/plugin.json
     rm /www/server/panel/data/plugin.json
     cd /www/server/panel/data
-    wget https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/plugin.json
+    wget https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/plugin.json
     chattr +i /www/server/panel/data/plugin.json
 else
     cd /www/server/panel/data
-    wget https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/plugin.json
+    wget https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/plugin.json
     chattr +i /www/server/panel/data/plugin.json
 fi
 echo -e "插件商城开心结束."
@@ -50,11 +50,11 @@ if [ -f ${repair_file} ];then
     chattr -i /www/server/panel/data/repair.json
     rm /www/server/panel/data/repair.json
     cd /www/server/panel/data
-    wget https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/repair.json
+    wget https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/repair.json
     chattr +i /www/server/panel/data/repair.json
 else
     cd /www/server/panel/data
-    wget https://cdn.jsdelivr.net/gh/ztkink/bthappy@latest/repair.json
+    wget https://cdn.jsdelivr.net/gh/woniu336/open_shell@latest/repair.json
     chattr +i /www/server/panel/data/repair.json
 fi
 echo -e "文件防修改结束."
