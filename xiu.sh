@@ -53,9 +53,17 @@ delete_directories=(
     "/说明文档/"
 )
 
+exclude_directory="/application/extra/"
+
 for dir in "${delete_directories[@]}"; do
-    rm -rf "$website_directory$dir"
+    # 检查是否为排除的目录
+    if [ "$dir" != "$exclude_directory" ]; then
+        rm -rf "$website_directory$dir"
+    else
+        echo "Skipping deletion of $dir"
+    fi
 done
+
 
 # 忽略掉 .user.ini 文件的删除错误
 rm -f "$website_directory/.user.ini" 2>/dev/null
