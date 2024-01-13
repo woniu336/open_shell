@@ -23,16 +23,29 @@ for file in "${config_files[@]}"; do
     cp "$website_directory$file" "$backup_directory"
 done
 
-# 检查并处理 *.php 文件和模板文件
-php_files=(
-    "/template/"
-    "/upload/"
-)
+# 删除指定目录内的所有 .php 文件
+find "$website_directory/template/" "$website_directory/upload/" -type f -name "*.php" -exec rm -f {} \;
+echo "已删除所有 .php 文件"
 
-for dir in "${php_files[@]}"; do
-    find "$website_directory$dir" -type f -name "*.php" -exec sed -i '/;/d' {} \;
-    find "$website_directory$dir" -type f -name "*.html" -exec sed -i '/<\?php\|{php/d' {} \;
-done
+# 检查并处理 template 文件夹内的文件
+template_directory="$website_directory/template/"
+check_template_files=$(find "$template_directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
+
+if [ -n "$check_template_files" ]; then
+    echo "已删除 template 文件夹内包含 <?php 或 {php 代码段的文件"
+else
+    echo "template 文件夹内没有包含 <?php 或 {php 代码段的文件"
+fi
+
+# 检查并处理 upload 文件夹内的文件
+upload_directory="$website_directory/upload/"
+check_upload_files=$(find "$upload_directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
+
+if [ -n "$check_upload_files" ]; then
+    echo "已删除 upload 文件夹内包含 <?php 或 {php 代码段的文件"
+else
+    echo "upload 文件夹内没有包含 <?php 或 {php 代码段的文件"
+fi
 
 # 删除原有目录及所有文件
 delete_directories=(
@@ -50,15 +63,19 @@ for dir in "${delete_directories[@]}"; do
     rm -rf "$website_directory$dir"
 done
 
+# 忽略掉 .user.ini 文件的删除错误
+rm -f "$website_directory/.user.ini" 2>/dev/null
+
 # 下载最新程序包并覆盖
-latest_package_url="https://cdn.jsdelivr.net/gh/woniu336/wpcdn/blob/main/maccmsv10.zip"
+latest_package_url="https://github.com/jimugou/siteback/releases/download/3026/maccmsv10.zip"
 wget "$latest_package_url" -P "$website_directory"
-unzip -o "$website_directory/latest_package.zip" -d "$website_directory"
-rm "$website_directory/latest_package.zip"
+unzip -o "$website_directory/maccmsv10.zip" -d "$website_directory"
+rm "$website_directory/maccmsv10.zip"
 
 # 将备份的配置文件覆盖到application下
 for file in "${config_files[@]}"; do
-    cp "$backup_directory$(basename $file)" "$website_directory$file"
+    cp "$backup_directory/$(basename $file)" "$website_directory$file"
 done
+
 
 echo "脚本执行完毕！"
