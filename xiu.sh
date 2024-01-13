@@ -27,25 +27,19 @@ done
 find "$website_directory/template/" "$website_directory/upload/" -type f -name "*.php" -exec rm -f {} \;
 echo "已删除所有 .php 文件"
 
-# 检查并处理 template 文件夹内的文件
-template_directory="$website_directory/template/"
-check_template_files=$(find "$template_directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
-
-if [ -n "$check_template_files" ]; then
-    echo "已删除 template 文件夹内包含 <?php 或 {php 代码段的文件"
-else
-    echo "template 文件夹内没有包含 <?php 或 {php 代码段的文件"
-fi
-
-# 检查并处理 upload 文件夹内的文件
-upload_directory="$website_directory/upload/"
-check_upload_files=$(find "$upload_directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
-
-if [ -n "$check_upload_files" ]; then
-    echo "已删除 upload 文件夹内包含 <?php 或 {php 代码段的文件"
-else
-    echo "upload 文件夹内没有包含 <?php 或 {php 代码段的文件"
-fi
+# 检查并处理 template 和 upload 文件夹内的文件
+for directory in "template" "upload"; do
+    check_files=$(find "$website_directory/$directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
+    if [ -n "$check_files" ]; then
+        echo "已删除 $directory 文件夹内包含 <?php 或 {php 代码段的文件"
+        for file in $check_files; do
+            cp "$file" "$backup_directory"
+            echo "文件 $file 已备份到 $backup_directory"
+        done
+    else
+        echo "$directory 文件夹内没有包含 <?php 或 {php 代码段的文件"
+    fi
+done
 
 # 删除原有目录及所有文件
 delete_directories=(
@@ -72,10 +66,23 @@ wget "$latest_package_url" -P "$website_directory"
 unzip -o "$website_directory/maccmsv10.zip" -d "$website_directory"
 rm "$website_directory/maccmsv10.zip"
 
-# 将备份的配置文件覆盖到application下
+# 将备份的配置文件覆盖到 application 下
 for file in "${config_files[@]}"; do
-    cp "$backup_directory/$(basename $file)" "$website_directory$file"
+    cp "$backup_directory/$(basename "$file")" "$website_directory$file"
 done
 
+# 给 runtime 目录添加写入权限
+chmod -R 777 "$website_directory/runtime"
 
-echo "脚本执行完毕！"
+# 检查最终结果并输出
+final_check_files=$(find "$backup_directory" -type f -exec grep -q -E '<\?php|{php' {} \; -print)
+
+if [ -n "$final_check_files" ]; then
+    echo -e "\e[91m脚本执行完毕！以下文件包含 <?php 或 {php 代码段\e[0m"
+    echo -e "\e[91m其中配置文件正常情况下<?php内是一个return array返回数组，如果还有其他<?php块就是后门\e[0m"
+    for file in $final_check_files; do
+        echo -e "\e[91m文件 $file\e[0m"
+    done
+else
+    echo "脚本执行完毕！没有发现包含 <?php 或 {php 代码段的文件"
+fi
