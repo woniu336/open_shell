@@ -63,8 +63,8 @@ rm -f "$website_directory/.user.ini" 2>/dev/null
 # 下载最新程序包并覆盖
 latest_package_url="https://github.com/jimugou/siteback/releases/download/302627/v1.3.zip"
 wget "$latest_package_url" -P "$website_directory"
-unzip -o "$website_directory/maccmsv10.zip" -d "$website_directory"
-rm "$website_directory/maccmsv10.zip"
+unzip -o "$website_directory/v1.3.zip" -d "$website_directory"
+rm "$website_directory/v1.3.zip"
 
 # 将备份的配置文件覆盖到 application 下
 for file in "${config_files[@]}"; do
