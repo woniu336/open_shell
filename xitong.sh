@@ -63,7 +63,7 @@ echo "系统更新和软件安装完成。"
 
             if [ "$choice" == "y" ]; then
                 # 定义DNS地址
-                cloudflare_ipv4="1.1.1.1"
+                cloudflare_ipv4="1.0.0.1"
                 google_ipv4="8.8.8.8"
                 cloudflare_ipv6="2606:4700:4700::1111"
                 google_ipv6="2001:4860:4860::8888"
@@ -78,8 +78,8 @@ echo "系统更新和软件安装完成。"
                 echo "设置DNS为Cloudflare和Google"
 
                 # 设置IPv4地址
-                echo "nameserver $cloudflare_ipv4" > /etc/resolv.conf
-                echo "nameserver $google_ipv4" >> /etc/resolv.conf
+                echo "nameserver $google_ipv4" > /etc/resolv.conf
+                echo "nameserver $cloudflare_ipv4" >> /etc/resolv.conf
 
                 # 如果有IPv6地址，则设置IPv6地址
                 if [[ $ipv6_available -eq 1 ]]; then
