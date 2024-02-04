@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 # 安装宝塔面板 7.7
 curl -sSO https://raw.githubusercontent.com/woniu336/btpanel-v7.7.0/main/install/install_panel.sh && bash install_panel.sh
@@ -57,6 +57,13 @@ rm -f /www/server/panel/data/autoUpdate.pl
 # 关闭自动更新软件列表
 sed -i "/plugin_timeout = 86400/d" /www/server/panel/class/public.py
 sed -i "/list_body = None/a \ \ \ \ \plugin_timeout = 0;" /www/server/panel/class/public.py
+
+# 去后门
+sudo echo "" > /www/server/panel/script/site_task.py
+sudo chattr +i /www/server/panel/script/site_task.py
+sudo rm -rf /www/server/panel/logs/request/*
+sudo chattr +i -R /www/server/panel/logs/request
+
 
 # 重启面板
 /etc/init.d/bt restart
