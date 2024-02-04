@@ -1,4 +1,5 @@
-﻿#!/bin/bash
+﻿#bin/bash
+
 
 # 安装宝塔面板 7.7
 curl -sSO https://raw.githubusercontent.com/woniu336/btpanel-v7.7.0/main/install/install_panel.sh && bash install_panel.sh
