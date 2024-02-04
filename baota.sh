@@ -15,9 +15,9 @@ wget -O btpanel_theme.zip https://raw.githubusercontent.com/woniu336/open_shell/
 
 # 去除网站默认文件
 echo "去除网站默认文件"
-sudo sed -i "/htaccess = self.sitePath+'\/.htaccess'/, /public.ExecShell('chown -R www:www ' + htaccess)/d" /www/server/panel/class/panelSite.py
-sed -i "/index = self.sitePath+'\/index.html'/, /public.ExecShell('chown -R www:www ' + index)/d" /www/server/panel/class/panelSite.py
-sed -i "/doc404 = self.sitePath+'\/404.html'/, /public.ExecShell('chown -R www:www ' + doc404)/d"/www/server/panel/class/panelSite.py
+sudo sed -i "\|htaccess = self.sitePath+'/\.htaccess'|, \|public.ExecShell('chown -R www:www ' + htaccess)|d" /www/server/panel/class/panelSite.py
+sudo sed -i "\|index = self.sitePath+'/index.html'|, \|public.ExecShell('chown -R www:www ' + index)|d" /www/server/panel/class/panelSite.py
+sudo sed -i "\|doc404 = self.sitePath+'/404.html'|, \|public.ExecShell('chown -R www:www ' + doc404)|d" /www/server/panel/class/panelSite.py
 
 # 关闭未绑定域名提示
 echo "关闭未绑定域名提示"
@@ -61,8 +61,8 @@ sed -i '/self._check_url/d' /www/server/panel/class/panelPlugin.py
 
 # 关闭面板日志与绑定域名上报
 echo "关闭面板日志与绑定域名上报"
-sudo sed -i "s/run_thread(cloud_check_domain,(domain,))/return/" /www/server/panel/class/public.py
-sudo mv /www/server/panel/script/sedViQtc3 /www/server/panel/script/site_task.py
+sed -i "/^logs_analysis()/d" /www/server/panel/script/site_task.py
+sed -i "s/run_thread(cloud_check_domain,(domain,))/return/" /www/server/panel/class/public.py
 
 # 关闭面板强制更新
 echo "关闭面板强制更新"
