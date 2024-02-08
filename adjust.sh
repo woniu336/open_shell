@@ -1,24 +1,24 @@
 #!/bin/bash
 
-# 定义参数数组
-declare -a parameters=(
-    "vm.swappiness=10"
-    "vm.dirty_ratio=10"
-    "vm.dirty_background_ratio=5"
-    "vm.dirty_expire_centisecs=500"
-    "vm.vfs_cache_pressure=200"
-)
+# 设置 vm.swappiness 参数为 10
+echo "Setting vm.swappiness to 10"
+sudo sed -i 's/^vm.swappiness=.*/vm.swappiness=10/' /etc/sysctl.conf
 
-# 检查每个参数是否已存在，如果不存在则应用新参数
-for param in "${parameters[@]}"; do
-    current_setting=$(sudo sysctl -n "$param" 2>/dev/null)
-    if [[ -z "$current_setting" ]]; then
-        echo "Setting $param"
-        sudo sysctl -w "$param"
-    else
-        echo "Skipping $param as it is already set to $current_setting"
-    fi
-done
+# 设置 vm.dirty_ratio 参数为 10
+echo "Setting vm.dirty_ratio to 10"
+sudo sed -i 's/^vm.dirty_ratio=.*/vm.dirty_ratio=10/' /etc/sysctl.conf
+
+# 设置 vm.dirty_background_ratio 参数为 5
+echo "Setting vm.dirty_background_ratio to 5"
+sudo sed -i 's/^vm.dirty_background_ratio=.*/vm.dirty_background_ratio=5/' /etc/sysctl.conf
+
+# 设置 vm.dirty_expire_centisecs 参数为 500
+echo "Setting vm.dirty_expire_centisecs to 500"
+sudo sed -i 's/^vm.dirty_expire_centisecs=.*/vm.dirty_expire_centisecs=500/' /etc/sysctl.conf
+
+# 设置 vm.vfs_cache_pressure 参数为 200
+echo "Setting vm.vfs_cache_pressure to 200"
+sudo sed -i 's/^vm.vfs_cache_pressure=.*/vm.vfs_cache_pressure=200/' /etc/sysctl.conf
 
 # 重新加载 sysctl 配置文件以使更改生效
 echo "Reloading sysctl configuration"
