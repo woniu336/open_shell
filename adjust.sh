@@ -16,9 +16,9 @@ echo "vm.dirty_background_ratio=5" | sudo tee -a /etc/sysctl.conf > /dev/null
 echo "Setting vm.dirty_expire_centisecs to 500"
 echo "vm.dirty_expire_centisecs=500" | sudo tee -a /etc/sysctl.conf > /dev/null
 
-# 设置 vm.vfs_cache_pressure 参数为 200
-echo "Setting vm.vfs_cache_pressure to 200"
-echo "vm.vfs_cache_pressure=200" | sudo tee -a /etc/sysctl.conf > /dev/null
+# 设置 vm.vfs_cache_pressure 参数为 500
+echo "Setting vm.vfs_cache_pressure to 500"
+echo "vm.vfs_cache_pressure=500" | sudo tee -a /etc/sysctl.conf > /dev/null
 
 # 重新加载 sysctl 配置文件以使更改生效
 echo "Reloading sysctl configuration"
