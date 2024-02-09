@@ -20,6 +20,13 @@ echo "vm.dirty_expire_centisecs=500" | sudo tee -a /etc/sysctl.conf > /dev/null
 echo "Setting vm.vfs_cache_pressure to 500"
 echo "vm.vfs_cache_pressure=500" | sudo tee -a /etc/sysctl.conf > /dev/null
 
+# 设置网络参数
+echo "Setting network parameters"
+echo "net.core.rmem_max=16777216" | sudo tee -a /etc/sysctl.conf > /dev/null
+echo "net.core.wmem_max=16777216" | sudo tee -a /etc/sysctl.conf > /dev/null
+echo "net.ipv4.tcp_rmem=4096 212992 16777216" | sudo tee -a /etc/sysctl.conf > /dev/null
+echo "net.ipv4.tcp_wmem=4096 212992 16777216" | sudo tee -a /etc/sysctl.conf > /dev/null
+
 # 重新加载 sysctl 配置文件以使更改生效
 echo "Reloading sysctl configuration"
 sudo sysctl -p
