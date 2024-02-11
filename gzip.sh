@@ -11,11 +11,5 @@ for file in $css_js_files; do
     gzip -9 -c "$file" > "$file.gz"
 done
 
-# 更新nginx.conf文件
-nginx_conf_path="/www/server/nginx/conf/nginx.conf"
-sed -i '/gzip on;/a\    gzip_static on;' "$nginx_conf_path"
-
-# 重新加载nginx
-nginx -s reload
 
 echo "操作完成。"
