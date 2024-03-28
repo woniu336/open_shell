@@ -31,5 +31,22 @@ sudo service ssh restart
 exit
 EOF
 
+# 提示用户输入别名和ip
+read -p "请输入别名：" alias_name
+
+# 检查~/.ssh/config文件是否存在，如果不存在则创建并添加配置
+if [ ! -f ~/.ssh/config ]; then
+    touch ~/.ssh/config
+fi
+
+# 添加别名和IP到~/.ssh/config文件中
+if ! grep -q "Host $alias_name" ~/.ssh/config; then
+    echo "Host $alias_name" >> ~/.ssh/config
+    echo "    Hostname $server_ip" >> ~/.ssh/config
+    echo "    IdentityFile ~/.ssh/id_ed25519" >> ~/.ssh/config
+    echo "    User root" >> ~/.ssh/config
+fi
+
 # 使用SSH密钥登录
+echo -e "\e[33m使用 ssh -p $ssh_port $alias_name 愉快登录吧\e[0m"
 ssh -p $ssh_port -i ~/.ssh/id_ed25519 root@$server_ip
