@@ -84,7 +84,7 @@ goto :eof
 :view_drive_root
 set /p source=ÇëÊäÈëÍøÅÌÂ·¾¶£º
 
-rclone lsd "%source%:"
+rclone lsd "%source%"
 pause
 goto :eof
 
