@@ -1,0 +1,79 @@
+---
+- name: Configure Docker on Ubuntu
+  hosts: web
+  become: yes
+  tasks:
+    - name: Remove existing Docker GPG key
+      shell: sudo rm /etc/apt/trusted.gpg.d/aliyun-docker.gpg
+      ignore_errors: yes
+
+    - name: Remove existing Docker repository
+      shell: sudo rm /etc/apt/sources.list.d/docker.list
+      ignore_errors: yes
+
+    - name: Update package index
+      apt:
+        update_cache: yes
+
+    - name: Install required tools for repository setup
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - ca-certificates
+        - curl
+        - gnupg
+        - lsb-release
+
+    - name: Add GPG key for Docker repository
+      shell: "sudo curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/trusted.gpg.d/aliyun-docker.gpg"
+
+    - name: Add Docker repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/aliyun-docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+      args:
+        executable: /bin/bash
+
+    - name: Update package index after adding repository
+      apt:
+        update_cache: yes
+
+    - name: Install Docker dependencies
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+
+    - name: Start Docker service
+      systemd:
+        name: docker
+        state: started
+
+    - name: Enable Docker service at boot
+      systemd:
+        name: docker
+        enabled: yes
+
+    - name: Add current user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Reload group membership
+      systemd:
+        name: docker
+        state: restarted
+
+    - name: Configure Docker daemon
+      blockinfile:
+        path: /etc/docker/daemon.json
+        create: yes
+        block: |
+          {
+              "registry-mirrors": ["https://docker.mirrors.ustc.edu.cn/"]
+          }
+
