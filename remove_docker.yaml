@@ -1,0 +1,31 @@
+---
+- hosts: web
+  become: true
+  tasks:
+    - name: Remove docker packages
+      shell: "DEBIAN_FRONTEND=noninteractive sudo apt-get remove -y docker docker-engine docker.io containerd runc"
+      ignore_errors: yes
+      async: 120   # 设置异步执行时间为 120 秒
+      poll: 0      # 立即返回结果，不等待异步任务完成
+    
+    - name: Purge docker packages
+      shell: "DEBIAN_FRONTEND=noninteractive sudo apt-get purge -y docker-ce docker-ce-cli containerd.io"
+      ignore_errors: yes
+      async: 120
+      poll: 0
+    
+    - name: Remove docker directories
+      shell: "sudo rm -rf /var/lib/docker /var/lib/containerd"
+      ignore_errors: yes
+      async: 120
+      poll: 0
+    
+    - name: Remove docker and related packages using apt-get
+      shell: "DEBIAN_FRONTEND=noninteractive sudo apt-get remove -y docker* containerd.io podman* runc && sudo apt-get autoremove"
+      ignore_errors: yes
+      async: 120
+      poll: 0
+
+
+
+
