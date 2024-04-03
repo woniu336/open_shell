@@ -68,12 +68,3 @@
         name: docker
         state: restarted
 
-    - name: Configure Docker daemon
-      blockinfile:
-        path: /etc/docker/daemon.json
-        create: yes
-        block: |
-          {
-              "registry-mirrors": ["https://docker.mirrors.ustc.edu.cn/"]
-          }
-
