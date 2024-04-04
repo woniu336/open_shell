@@ -1,0 +1,15 @@
+- hosts: web
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Run tb-localhost.sh script
+      command: sudo sh -c 'curl -sS -O https://gitee.com/dayu777/btpanel-v7.7.0/raw/main/install/install_panel.sh && chmod +x install_panel.sh && echo "y" | ./install_panel.sh'
+      register: tb_script_output
+
+    - name: Print output of tb-localhost.sh script
+      debug:
+        var: tb_script_output.stdout_lines
+
+    - name: Run optimize.sh script
+      command: sudo sh -c 'curl -sS -O https://gitee.com/dayu777/open_shell/raw/main/optimize.sh && chmod +x optimize.sh && ./optimize.sh'
+
