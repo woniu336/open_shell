@@ -101,7 +101,7 @@ echo
             ;;
         4)
             # 提示用户输入网站名，宝塔会把添加的第一个域名作为网站名
-            read -p "请输入域名: " site_name
+            read -p "请输入域名(一个): " site_name
 
             # 创建证书安装路径
             cert_path="/www/server/panel/vhost/cert/$site_name"
