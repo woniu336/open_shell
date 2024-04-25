@@ -948,7 +948,7 @@ if [ `grep -c "<script src=\"/static/bt.js\"></script>" $Layout_file` -eq '0' ];
 	sed -i '/{% block scripts %} {% endblock %}/a <script src="/static/bt.js"></script>' $Layout_file;
 fi;
 wget -q https://gitee.com/dayu777/open_shell/raw/main/bt/bt.js -O $JS_file;
-echo "已去除各种计算题与延时等待."
+echo -e "已去除各种计算题与延时等待"
 
 #每隔10分钟执行一次，用于检测是不是破解版，该命令直接删除链接，使返回为空，输出False
 #该接口返回False 与True均不影响面板，返回True后续代码还会对返回的其他字段数据做处理。
