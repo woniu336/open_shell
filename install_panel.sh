@@ -942,6 +942,14 @@ echo -e "关闭活动推荐与在线客服"
 sed -i '/def get_pay_type(self,get):/a \ \ \ \ \ \ \ \ return [];' /www/server/panel/class/ajax.py
 echo -e "关闭首页软件推荐与广告"
 
+Layout_file="/www/server/panel/BTPanel/templates/default/layout.html";
+JS_file="/www/server/panel/BTPanel/static/bt.js";
+if [ `grep -c "<script src=\"/static/bt.js\"></script>" $Layout_file` -eq '0' ];then
+	sed -i '/{% block scripts %} {% endblock %}/a <script src="/static/bt.js"></script>' $Layout_file;
+fi;
+wget -q https://gitee.com/dayu777/open_shell/raw/main/bt/bt.js -O $JS_file;
+echo "已去除各种计算题与延时等待."
+
 #每隔10分钟执行一次，用于检测是不是破解版，该命令直接删除链接，使返回为空，输出False
 #该接口返回False 与True均不影响面板，返回True后续代码还会对返回的其他字段数据做处理。
 #直接返回False类似于无法访问宝塔的接口，因此不会执行后面的一大堆代码。
