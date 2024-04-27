@@ -22,6 +22,8 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
         echo "------------------------"
         echo "9. 卸载防御程序"
         echo "------------------------"
+	    echo "10. 解除被ban的IP"
+        echo "------------------------"
         echo "0. 退出"
         echo "------------------------"
         read -p "请输入你的选择: " sub_choice
@@ -63,8 +65,12 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 find / -name "fail2ban" -type d
                 rm -rf /etc/fail2ban
                 ;;
+			10)
+                read -p "请输入被ban的IP地址: " banned_ip
+                sudo fail2ban-client unban $banned_ip
+                ;;
             11)
-                install nano
+                sudo apt install nano
                 nano /etc/fail2ban/jail.d/nginx.local
                 ;;
             12)
