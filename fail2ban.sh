@@ -33,6 +33,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 service fail2ban restart
                 sleep 1
                 fail2ban-client status
+                continue
                 ;;
             2)
                 sed -i 's/true/false/g' /etc/fail2ban/jail.d/sshd.local
@@ -40,6 +41,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 service fail2ban restart
                 sleep 1
                 fail2ban-client status
+                continue
                 ;;
             3)
                 sed -i 's/false/true/g' /etc/fail2ban/jail.d/nginx.local
@@ -47,6 +49,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 service fail2ban restart
                 sleep 1
                 fail2ban-client status
+                continue
                 ;;
             4)
                 sed -i 's/true/false/g' /etc/fail2ban/jail.d/nginx.local
@@ -54,11 +57,13 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 service fail2ban restart
                 sleep 1
                 fail2ban-client status
+                continue
                 ;;
             5)
                 echo "------------------------"
                 fail2ban-client status sshd
                 echo "------------------------"
+                continue
                 ;;
             6)
                 echo "------------------------"
@@ -74,24 +79,30 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 echo "------------------------"
                 fail2ban-client status php-url-fopen
                 echo "------------------------"
+                continue
                 ;;
             7)
                 fail2ban-client status
+                continue
                 ;;
             8)
                 tail -f /var/log/fail2ban.log
-                break
+                continue
                 ;;
             9)
-                remove fail2ban
-                break
+                systemctl disable fail2ban
+				systemctl stop fail2ban
+				apt remove -y --purge fail2ban
+				find / -name "fail2ban" -type d
+				rm -rf /etc/fail2ban
+                continue
                 ;;
             11)
                 install nano
                 nano /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 service fail2ban restart
-                break
+                continue
                 ;;
             21)
                 echo "到cf后台右上角我的个人资料，选择左侧API令牌，获取Global API Key"
@@ -109,6 +120,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
 							
                 cd /etc/fail2ban/filter.d/
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/fail2ban-nginx-cc.conf
+				curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/nginx-bad-request.conf
 				
 				rm -rf /etc/fail2ban/jail.d/*
 				
@@ -129,12 +141,14 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 docker restart nginx
 
                 echo "已配置cloudflare模式，可在cf后台，站点-安全性-事件中查看拦截记录"
+                continue
                 ;;
             0)
                 break
                 ;;
             *)
                 echo "无效的选择,请重试。"
+                continue
                 ;;
         esac
     done
