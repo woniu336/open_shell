@@ -22,7 +22,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
         echo "------------------------"
         echo "9. 卸载防御程序"
         echo "------------------------"
-	    echo "10. 解除被ban的IP"
+        echo "10. 解除被ban的IP"
         echo "------------------------"
         echo "0. 退出"
         echo "------------------------"
