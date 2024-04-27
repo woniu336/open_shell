@@ -106,12 +106,17 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 cd /www/server/panel/vhost/cert/default/
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/default_server.crt
 				curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/default_server.key
-				
+							
                 cd /etc/fail2ban/filter.d/
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/fail2ban-nginx-cc.conf
 				
+				rm -rf /etc/fail2ban/jail.d/*
+				
                 cd /etc/fail2ban/jail.d/
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/nginx.local
+				
+			    cd /etc/fail2ban/jail.d/
+                curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/sshd.local
 
                 cd /etc/fail2ban/action.d/
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban/cloudflare.conf
