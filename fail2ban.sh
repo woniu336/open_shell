@@ -22,7 +22,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
         echo "------------------------"
         echo "9. 卸载防御程序"
         echo "------------------------"
-	    echo "10. 解除被ban的IP"
+        echo "10. 解除被ban的IP"
         echo "------------------------"
         echo "0. 退出"
         echo "------------------------"
@@ -65,7 +65,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 find / -name "fail2ban" -type d
                 rm -rf /etc/fail2ban
                 ;;
-			10)
+            10)
                 read -p "请输入被ban的IP地址: " banned_ip
                 sudo fail2ban-client unban $banned_ip
                 ;;

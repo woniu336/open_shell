@@ -65,7 +65,7 @@ if [ -x "$(command -v fail2ban-client)" ] && [ -d "/etc/fail2ban" ]; then
                 find / -name "fail2ban" -type d
                 rm -rf /etc/fail2ban
                 ;;
-			10)
+            10)
                 read -p "请输入被ban的IP地址: " banned_ip
                 sudo fail2ban-client unban $banned_ip
                 ;;
