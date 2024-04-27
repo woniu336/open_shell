@@ -2,13 +2,12 @@
 
 enabled = true
 filter = fail2ban-nginx-cc
-chain = DOCKER-USER
 port = http,https
 action = cloudflare
 logpath = /www/wwwlogs/access.log
 maxretry = 5
 bantime = 3600
-findtime = 3600
+findtime = 600
 ignoreip = 192.168.0.1/24
 
 
@@ -16,9 +15,9 @@ ignoreip = 192.168.0.1/24
 [nginx-http-auth]
 
 enabled = true
-chain = DOCKER-USER
-mode = fallback
+filter   = nginx-http-auth
 port = http,https
+action = cloudflare
 logpath = /www/server/nginx/logs/error.log
 
 
@@ -26,7 +25,6 @@ logpath = /www/server/nginx/logs/error.log
 [nginx-limit-req]
 
 enabled = true
-chain = DOCKER-USER
 port    = http,https
 action = cloudflare
 logpath = /www/server/nginx/logs/error.log
@@ -36,7 +34,6 @@ logpath = /www/server/nginx/logs/error.log
 [nginx-botsearch]
 
 enabled = true
-chain = DOCKER-USER
 port     = http,https
 action = cloudflare
 logpath = /www/server/nginx/logs/error.log
@@ -46,7 +43,6 @@ logpath = /www/server/nginx/logs/error.log
 [nginx-bad-request]
 
 enabled = true
-chain = DOCKER-USER
 port    = http,https
 action = cloudflare
 logpath = /www/wwwlogs/access.log
@@ -56,7 +52,6 @@ logpath = /www/wwwlogs/access.log
 [php-url-fopen]
 
 enabled = true
-chain = DOCKER-USER
 port    = http,https
 action = cloudflare
 logpath = /www/wwwlogs/access.log
