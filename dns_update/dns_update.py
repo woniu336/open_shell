@@ -76,7 +76,7 @@ def main():
             else:
                 print("服务器端口正常，等待下次检查...")
 
-            time.sleep(10)  # 10分钟后再次检查
+            time.sleep(300)  # 5分钟后再次检查
         except Exception as e:
             print(f"发生未捕获的异常：{e}")
 
