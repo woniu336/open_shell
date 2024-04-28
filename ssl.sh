@@ -1,45 +1,5 @@
 #!/bin/bash
 
-# 提示用户准备工作
-echo "准备工作:"
-echo "1) 你的邮箱"
-echo "2) 解析好的域名"
-echo "3) 网站根目录"
-
-# 提示用户选择操作系统和安装命令
-echo "请选择你的操作系统:"
-echo "1) Ubuntu/Debian"
-echo "2) CentOS/RHEL"
-read -p "输入选择的数字: " os_choice
-
-# 根据操作系统选择不同的安装命令
-case $os_choice in
-    1)
-        # Ubuntu/Debian
-        if ! command -v curl &> /dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y curl
-        fi
-        if ! command -v wget &> /dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y wget
-        fi
-        ;;
-    2)
-        # CentOS/RHEL
-        if ! command -v curl &> /dev/null; then
-            sudo yum install -y curl
-        fi
-        if ! command -v wget &> /dev/null; then
-            sudo yum install -y wget
-        fi
-        ;;
-    *)
-        echo "未知的操作系统选择。"
-        exit 1
-        ;;
-esac
-
 # 提示用户输入邮箱
 read -p "请输入您的邮箱地址: " user_email
 
