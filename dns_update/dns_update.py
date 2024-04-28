@@ -74,7 +74,7 @@ def main():
             if using_backup_ip:
                 print("域名正在使用备用IP，并已开启代理。")
             else:
-                print("服务器端口正常，等待下次检查...")
+                print("服务器端口正常，5分钟后再次检查...")
 
             time.sleep(300)  # 5分钟后再次检查
         except Exception as e:
