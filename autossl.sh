@@ -43,6 +43,7 @@ for cert_dir in ${certs_directory}*; do
         # 重启nginx
           sudo killall nginx
           sudo service nginx start
+		  sudo nginx
 
         # 检查是否需要续签（在满足续签条件的情况下）
         if [ $days_until_expiry -le $days_before_expiry ]; then

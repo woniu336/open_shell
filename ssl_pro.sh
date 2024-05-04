@@ -124,6 +124,7 @@ echo
 			# 重启nginx
             sudo killall nginx
             sudo service nginx start
+			sudo nginx
 			
             # 安装证书
             echo "正在为以下网站安装证书: $site_name"

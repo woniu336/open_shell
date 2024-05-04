@@ -167,6 +167,7 @@ while true; do
             # 重启nginx
             sudo killall nginx
             sudo service nginx start
+			sudo nginx
 
             read -p "请输入key路径: " key_path
             read -p "请输入fullchain路径: " fullchain_path
