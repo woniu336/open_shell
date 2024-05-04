@@ -121,6 +121,10 @@ echo
             ~/.acme.sh/acme.sh --issue --dns dns_cf $domains_with_d
             echo -e "\033[32m证书生成成功!\033[0m"
 			
+			# 重启nginx
+            sudo killall nginx
+            sudo service nginx start
+			
             # 安装证书
             echo "正在为以下网站安装证书: $site_name"
             ~/.acme.sh/acme.sh --install-cert $domains_with_d \

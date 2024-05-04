@@ -163,6 +163,11 @@ while true; do
                 domains_with_d+=" -d $domain"
             done
 
+
+            # 重启nginx
+            sudo killall nginx
+            sudo service nginx start
+
             read -p "请输入key路径: " key_path
             read -p "请输入fullchain路径: " fullchain_path
 

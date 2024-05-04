@@ -39,6 +39,11 @@ for cert_dir in ${certs_directory}*; do
         # 计算距离过期还有几天
         days_until_expiry=$(( ($expiration_timestamp - $current_timestamp) / 86400 ))
 
+
+        # 重启nginx
+          sudo killall nginx
+          sudo service nginx start
+
         # 检查是否需要续签（在满足续签条件的情况下）
         if [ $days_until_expiry -le $days_before_expiry ]; then
             echo "证书将在${days_before_expiry}天内过期，正在进行自动续签。"
