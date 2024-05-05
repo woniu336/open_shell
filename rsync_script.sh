@@ -14,7 +14,7 @@ if [ ! -d "$source_dir" ]; then
 fi
 
 # 执行rsync命令，将本地源路径同步到远程目标路径
-rsync -avzq --delete --exclude=".user.ini" --exclude="66/" -e "ssh -o StrictHostKeyChecking=no -p 22" "$source_dir/" "$remote_user@$remote_host:$target_dir/"
+rsync -avz --delete --exclude=".user.ini" --exclude="66/" -e "ssh -o StrictHostKeyChecking=no -p 22" "$source_dir/" "$remote_user@$remote_host:$target_dir/"
 
 
 # 检查rsync命令的执行结果
