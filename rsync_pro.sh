@@ -323,15 +323,57 @@ EOF
 
     # 添加执行权限
     chmod +x "$script_dir/$script_name.sh"
-
+    
     # 添加定时任务
-    echo "请输入定时任务的执行时间（例如：0 2 * * * 表示每天凌晨2点）："
-    read cron_time
-    (crontab -l ; echo "$cron_time $script_dir/$script_name.sh >/dev/null 2>&1") | crontab -
-    echo "$script_name 的定时任务已添加。"
-    read -n 1 -s -p "按任意键继续..."
-    return_to_main_menu
+    
+echo -e "${kjlan}请输入定时任务的执行时间：${bai}"
+while true; do
+    read -p "请输入分钟 (0-59)，留空表示整点：" minute
+    read -p "请输入小时 (0-23)，留空表示每小时：" hour
+    read -p "请输入日 (1-31)，留空表示每天：" day
+    read -p "请输入月 (1-12)，留空表示每月：" month
+    read -p "请输入星期 (0-6)，留空表示任意：" weekday
+
+    # 初始化变量
+    minute=${minute:-*}
+    hour=${hour:-*}
+    day=${day:-*}
+    month=${month:-*}
+    weekday=${weekday:-*}
+
+    # 如果日、月、星期留空，则设置默认值
+    if [ -z "$day" ]; then
+        day="*"
+    fi
+    if [ -z "$month" ]; then
+        month="*"
+    fi
+    if [ -z "$weekday" ]; then
+        weekday="*"
+    fi
+
+    cron_time="$minute $hour $day $month $weekday"
+
+    # 验证 cron 格式
+    if [[ $minute =~ ^[0-9]{1,2}$|^[*]$ ]] &&
+       [[ $hour =~ ^[0-9]{1,2}$|^[*]$ ]] &&
+       [[ $day =~ ^[0-9]{1,2}$|^[*]$ ]] &&
+       [[ $month =~ ^[0-9]{1,2}$|^[*]$ ]] &&
+       [[ $weekday =~ ^[0-9]{1,2}$|^[*]$ ]]; then
+        break
+    else
+        echo "格式无效，请重试。"
+    fi
+done
+
+(crontab -l ; echo "$cron_time $script_dir/$script_name.sh >/dev/null 2>&1") | crontab -
+echo -e "${kjlan}已添加定时任务。${bai}"
+read -n 1 -s -p "按任意键继续..."
+return_to_main_menu
+
+
 }
+
 
 # 时区设置
 set_timezone() {
