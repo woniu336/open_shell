@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# 定义颜色代码
 huang='\033[33m'
 bai='\033[0m'
 lv='\033[0;32m'
@@ -27,20 +28,53 @@ script_dir="$HOME/scripts"
 # 确保脚本目录存在
 mkdir -p "$script_dir"
 
-# 菜单项
+
+# 清屏并显示欢迎信息
+echo ""
+clear
+echo -e "${kjlan}欢迎使用脚本管理工具！${bai}"
+echo ""
+
+# 显示博客和CSDN主页
+echo -e "${lv}🔗 博客地址: ${kjlan}https://blog.qige.cloudns.biz${bai} ✨"
+echo -e "${lv}🔗 CSDN主页: ${kjlan}https://blog.csdn.net/u010066597${bai} ✨"
+echo ""
+
+# 显示分隔线
+echo -e "${kjlan}============================================================${bai}"
+
+
+# 定义菜单选项数组
 menu_items=(
     "建立 SSH 连接"
     "测试 SSH 连接"
     "文件同步"
     "备份数据库"
     "数据库同步"
-    "添加定时任务"
+    "${kjlan}添加定时任务▶ ${bai}"
     "时区设置"
     "Docker 管理"
     "配置信息"
     "打印日期"
     "退出"
 )
+
+# 显示菜单函数
+display_menu() {
+    echo ""
+    echo "请选择一个选项："
+    echo "------------------------"
+
+    i=1
+    for item in "${menu_items[@]}"; do
+        if [ $i -eq ${#menu_items[@]} ]; then  # 检查是否为最后一个选项
+            echo -e "${kjlan}0) ${item} ▶${bai}"  # 如果是最后一个选项，序号设为0
+        else
+            echo -e "${i}) ${item}"  # 在这里添加转义字符以确保样式生效
+        fi
+        ((i++))
+    done
+}
 
 # 定义变量菜单函数
 define_variables() {
@@ -85,16 +119,6 @@ EOF
     return_to_main_menu
 }
 
-
-echo ""
-clear
-echo -e "${kjlan}欢迎使用脚本管理工具！${bai}"
-echo ""
-echo -e "${lv}🔗 博客地址: ${kjlan}https://blog.qige.cloudns.biz${bai} ✨"
-echo -e "${lv}🔗 CSDN主页: ${kjlan}https://blog.csdn.net/u010066597${bai} ✨"
-echo ""
-echo -e "${kjlan}============================================================${bai}"
-
 # 建立 SSH 连接
 establish_ssh_connection() {
     ssh_dir="$HOME/.ssh"
@@ -136,24 +160,6 @@ test_ssh_connection() {
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
-
-# 菜单栏函数
-display_menu() {
-    echo ""
-    echo "请选择一个选项："
-    echo "------------------------"
-
-    i=1
-    for item in "${menu_items[@]}"; do
-        if [ $i -eq 1 ] || [ $i -eq 6 ] || [ $i -eq 8 ]; then
-            echo -e "${kjlan}${i}) ${item} ▶${bai}"
-        else
-            echo "${i}) ${item}"
-        fi
-        ((i++))
-    done
-}
-
 
 
 # 同步文件
@@ -816,7 +822,7 @@ print_date() {
     return_to_main_menu
 }
 
-# 返回主菜单函数
+# 返回主菜单
 return_to_main_menu() {
 clear
 }
@@ -828,17 +834,18 @@ exit_program() {
     exit 0
 }
 
-# 主程序
+# 主函数
 main() {
     while true; do
         # 显示菜单
         display_menu
+        
         echo "------------------------"
 
         # 获取用户选择
         read -p "请输入序号回车：" choice
 
-        # 处理用户选择
+        # 根据选择执行相应函数
         case $choice in
             1) establish_ssh_connection ;;
             2) test_ssh_connection ;;
@@ -850,7 +857,7 @@ main() {
             8) set_docker ;;
             9) define_variables ;;
             10) print_date ;;
-            11) exit_program ;;
+            0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
     done
