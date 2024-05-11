@@ -130,7 +130,7 @@ establish_ssh_connection() {
     fi
 
     echo -e "${huang}建立连接中...${bai}"
-    echo -e "${kjlan}🔗若首次连接,请输入远程服务器密码!!!${bai}"
+    echo -e "${kjlan}如果首次连接,请输入远程服务器密码${bai}"
     if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT -o "StrictHostKeyChecking=no" $REMOTE_USER@$REMOTE_HOST; then
         echo -e "${lv}SSH 建立连接成功！${bai}"
     else
