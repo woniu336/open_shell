@@ -824,22 +824,19 @@ generate_ssh_key() {
     cat ~/.ssh/sshkey.pub >> ~/.ssh/authorized_keys
     chmod 600 ~/.ssh/authorized_keys
 
-    # 查看私钥信息复制到本地（SSH客户端所在的设备上）
-    echo "请复制以下私钥信息到本地SSH客户端:"
-    cat ~/.ssh/sshkey
+ip_address
+echo -e "私钥信息已生成，务必复制保存，可保存成 ${huang}${ipv4_address}_ssh.key${bai} 文件，用于以后的SSH登录"
+echo "--------------------------------"
+cat ~/.ssh/sshkey
+echo "--------------------------------"
 
-    # 修改VPS上SSH只接收密钥登录的参数
-    sed -i 's/PermitRootLogin yes/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
-    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-    sed -i 's/ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
-    rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
+sed -i -e 's/^\s*#\?\s*PermitRootLogin .*/PermitRootLogin prohibit-password/' \
+       -e 's/^\s*#\?\s*PasswordAuthentication .*/PasswordAuthentication no/' \
+       -e 's/^\s*#\?\s*PubkeyAuthentication .*/PubkeyAuthentication yes/' \
+       -e 's/^\s*#\?\s*ChallengeResponseAuthentication .*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
+echo -e "${lv}ROOT私钥登录已开启，已关闭ROOT密码登录，重连将会生效${bai}"
 
-    # 重启ssh服务生效
-    sudo service ssh restart
-
-    read -n 1 -s -p "按任意键继续..."
-    return_to_main_menu
 }
 
 
