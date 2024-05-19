@@ -36,7 +36,7 @@ echo -e "${kjlan}欢迎使用脚本管理工具！${bai}"
 echo ""
 
 # 显示博客和CSDN主页
-echo -e "${lv}🔗 博客地址: ${kjlan}https://blog.qige.cloudns.biz${bai} ✨"
+echo -e "${lv}🔗 博客地址: ${kjlan}https://blog.taoshuge.eu.org/${bai} ✨"
 echo -e "${lv}🔗 CSDN主页: ${kjlan}https://blog.csdn.net/u010066597${bai} ✨"
 echo ""
 
@@ -46,17 +46,16 @@ echo -e "${kjlan}============================================================${b
 
 # 定义菜单选项数组
 menu_items=(
-    "配置远程主机"
+    "${kjlan}配置远程主机${bai}"
     "建立 SSH 连接"
     "测试 SSH 连接"
     "文件同步"
-    "备份数据库"
     "数据库同步"
     "${kjlan}添加定时任务▶ ${bai}"
     "时区设置"
-    "Docker 管理"
+    "${kjlan}Docker 管理▶ ${bai}"
     "ROOT私钥登录模式"
-    "安装宝塔面板破解版"
+   "${kjlan}安装宝塔面板破解版▶ ${bai}"
     "退出"
 )
 
@@ -88,7 +87,7 @@ define_variables() {
     read REMOTE_USER
     echo -n "远程数据库用户名："
     read DB_USER
-    echo -n "远程数据库密码："
+    echo -n "远程数据库密码（注意：与本地数据库密码相同）："
     read -s DB_PASSWORD
     echo
     echo -n "本地同步文件夹："
@@ -135,52 +134,24 @@ establish_ssh_connection() {
     if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT -o "StrictHostKeyChecking=no" $REMOTE_USER@$REMOTE_HOST; then
         echo -e "${lv}SSH 建立连接成功！${bai}"
     else
-        echo -e "${hong}无法连接到远程服务器。请检查 config.sh 配置信息是否有误。${bai}"
+        echo -e "无法连接到远程服务器，请检查 ${huang}config.sh${bai} 配置信息是否有误。"
         exit 1
     fi
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
 
+
 # 测试 SSH 连接
 test_ssh_connection() {
     echo -e "${huang}正在尝试连接到远程服务器...${bai}"
 
-    # 使用 SSH 连接并显示动态进度条
-    echo -ne "连接中${kjlan}["
-    for i in {1..20}; do
-        echo -ne "#"
-        sleep 0.05
-    done
-    echo -ne "] 0%\r"
-    sleep 0.1
-
-    for i in {1..20}; do
-        sleep 0.1
-        echo -ne "连接中${kjlan}["
-        for ((j=1; j<=i; j++)); do
-            echo -ne "#"
-        done
-        for ((j=i+1; j<=20; j++)); do
-            echo -ne " "
-        done
-        echo -ne "] $((i * 5))%\r"
-    done
-    echo -ne "\n"
-
-    if ! ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
-        echo -e "${hong}失败${bai}\n"
-        # 如果连接失败，尝试将公钥复制到远程服务器
-        echo -ne "${huang}测试连接中...${bai}\n"
-        if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST; then
-            echo -e "${lv}SSH 已成功连接到远程服务器。${bai}"
-        else
-            echo -e "${huang}无法连接到远程服务器，请检查config.sh配置信息。${bai}\n"
-            echo -e "${hong}连接失败。${bai}"
-            exit 1
-        fi
-    else
+    if ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
         echo -e "${kjlan}连接成功${bai}\n"
+    else
+        echo -e "${hong}连接失败${bai}\n"
+        echo -e "无法连接到远程服务器，请检查 ${huang}config.sh${bai} 配置信息是否有误。"
+        exit 1
     fi
 
     read -n 1 -s -p "按任意键继续..."
@@ -198,34 +169,42 @@ synchronize_files() {
     return_to_main_menu
 }
 
-# 备份所有数据库
-backup_all_databases() {
-    echo -e "${huang}正在备份所有数据库...${bai}"
+# 定义颜色变量
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 备份和还原数据库
+backup_and_restore_databases() {
+    # 备份所有数据库
+    echo -e "${BLUE}正在进行第一步...${NC}"
     mysqldump -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD --all-databases --events | gzip > all_databases.sql.gz
-    echo -e "${lv}数据库备份成功！${bai}"
+    echo -e "${GREEN}完成第一步！${NC}"
 
     # 同步备份文件到远程服务器
-    echo -e "${huang}正在拷贝数据库备份文件到远程主机...${bai}"
-    rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519" all_databases.sql.gz $REMOTE_USER@$REMOTE_HOST:$REMOTE_BACKUP_DIR/
-    echo -e "${lv}数据库拷贝成功！${bai}"
-    read -n 1 -s -p "按任意键继续..."
-    return_to_main_menu
-}
-
-# 还原数据库
-restore_database() {
-    # 获取备份文件
-    backup_file="all_databases.sql.gz"
+    echo -e "${BLUE}正在进行第二步...${NC}"
+    rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519" all_databases.sql.gz $REMOTE_USER@$REMOTE_HOST:$REMOTE_BACKUP_DIR/ >/dev/null 2>&1
+    echo -e "${GREEN}完成第二步！${NC}"
 
     # 还原数据库
-    echo -e "${huang}正在同步数据库...${bai}"
-    ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -T $REMOTE_USER@$REMOTE_HOST << EOF
+    backup_file="all_databases.sql.gz"
+
+    echo -e "${BLUE}正在进行数据库同步...${NC}"
+    ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -T $REMOTE_USER@$REMOTE_HOST << EOF >/dev/null 2>&1
     gunzip < $REMOTE_BACKUP_DIR/$backup_file | mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD
 EOF
-    echo -e "${lv}数据库同步成功！${bai}"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}数据库同步成功！${NC}"
+    else
+        echo -e "${RED}数据库同步失败！${NC}"
+    fi
+
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
+
+
 
 # 添加定时任务函数
 add_cron_job() {
@@ -967,13 +946,12 @@ main() {
             2) establish_ssh_connection ;;
             3) test_ssh_connection ;;
             4) synchronize_files ;;
-            5) backup_all_databases ;;
-            6) restore_database ;;
-            7) add_cron_job ;;
-            8) set_timezone ;;
-            9) set_docker ;;
-            10) generate_ssh_key ;;
-            11) install_bt_panel ;;
+            5) backup_and_restore_databases ;;
+            6) add_cron_job ;;
+            7) set_timezone ;;
+            8) set_docker ;;
+            9) generate_ssh_key ;;
+            10) install_bt_panel ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
