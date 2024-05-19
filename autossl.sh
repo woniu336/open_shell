@@ -40,7 +40,6 @@ for cert_dir in "$certs_directory"*/; do
             domains_with_d+=" -d $domain"
         done
 
-        ~/.acme.sh/acme.sh --issue --dns dns_cf $domains_with_d --force
         ~/.acme.sh/acme.sh --renew $domains_with_d --force
         echo "证书已成功续签。"
     else
