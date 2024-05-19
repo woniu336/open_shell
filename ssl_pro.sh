@@ -100,15 +100,15 @@ echo
             esac
             ;;
         4)
-            # 提示用户输入网站名，宝塔会把添加的第一个域名作为网站名
-            read -p "请输入域名(一个): " site_name
+            # 提示用户输入域名列表
+            read -p "请输入您要签发的域名 (多个以空格分隔): " domain_list
+            
+            # 提取第一个域名作为网站名
+            site_name=$(echo "$domain_list" | awk '{print $1}')
 
             # 创建证书安装路径
             cert_path="/www/server/panel/vhost/cert/$site_name"
             mkdir -p "$cert_path"
-
-            # 提示用户输入域名列表
-            read -p "请输入您要签发的域名 (多个以空格分隔): " domain_list
 
             # 将域名列表转换为带有-d选项的字符串
             domains_with_d=""
@@ -134,6 +134,7 @@ echo
                 --reloadcmd "service nginx force-reload"
             echo -e "\033[32m证书安装成功!\033[0m"
             ;;
+
         5)
             # 强制更新证书
             echo "请输入您要更新的域名列表 (多个以空格分隔): "
