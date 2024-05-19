@@ -58,6 +58,7 @@ menu_items=(
     "${kjlan}Docker 管理▶ ${bai}"
     "ROOT私钥登录模式"
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
+    "工具集合"
     "退出"
 )
 
@@ -80,7 +81,7 @@ display_menu() {
 
 # 定义变量菜单函数
 define_variables() {
-    echo -e "${kjlan}请输入变量值：${bai}"
+    echo -e "${kjlan}提示：配置的作用是连接远程主机，方便后续的同步操作${bai}"
     echo -n "远程主机地址："
     read REMOTE_HOST
     echo -n "远程服务器 SSH 端口："
@@ -921,6 +922,146 @@ install_bt_panel() {
     esac
 }
 
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+install_tools() {
+    clear
+    echo "请选择要安装的工具："
+    echo "------------------------"
+    echo "1) 安装 rsync"
+    echo "2) 安装 rclone"
+    echo "3) 安装 lrzsz"
+    echo "4) 安装全部工具"
+    echo "5) 清理系统垃圾"
+    echo "6) BBR管理"
+    echo "0) 返回主菜单"
+    echo "------------------------"
+
+    read -p "请输入序号回车：" choice
+
+    case $choice in
+        1) install_rsync ;;
+        2) install_rclone ;;
+        3) install_lrzsz ;;
+        4) install_all ;;
+        5) clean_debian ;;
+        6) bbr_management ;;
+        0) return_to_main_menu ;;
+        *) echo "无效的选择。请再次尝试。" ;;
+    esac
+}
+
+install_rsync() {
+    if command_exists rsync; then
+        echo -e "\033[96mrsync 已经安装\033[0m"
+    else
+        echo -e "\033[33mrsync 正在安装中...\033[0m"
+        sudo apt update
+        sudo apt install -y rsync
+    fi
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
+install_rclone() {
+    if command_exists rclone; then
+        echo -e "\033[96mrclone 已经安装\033[0m"
+    else
+        echo -e "\033[33mrclone 正在安装中...\033[0m"
+        sudo -v
+        curl https://rclone.org/install.sh | sudo bash
+    fi
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
+install_lrzsz() {
+    if dpkg-query -W -f='${Status}' lrzsz 2>/dev/null | grep -q "installed"; then
+        echo -e "\033[96mlrzsz 已经安装\033[0m"
+    else
+        echo -e "\033[33mlrzsz 正在安装中...\033[0m"
+        sudo apt update
+        sudo apt install -y lrzsz
+    fi
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
+install_all() {
+    install_rsync
+    install_rclone
+    install_lrzsz
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+    clean_debian() {
+        apt autoremove --purge -y
+        apt clean -y
+        apt autoclean -y
+        apt remove --purge $(dpkg -l | awk '/^rc/ {print $2}') -y
+        journalctl --rotate
+        journalctl --vacuum-time=1s
+        journalctl --vacuum-size=50M
+        apt remove --purge $(dpkg -l | awk '/^ii linux-(image|headers)-[^ ]+/{print $2}' | grep -v $(uname -r | sed 's/-.*//') | xargs) -y
+    }
+
+# bbr管理
+
+bbr_on() {
+
+cat > /etc/sysctl.conf << EOF
+net.core.default_qdisc=fq_pie
+net.ipv4.tcp_congestion_control=bbr
+EOF
+sysctl -p
+lsmod | grep bbr
+
+}
+
+bbr_management() {
+    clear
+    while true; do
+        clear
+        congestion_algorithm=$(sysctl -n net.ipv4.tcp_congestion_control)
+        queue_algorithm=$(sysctl -n net.core.default_qdisc)
+        echo ""
+        echo "当前TCP阻塞算法: $congestion_algorithm $queue_algorithm"
+
+        echo ""
+        echo "BBR管理"
+        echo "------------------------"
+        echo "1. 开启BBRv3"
+        echo "2. 关闭BBRv3（会重启）"
+        echo "0. 返回上一级选单"
+        echo "------------------------"
+        read -p "请输入你的选择: " sub_choice
+
+        case $sub_choice in
+            1)
+                curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/enable_bbr.sh && chmod +x enable_bbr.sh && ./enable_bbr.sh
+               echo -e "${kjlan}BBR 参数已成功添加并生效！${bai}"
+                read -n 1 -s -p "按任意键继续..."
+                return_to_main_menu
+                ;;
+            2)
+                sed -i '/net.core.default_qdisc=fq_pie/d' /etc/sysctl.conf
+                sed -i '/net.ipv4.tcp_congestion_control=bbr/d' /etc/sysctl.conf
+                sysctl -p
+                reboot
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo "无效的选择。请再次尝试。"
+                ;;
+        esac
+    done
+
+    return_to_main_menu
+}
 
 # 返回主菜单
 return_to_main_menu() {
@@ -957,6 +1098,7 @@ main() {
             8) set_docker ;;
             9) generate_ssh_key ;;
             10) install_bt_panel ;;
+            11) install_tools ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
