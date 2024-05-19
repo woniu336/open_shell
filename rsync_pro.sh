@@ -56,6 +56,7 @@ menu_items=(
     "Docker 管理"
     "配置信息"
     "ROOT私钥登录模式"
+    "安装宝塔面板破解版"
     "退出"
 )
 
@@ -850,6 +851,89 @@ generate_ssh_key() {
     return_to_main_menu
 }
 
+# 新函数：安装宝塔面板破解版
+install_bt_panel() {
+    clear
+    echo -e "${lv}开始安装宝塔面板破解版...${bai}"
+    
+    # 显示子菜单
+    echo -e "${kjlan}1) 一键安装${bai}"
+    echo -e "${kjlan}2) 优化设置${bai}"
+    echo -Multiplier -e "${kjlan}3) 手动破解${bai}"
+    echo -e "${kjlan}4) 去后门${bai}"
+    echo -e "${kjlan}5) 净化面板${bai}"
+    echo -e "${kjlan}6) 软件商店列表无法打开的解决办法${bai}"
+    echo -e "${kjlan}7) 返回上级菜单${bai}"
+    
+    # 获取用户选择
+    read -p "请输入序号回车：" choice
+
+    case $choice in
+        1)
+            # 一键安装宝塔面板破解版
+            echo -e "${lv}执行一键安装...${bai}"
+            curl -sSO https://gitee.com/dayu777/btpanel-v7.7.0/raw/main/install/install_panel.sh && bash install_panel.sh
+            read -n 1 -s -p "安装完成，按任意键继续..."
+            ;;
+        2)
+            # 应用优化设置
+            echo -e "${lv}开始应用优化设置...${bai}"
+            curl -sS -O https://gitee.com/dayu777/open_shell/raw/main/optimize.sh && chmod +x optimize.sh && ./optimize.sh
+            read -n 1 -s -p "优化完成，按任意键继续..."
+            ;;
+        3)
+            # 展示手动破解步骤
+            echo -e "${lv}手动破解步骤：${bai}"
+            echo -e "${lv}1) 先登录面板，然后破解，去除登陆需要绑定账号：${bai}"
+            echo -e "${kjlan}rm -f /www/server/panel/data/bind.pl${bai}"
+            read -n 1 -s -p "按任意键继续..."
+            
+            echo -e "${lv}2) 手动解锁宝塔所有付费插件为永不过期${bai}"
+            echo -e "${kjlan}sed -i 's/\"endtime\": -1/\"endtime\": 999999999999/g' /www/server/panel/data/plugin.json${bai}"
+            read -n 1 -s -Multiplierp "按任意键继续..."
+            
+            echo -e "${lv}3) 给plugin.json文件上锁，防止自动修复为免费版${bai}"
+            echo -e "${kjlan}chattr +i /www/server/panel/data/plugin.json${bai}"
+            read -n 1 -s -p "按任意键继续..."
+            ;;
+        4)
+            # 去后门
+            echo -e "${lv}执行去后门操作...${bai}"
+            sudo echo "" > /www/server/panel/script/site_task.py
+            sudo chattr +i /www/server/panel/script/site_task.py
+            sudo rm -rf /www/server/panel/logs/request/*
+            sudo chattr +i -R /www/server/panel/logs/request
+            read -n 1 -s -p "去后门完成，按任意键继续..."
+            ;;
+        5)
+            # 净化面板
+            echo -e "${lv}开始净化面板...${bai}"
+            wget -O /tmp/bt.zip https://gitee.com/dayu777/open_shell/raw/main/bt/bt.zip
+            unzip -uo /tmp/bt.zip -d /www/server/panel/BTPanel/templates/default
+            rm /tmp/bt.zip
+            bt restart
+            read -n 1 -s -p "净化完成，按任意键继续..."
+            ;;
+        6)
+            # 软件商店列表无法打开的解决办法
+            echo -e "${lv}执行软件商店列表无法打开的解决办法...${bai}"
+            echo -e "${lv}中国和香港服务器：${bai}"
+            echo -e "${kjlan}sed -i \"/bt.cn/d\" /etc/hosts${bai}"
+            echo -e "${kjlan}echo \"103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
+            read -n 1 -s -p "按任意键继续..."
+            
+            echo -e "${lv}海外服务器：${bai}"
+            echo -e "${kjlan}sed -i \"/bt.cn/d\" /etc/hosts${bai}"
+            echo -e "${kjlan}echo \"128.1.164.164 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
+            read -n 1 -s -p "按任意键继续..."
+            ;;
+        7)
+            # 返回上级菜单
+            return_to_main_menu
+            ;;
+        *) echo "无效的选择。请再次尝试。" ;;
+    esac
+}
 
 
 # 返回主菜单
@@ -887,6 +971,7 @@ main() {
             8) set_docker ;;
             9) define_variables ;;
             10) generate_ssh_key ;;
+            11) install_bt_panel ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
