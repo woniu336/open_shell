@@ -78,7 +78,7 @@ echo
                     ~/.acme.sh/acme.sh --set-default-ca --server google
                     echo "你选择了 Google Public CA"
                     echo "请按照以下教程获取keyId和b64MacKey："
-                    echo -e "\033[32m申请google证书教程: https://blog.csdn.net/u010066597/article/details/137851521/ \033[0m"
+                    echo -e "\033[32m申请google证书教程: https://blog.taoshuge.eu.org/posts/f02ff0bc.html \033[0m"
                     read -p "是否继续? (Y/N): " continue_choice
                     if [[ ! $continue_choice =~ ^[Yy]$ ]]; then
                         echo "用户取消操作。"
