@@ -815,6 +815,11 @@ case $sub_choice in
     done
 }
 
+ip_address() {
+ipv4_address=$(curl -s ipv4.ip.sb)
+ipv6_address=$(curl -s --max-time 1 ipv6.ip.sb)
+}
+
 generate_ssh_key() {
     # 生成密钥对
     ssh-keygen -t rsa -b 4096 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
@@ -823,8 +828,8 @@ generate_ssh_key() {
     cat ~/.ssh/sshkey.pub >> ~/.ssh/authorized_keys
     chmod 600 ~/.ssh/authorized_keys
 
-    # 获取IP地址
-    ipv4_address=$(ip -4 addr show scope global dev eth0 | grep inet | awk '{print $2}' | cut -d/ -f1)
+    # 获取服务器IPv4地址
+    ip_address
 
     echo -e "私钥信息已生成，务必复制保存，可保存成 ${huang}${ipv4_address}_ssh.key${bai} 文件，用于以后的SSH登录"
     echo "--------------------------------"
