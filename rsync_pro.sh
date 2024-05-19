@@ -147,12 +147,16 @@ test_ssh_connection() {
     echo -e "${huang}正在尝试连接到远程服务器...${bai}"
 
     # 使用 SSH 连接并显示动态进度条
-    echo -ne "连接中${kjlan}[#"
-    for i in {1..19}; do
+    echo -ne "连接中${kjlan}["
+    local i
+    local spin='|/-\'
+    for i in {1..20}; do
+        # 动态显示旋转的字符
+        local spin_char=${spin:$((i % ${#spin} )):1}
+        echo -ne "${spin_char}\r"
         sleep 0.1
-        echo -ne "#"
     done
-    echo -ne "#]${kjlan}100%\r"
+    echo -ne "]${kjlan}100%\r"
     if ! ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
         echo -e "${hong}失败${bai}\n"
         # 如果连接失败，尝试将公钥复制到远程服务器
@@ -160,7 +164,7 @@ test_ssh_connection() {
         if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST; then
             echo -e "${lv}SSH 已成功连接到远程服务器。${bai}"
         else
-            echo -e "${hong}无法连接到远程服务器。请检查详细信息：${bai}\n"
+            echo -e "${huang}无法连接到远程服务器，请检查 config.sh 配置信息。${bai}\n"
             echo -e "${hong}连接失败。${bai}"
             exit 1
         fi
@@ -171,7 +175,6 @@ test_ssh_connection() {
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
-
 
 
 # 同步文件
