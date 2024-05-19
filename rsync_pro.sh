@@ -6,10 +6,9 @@ bai='\033[0m'
 lv='\033[0;32m'
 lan='\033[0;34m'
 hong='\033[31m'
-kjlan='\033[96m'
+kjlan='\033[38;2;0;255;255m'
 hui='\e[37m'
-zi='\e[35m'
-zai='\e[0m'
+greenline() { echo -e "\033[32m\033[01m $1\033[0m"; }
 
 # 定义变量
 REMOTE_HOST=""
@@ -32,53 +31,48 @@ mkdir -p "$script_dir"
 
 
 # 清屏并显示欢迎信息
-echo ""
-clear
-echo -e "${kjlan}欢迎使用脚本管理工具！${bai}"
-echo ""
+    clear
+    greenline "————————————————————————————————————————————————————"
+    echo '
+    ***********  服务器运维脚本  ***************
+    环境:  (Ubuntu/debian)
+    脚本作用:高效管理你的服务器，省时省心'
+    echo -e "    https://github.com/woniu336/open_shell"
+    greenline "————————————————————————————————————————————————————"
 
-# 显示博客和CSDN主页
-echo -e "${lv}🔗 博客地址: ${kjlan}https://blog.taoshuge.eu.org/${bai} ✨"
-echo -e "${lv}🔗 CSDN主页: ${kjlan}https://blog.csdn.net/u010066597${bai} ✨"
-echo ""
-
-# 显示分隔线
-echo -e "${kjlan}============================================================${bai}"
 
 
 # 定义菜单选项数组
 menu_items=(
-    "${zi}配置远程主机${zai}"
-    "建立 SSH 连接"
+    "配置远程主机"
+    "${kjlan}建立 SSH 连接${bai}"
     "测试 SSH 连接"
     "文件同步"
     "数据库同步"
-    "${kjlan}添加定时任务▶ ${bai}"
+    "添加定时任务▶"
     "时区设置"
-    "${kjlan}Docker 管理▶ ${bai}"
+    "Docker 管理▶"
     "ROOT私钥登录模式"
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
-    "工具集合"
+    "工具集合▶"
     "设置脚本启动快捷键"
-    "退出"
+    "退出脚本"
 )
 
 # 显示菜单函数
 display_menu() {
-    echo ""
-    echo "请选择一个选项："
-    echo "------------------------"
-
+    echo "请选择操作："
     i=1
     for item in "${menu_items[@]}"; do
         if [ $i -eq ${#menu_items[@]} ]; then  # 检查是否为最后一个选项
-            echo -e "0) ${item}"  # 如果是最后一个选项，序号设为0
+            echo -e "0. ${item}"  # 如果是最后一个选项，序号设为0
         else
-            echo -e "${i}) ${item}"  # 在这里添加转义字符以确保样式生效
+            echo -e "$((i + 0)). ${item}"  # 在这里添加转义字符以确保样式生效
         fi
         ((i++))
     done
 }
+
 
 # 定义变量菜单函数
 define_variables() {
@@ -878,11 +872,11 @@ install_bt_panel() {
     echo -e "${lv}开始安装宝塔面板破解版...${bai}"
     
     # 显示子菜单
-    echo -e "${kjlan}1) 一键安装${bai}"
-    echo -e "${kjlan}2) 优化设置${bai}"
-    echo -e "${kjlan}3) 去后门${bai}"
-    echo -e "${kjlan}4) 软件商店无法打开的解决办法${bai}"
-    echo -e "${kjlan}0) 返回上级菜单${bai}"
+    echo "1. 一键安装"
+    echo "2. 优化设置"
+    echo "3. 去后门"
+    echo "4. 软件商店无法打开的解决办法"
+    echo "0. 返回上级菜单"
     
     # 获取用户选择
     read -p "请输入序号回车：" choice
@@ -941,15 +935,15 @@ install_tools() {
     clear
     echo "请选择要安装的工具："
     echo "------------------------"
-    echo "1) 安装 rsync"
-    echo "2) 安装 rclone"
-    echo "3) 安装 lrzsz"
-    echo "4) 安装全部工具"
-    echo "5) 清理系统垃圾"
-    echo "6) BBR管理"
-    echo "7) 路飞工具箱"
-    echo "8) 科技lion脚本"
-    echo "0) 返回主菜单"
+    echo "1. 安装 rsync"
+    echo "2. 安装 rclone"
+    echo "3. 安装 lrzsz"
+    echo "4. 安装全部工具"
+    echo "5. 清理系统垃圾"
+    echo "6. BBR管理▶"
+    echo "7. 路飞工具箱"
+    echo "8. 科技lion脚本"
+    echo "0. 返回主菜单"
     echo "------------------------"
 
     read -p "请输入序号回车：" choice
@@ -1105,11 +1099,12 @@ main() {
     while true; do
         # 显示菜单
         display_menu
-        
-        echo "------------------------"
-
+        echo "------------------------------------------------"
         # 获取用户选择
-        read -p "请输入序号回车：" choice
+    read -p "请输入选项的序号(输入q退出): " choice
+    if [[ $choice == 'q' ]]; then
+        break
+    fi
 
         # 根据选择执行相应函数
         case $choice in
