@@ -161,7 +161,7 @@ test_ssh_connection() {
             echo -e "${lv}SSH 已成功连接到远程服务器。${bai}"
         else
             echo -e "${hong}无法连接到远程服务器。请检查详细信息：${bai}\n"
-            echo -e "${hong}公钥复制失败。${bai}"
+            echo -e "${hong}连接失败。${bai}"
             exit 1
         fi
     else
@@ -169,7 +169,7 @@ test_ssh_connection() {
     fi
 
     read -n 1 -s -p "按任意键继续..."
-    return_to_ampain
+    return_to_main_menu
 }
 
 
