@@ -217,7 +217,9 @@ add_cron_job() {
         echo ""
         echo -e "${huang}3) 定时任务管理 ▶ ${bai}"
         echo ""
-        echo "4) 返回主菜单"
+        echo "4) 添加acme证书定时任务"
+        echo ""
+        echo "0) 返回主菜单"
         echo ""
         read -p "请输入序号回车：" cron_choice
 
@@ -236,6 +238,14 @@ add_cron_job() {
                 ;;
 
             4)
+                # acme定时任务
+                (crontab -l ; echo '0 3 * * * "/root/.acme.sh"/acme.sh --cron --home "/root/.acme.sh" > /dev/null') | crontab -
+                echo -e "${kjlan}定时任务已添加。${bai}"
+                read -n 1 -s -p "按任意键继续..."
+                return_to_main_menu
+                ;;
+
+            0)
                 # 返回主菜单
                 echo ""
                 echo -e "${lv}已返回主菜单。${bai}"
