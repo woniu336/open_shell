@@ -59,6 +59,7 @@ menu_items=(
     "ROOT私钥登录模式"
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
     "工具集合"
+    "设置脚本启动快捷键"
     "退出"
 )
 
@@ -118,6 +119,16 @@ REMOTE_BACKUP_DIR=$REMOTE_BACKUP_DIR
 EOF
     chmod +x config.sh
     echo -e "${kjlan}config.sh 文件已生成，请检查并确认变量值正确。${bai}"
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
+# 快捷键
+kuai() {
+    read -p "请输入你的快捷按键: " kuaijiejian
+    echo "alias $kuaijiejian='~/rsync_pro.sh'" >> ~/.bashrc
+    source ~/.bashrc
+    echo -e "${lv}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${bai}"
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
@@ -936,6 +947,8 @@ install_tools() {
     echo "4) 安装全部工具"
     echo "5) 清理系统垃圾"
     echo "6) BBR管理"
+    echo "7) 路飞工具箱"
+    echo "8) 科技lion脚本"
     echo "0) 返回主菜单"
     echo "------------------------"
 
@@ -948,9 +961,20 @@ install_tools() {
         4) install_all ;;
         5) clean_debian ;;
         6) bbr_management ;;
+        7) tuo_tool ;;
+        8) kjilion_tool ;;
         0) return_to_main_menu ;;
         *) echo "无效的选择。请再次尝试。" ;;
     esac
+}
+
+tuo_tool() {
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/tool.sh && chmod +x tool.sh && ./tool.sh
+}
+
+
+kjilion_tool() {
+    curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
 }
 
 install_rsync() {
@@ -1042,6 +1066,7 @@ bbr_management() {
             1)
                 curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/enable_bbr.sh && chmod +x enable_bbr.sh && ./enable_bbr.sh
                echo -e "${kjlan}BBR 参数已成功添加并生效！${bai}"
+               lsmod | grep bbr
                 read -n 1 -s -p "按任意键继续..."
                 return_to_main_menu
                 ;;
@@ -1099,6 +1124,7 @@ main() {
             9) generate_ssh_key ;;
             10) install_bt_panel ;;
             11) install_tools ;;
+            12) kuai ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
