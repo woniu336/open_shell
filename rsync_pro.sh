@@ -146,14 +146,18 @@ establish_ssh_connection() {
 test_ssh_connection() {
     echo -e "${huang}正在尝试连接到远程服务器...${bai}"
 
-    # 使用 SSH 连接并显示美化进度条
-    echo -ne "连接中${light_huang}[$(for i in {1..20}; do echo -ne "#"; done)]  0%\r"
+    # 使用 SSH 连接并显示动态进度条
+    echo -ne "连接中${kjlan}[#"
+    for i in {1..19}; do
+        sleep 0.1
+        echo -ne "#"
+    done
+    echo -ne "#]${kjlan}100%\r"
     if ! ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
-        echo -ne "连接中${light_huang}[$(for i in {1..20}; do echo -ne "#"; done)]100%\n"
-        echo -e "${light_hong}失败${bai}\n"
+        echo -e "${hong}失败${bai}\n"
         # 如果连接失败，尝试将公钥复制到远程服务器
         echo -ne "${huang}测试连接中...${bai}\n"
-        if ssh-copy-id -i ~/.ssh/id_ed25510.pub -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST; then
+        if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST; then
             echo -e "${lv}SSH 已成功连接到远程服务器。${bai}"
         else
             echo -e "${hong}无法连接到远程服务器。请检查详细信息：${bai}\n"
@@ -161,12 +165,11 @@ test_ssh_connection() {
             exit 1
         fi
     else
-        echo -ne "连接中${light_lv}[$(for i in {1..20}; do echo -ne "#"; done)]100%\n"
-        echo -e "${lv}成功${bai}\n"
+        echo -e "${kjlan}连接成功${bai}\n"
     fi
 
     read -n 1 -s -p "按任意键继续..."
-    return_to_main_menu
+    return_to_ampain
 }
 
 
