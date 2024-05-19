@@ -8,6 +8,8 @@ lan='\033[0;34m'
 hong='\033[31m'
 kjlan='\033[96m'
 hui='\e[37m'
+zi='\e[35m'
+zai='\e[0m'
 
 # 定义变量
 REMOTE_HOST=""
@@ -46,7 +48,7 @@ echo -e "${kjlan}============================================================${b
 
 # 定义菜单选项数组
 menu_items=(
-    "${kjlan}配置远程主机${bai}"
+    "${zi}配置远程主机${zai}"
     "建立 SSH 连接"
     "测试 SSH 连接"
     "文件同步"
@@ -868,7 +870,7 @@ install_bt_panel() {
     echo -e "${kjlan}2) 优化设置${bai}"
     echo -e "${kjlan}3) 去后门${bai}"
     echo -e "${kjlan}4) 软件商店无法打开的解决办法${bai}"
-    echo -e "${kjlan}5) 返回上级菜单${bai}"
+    echo -e "${kjlan}0) 返回上级菜单${bai}"
     
     # 获取用户选择
     read -p "请输入序号回车：" choice
@@ -911,7 +913,7 @@ install_bt_panel() {
             read -n 1 -s -p "按任意键继续..."
             return_to_main_menu
             ;;
-        5)
+        0)
             # 返回上级菜单
             return_to_main_menu
             ;;
