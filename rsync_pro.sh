@@ -68,7 +68,7 @@ display_menu() {
     i=1
     for item in "${menu_items[@]}"; do
         if [ $i -eq ${#menu_items[@]} ]; then  # 检查是否为最后一个选项
-            echo -e "${kjlan}0) ${item} ▶${bai}"  # 如果是最后一个选项，序号设为0
+            echo -e "0) ${item}"  # 如果是最后一个选项，序号设为0
         else
             echo -e "${i}) ${item}"  # 在这里添加转义字符以确保样式生效
         fi
@@ -204,8 +204,6 @@ EOF
     return_to_main_menu
 }
 
-
-
 # 添加定时任务函数
 add_cron_job() {
     while true; do
@@ -215,13 +213,11 @@ add_cron_job() {
         echo ""
         echo "1) 同步文件"
         echo ""
-        echo "2) 备份所有数据库"
+        echo "2) 同步数据库"
         echo ""
-        echo "3) 数据库同步"
+        echo -e "${huang}3) 定时任务管理 ▶ ${bai}"
         echo ""
-        echo -e "${huang}4) 定时任务管理 ▶ ${bai}"
-        echo ""
-        echo "5) 返回主菜单"
+        echo "4) 返回主菜单"
         echo ""
         read -p "请输入序号回车：" cron_choice
 
@@ -231,19 +227,15 @@ add_cron_job() {
                 generate_script synchronize_files "rsync -avz --delete -e \"ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519\" $SOURCE_DIR/ $REMOTE_USER@$REMOTE_HOST:$TARGET_DIR/"
                 ;;
             2)
-                # 生成备份所有数据库脚本
-                generate_script backup_all_databases "mysqldump -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD --all-databases --events | gzip > all_databases.sql.gz && rsync -avz --delete -e \"ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519\" all_databases.sql.gz $REMOTE_USER@$REMOTE_HOST:$REMOTE_BACKUP_DIR/"
+                # 生成备份和还原所有数据库脚本
+                generate_script backup_and_restore_databases "mysqldump -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD --all-databases --events | gzip > all_databases.sql.gz && rsync -avz --delete -e \"ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519\" all_databases.sql.gz $REMOTE_USER@$REMOTE_HOST:$REMOTE_BACKUP_DIR/ && ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -T $REMOTE_USER@$REMOTE_HOST \"gunzip < $REMOTE_BACKUP_DIR/all_databases.sql.gz | mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD\""
                 ;;
             3)
-                # 生成还原数据库脚本
-                generate_script restore_database "ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -T $REMOTE_USER@$REMOTE_HOST \"gunzip < $REMOTE_BACKUP_DIR/all_databases.sql.gz | mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD\""
-                ;;
-            4)
                 # 自定义任务
                 manage_cron_jobs
                 ;;
 
-            5)
+            4)
                 # 返回主菜单
                 echo ""
                 echo -e "${lv}已返回主菜单。${bai}"
@@ -256,6 +248,7 @@ add_cron_job() {
         esac
     done
 }
+
 
 # 管理定时任务函数
 manage_cron_jobs() {
