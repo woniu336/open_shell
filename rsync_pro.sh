@@ -859,11 +859,9 @@ install_bt_panel() {
     # 显示子菜单
     echo -e "${kjlan}1) 一键安装${bai}"
     echo -e "${kjlan}2) 优化设置${bai}"
-    echo -Multiplier -e "${kjlan}3) 手动破解${bai}"
-    echo -e "${kjlan}4) 去后门${bai}"
-    echo -e "${kjlan}5) 净化面板${bai}"
-    echo -e "${kjlan}6) 软件商店列表无法打开的解决办法${bai}"
-    echo -e "${kjlan}7) 返回上级菜单${bai}"
+    echo -e "${kjlan}3) 去后门${bai}"
+    echo -e "${kjlan}4) 软件商店无法打开的解决办法${bai}"
+    echo -e "${kjlan}5) 返回上级菜单${bai}"
     
     # 获取用户选择
     read -p "请输入序号回车：" choice
