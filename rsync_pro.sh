@@ -46,6 +46,7 @@ echo -e "${kjlan}============================================================${b
 
 # 定义菜单选项数组
 menu_items=(
+    "配置远程主机"
     "建立 SSH 连接"
     "测试 SSH 连接"
     "文件同步"
@@ -54,7 +55,6 @@ menu_items=(
     "${kjlan}添加定时任务▶ ${bai}"
     "时区设置"
     "Docker 管理"
-    "配置信息"
     "ROOT私钥登录模式"
     "安装宝塔面板破解版"
     "退出"
@@ -938,15 +938,15 @@ main() {
 
         # 根据选择执行相应函数
         case $choice in
-            1) establish_ssh_connection ;;
-            2) test_ssh_connection ;;
-            3) synchronize_files ;;
-            4) backup_all_databases ;;
-            5) restore_database ;;
-            6) add_cron_job ;;
-            7) set_timezone ;;
-            8) set_docker ;;
-            9) define_variables ;;
+            1) define_variables ;;
+            2) establish_ssh_connection ;;
+            3) test_ssh_connection ;;
+            4) synchronize_files ;;
+            5) backup_all_databases ;;
+            6) restore_database ;;
+            7) add_cron_job ;;
+            8) set_timezone ;;
+            9) set_docker ;;
             10) generate_ssh_key ;;
             11) install_bt_panel ;;
             0) exit_program ;;
