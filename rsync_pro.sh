@@ -815,7 +815,6 @@ case $sub_choice in
     done
 }
 
-# 生成ssh密钥对
 generate_ssh_key() {
     # 生成密钥对
     ssh-keygen -t rsa -b 4096 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
@@ -824,20 +823,28 @@ generate_ssh_key() {
     cat ~/.ssh/sshkey.pub >> ~/.ssh/authorized_keys
     chmod 600 ~/.ssh/authorized_keys
 
-ip_address
-echo -e "私钥信息已生成，务必复制保存，可保存成 ${huang}${ipv4_address}_ssh.key${bai} 文件，用于以后的SSH登录"
-echo "--------------------------------"
-cat ~/.ssh/sshkey
-echo "--------------------------------"
+    # 获取IP地址
+    ipv4_address=$(ip -4 addr show scope global dev eth0 | grep inet | awk '{print $2}' | cut -d/ -f1)
 
-sed -i -e 's/^\s*#\?\s*PermitRootLogin .*/PermitRootLogin prohibit-password/' \
-       -e 's/^\s*#\?\s*PasswordAuthentication .*/PasswordAuthentication no/' \
-       -e 's/^\s*#\?\s*PubkeyAuthentication .*/PubkeyAuthentication yes/' \
-       -e 's/^\s*#\?\s*ChallengeResponseAuthentication .*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
-rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
-echo -e "${lv}ROOT私钥登录已开启，已关闭ROOT密码登录，重连将会生效${bai}"
+    echo -e "私钥信息已生成，务必复制保存，可保存成 ${huang}${ipv4_address}_ssh.key${bai} 文件，用于以后的SSH登录"
+    echo "--------------------------------"
+    cat ~/.ssh/sshkey
+    echo "--------------------------------"
 
+    sed -i -e 's/^\s*#\?\s*PermitRootLogin .*/PermitRootLogin prohibit-password/' \
+           -e 's/^\s*#\?\s*PasswordAuthentication .*/PasswordAuthentication no/' \
+           -e 's/^\s*#\?\s*PubkeyAuthentication .*/PubkeyAuthentication yes/' \
+           -e 's/^\s*#\?\s*ChallengeResponseAuthentication .*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+    rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
+    echo -e "${lv}ROOT私钥登录已开启，已关闭ROOT密码登录，重连将会生效${bai}"
+
+    # 重启ssh服务生效
+    sudo service ssh restart
+
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
 }
+
 
 
 # 返回主菜单
