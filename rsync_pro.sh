@@ -55,7 +55,7 @@ menu_items=(
     "时区设置"
     "Docker 管理"
     "配置信息"
-    "打印日期"
+    "生成SSH密钥对"
     "退出"
 )
 
@@ -815,12 +815,33 @@ case $sub_choice in
     done
 }
 
-# 打印日期函数
-print_date() {
-    date "+%Y-%m-%d %H:%M:%S"
+# 生成ssh密钥对
+generate_ssh_key() {
+    # 生成密钥对
+    ssh-keygen -t rsa -b 4096 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
+
+    # 存放公钥文件到对应位置并授权
+    cat ~/.ssh/sshkey.pub >> ~/.ssh/authorized_keys
+    chmod 600 ~/.ssh/authorized_keys
+
+    # 查看私钥信息复制到本地（SSH客户端所在的设备上）
+    echo "请复制以下私钥信息到本地SSH客户端:"
+    cat ~/.ssh/sshkey
+
+    # 修改VPS上SSH只接收密钥登录的参数
+    sed -i 's/PermitRootLogin yes/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    sed -i 's/ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+    rm -rf /etc/ssh/sshd_config.d/* /etc/ssh/ssh_config.d/*
+
+    # 重启ssh服务生效
+    sudo service ssh restart
+
     read -n 1 -s -p "按任意键继续..."
     return_to_main_menu
 }
+
 
 # 返回主菜单
 return_to_main_menu() {
@@ -856,7 +877,7 @@ main() {
             7) set_timezone ;;
             8) set_docker ;;
             9) define_variables ;;
-            10) print_date ;;
+            10) generate_ssh_key ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
