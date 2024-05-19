@@ -148,15 +148,26 @@ test_ssh_connection() {
 
     # 使用 SSH 连接并显示动态进度条
     echo -ne "连接中${kjlan}["
-    local i
-    local spin='|/-\'
     for i in {1..20}; do
-        # 动态显示旋转的字符
-        local spin_char=${spin:$((i % ${#spin} )):1}
-        echo -ne "${spin_char}\r"
-        sleep 0.1
+        echo -ne "#"
+        sleep 0.05
     done
-    echo -ne "]${kjlan}100%\r"
+    echo -ne "] 0%\r"
+    sleep 0.1
+
+    for i in {1..20}; do
+        sleep 0.1
+        echo -ne "连接中${kjlan}["
+        for ((j=1; j<=i; j++)); do
+            echo -ne "#"
+        done
+        for ((j=i+1; j<=20; j++)); do
+            echo -ne " "
+        done
+        echo -ne "] $((i * 5))%\r"
+    done
+    echo -ne "\n"
+
     if ! ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
         echo -e "${hong}失败${bai}\n"
         # 如果连接失败，尝试将公钥复制到远程服务器
@@ -164,7 +175,7 @@ test_ssh_connection() {
         if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT $REMOTE_USER@$REMOTE_HOST; then
             echo -e "${lv}SSH 已成功连接到远程服务器。${bai}"
         else
-            echo -e "${huang}无法连接到远程服务器，请检查 config.sh 配置信息。${bai}\n"
+            echo -e "${huang}无法连接到远程服务器，请检查config.sh配置信息。${bai}\n"
             echo -e "${hong}连接失败。${bai}"
             exit 1
         fi
