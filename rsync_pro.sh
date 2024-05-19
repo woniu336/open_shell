@@ -900,7 +900,7 @@ install_bt_panel() {
             echo -e "${kjlan}echo \"103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
             echo -e "${lv}如果是海外服务器，复制以下代码到终端运行：${bai}"
             echo -e "${kjlan}sed -i \"/bt.cn/d\" /etc/hosts${bai}"
-            echo -e "${kjlan}echo \"128.1.164.194 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
+            echo -e "${kjlan}echo \"128.1.164.196 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
             read -n 1 -s -p "按任意键继续..."
             return_to_main_menu
             ;;
