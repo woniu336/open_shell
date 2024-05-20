@@ -181,7 +181,7 @@ synchronize_files() {
 # 备份和还原数据库
 backup_and_restore_databases() {
     # 备份所有数据库
-    echo -e "${huang}同步进行中...${bai}"
+    echo -e "${huang}同步进行中（请耐心等待）...${bai}"
     mysqldump -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD --all-databases --events | gzip > all_databases.sql.gz
     echo "完成20%"
 
