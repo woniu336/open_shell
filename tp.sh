@@ -45,14 +45,14 @@ mkdir -p "$script_dir"
 # 定义菜单选项数组
 menu_items=(
     "配置远程主机"
-    "${kjlan}建立 SSH 连接${bai}"
-    "测试 SSH 连接"
+    "${kjlan}建立 ssh 连接${bai}"
+    "测试 ssh 连接"
     "文件同步"
     "数据库同步"
     "添加定时任务▶"
     "时区设置"
-    "Docker 管理▶"
-    "ROOT私钥登录模式"
+    "docker管理▶"
+    "root私钥登录模式"
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
     "工具集合▶"
     "设置脚本启动快捷键"
@@ -140,7 +140,7 @@ establish_ssh_connection() {
     echo -e "${huang}建立连接中...${bai}"
     echo -e "${kjlan}如果首次连接,请输入远程服务器密码${bai}"
     if ssh-copy-id -i ~/.ssh/id_ed25519.pub -p $SSH_PORT -o "StrictHostKeyChecking=no" $REMOTE_USER@$REMOTE_HOST; then
-        echo -e "${lv}SSH 建立连接成功！${bai}"
+        echo -e "${kjlan} ssh连接成功！${bai}"
     else
         echo -e "无法连接到远程服务器，请检查 ${huang}config.sh${bai} 配置信息是否有误。"
         exit 1
@@ -152,7 +152,7 @@ establish_ssh_connection() {
 
 # 测试 SSH 连接
 test_ssh_connection() {
-    echo -e "${huang}正在尝试连接到远程服务器...${bai}"
+    echo -e "${huang}ssh连接中，稍等片刻...${bai}"
 
     if ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -o "StrictHostKeyChecking=no" -o "BatchMode=yes" $REMOTE_USER@$REMOTE_HOST "exit" 2>/dev/null; then
         echo -e "${kjlan}连接成功${bai}\n"
