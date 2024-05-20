@@ -177,35 +177,27 @@ synchronize_files() {
     return_to_main_menu
 }
 
-# 定义颜色变量
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
 
 # 备份和还原数据库
 backup_and_restore_databases() {
     # 备份所有数据库
-    echo -e "${BLUE}正在进行第一步...${NC}"
+    echo -e "${huang}同步进行中...${bai}"
     mysqldump -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD --all-databases --events | gzip > all_databases.sql.gz
-    echo -e "${GREEN}完成第一步！${NC}"
+    echo "完成20%"
 
     # 同步备份文件到远程服务器
-    echo -e "${BLUE}正在进行第二步...${NC}"
     rsync -avz --delete -e "ssh -o StrictHostKeyChecking=no -p $SSH_PORT -i ~/.ssh/id_ed25519" all_databases.sql.gz $REMOTE_USER@$REMOTE_HOST:$REMOTE_BACKUP_DIR/ >/dev/null 2>&1
-    echo -e "${GREEN}完成第二步！${NC}"
+    echo "完成50%"
 
     # 还原数据库
     backup_file="all_databases.sql.gz"
-
-    echo -e "${BLUE}正在进行数据库同步...${NC}"
     ssh -p $SSH_PORT -i ~/.ssh/id_ed25519 -T $REMOTE_USER@$REMOTE_HOST << EOF >/dev/null 2>&1
     gunzip < $REMOTE_BACKUP_DIR/$backup_file | mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD
 EOF
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}数据库同步成功！${NC}"
+        echo -e "${kjlan}数据库同步成功！${bai}"
     else
-        echo -e "${RED}数据库同步失败！${NC}"
+        echo -e "${hong}数据库同步失败！${bai}"
     fi
 
     read -n 1 -s -p "按任意键继续..."
