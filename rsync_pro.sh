@@ -868,18 +868,17 @@ generate_ssh_key() {
 
 # 新函数：安装宝塔面板破解版
 install_bt_panel() {
-    clear
-    echo -e "${lv}开始安装宝塔面板破解版...${bai}"
-    
+    clear  
     # 显示子菜单
-    echo "1. 一键安装"
-    echo "2. 优化设置"
-    echo "3. 去后门"
-    echo "4. 软件商店无法打开的解决办法"
-    echo "0. 返回上级菜单"
-    
-    # 获取用户选择
-    read -p "请输入序号回车：" choice
+        echo "宝塔面板管理"
+        echo "------------------------"
+        echo "1. 一键安装"
+        echo "2. 优化设置"
+        echo "3. 去后门"
+        echo "4. 软件商店无法打开的解决办法"
+        echo "0. 返回上级菜单"
+        echo "------------------------"
+        read -p "请输入你的选择: " choice
 
     case $choice in
         1)
@@ -910,12 +909,14 @@ install_bt_panel() {
 
         4)
             # 软件商店无法打开的解决办法
-            echo -e "${lv}如果是中国和香港服务器，复制以下代码到终端运行：${bai}"
-            echo -e "${kjlan}sed -i \"/bt.cn/d\" /etc/hosts${bai}"
-            echo -e "${kjlan}echo \"103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
-            echo -e "${lv}如果是海外服务器，复制以下代码到终端运行：${bai}"
-            echo -e "${kjlan}sed -i \"/bt.cn/d\" /etc/hosts${bai}"
-            echo -e "${kjlan}echo \"128.1.164.196 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts${bai}"
+            echo -e "${huang}如果是中国和香港服务器，复制以下代码到终端运行:${bai}"
+            echo "sed -i \"/bt.cn/d\" /etc/hosts"
+            echo "echo \"103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts"
+            echo ""
+            echo -e "${huang}如果是海外服务器，复制以下代码到终端运行:${bai}"
+            echo "sed -i \"/bt.cn/d\" /etc/hosts"
+            echo "echo \"128.1.164.196 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts"
+            echo ""
             read -n 1 -s -p "按任意键继续..."
             return_to_main_menu
             ;;
