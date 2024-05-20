@@ -866,6 +866,32 @@ generate_ssh_key() {
     return_to_main_menu
 }
 
+# 软件商店无法打开的解决办法
+solve_bt_issue() {
+    echo -e "${lv}请选择服务器类型:${bai}"
+    echo "1. 大陆和香港服务器"
+    echo "2. 海外服务器"
+    read -p "输入选项 (1/2): " option
+
+    case $option in
+        1)
+            sed -i "/bt.cn/d" /etc/hosts
+            echo "103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn" >> /etc/hosts
+            ;;
+        2)
+            sed -i "/bt.cn/d" /etc/hosts
+            echo "128.1.164.196 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn" >> /etc/hosts
+            ;;
+        *)
+            echo "无效的选择。"
+            ;;
+    esac
+
+    echo "操作已完成。"
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
 # 新函数：安装宝塔面板破解版
 install_bt_panel() {
     clear  
@@ -908,17 +934,7 @@ install_bt_panel() {
             ;;
 
         4)
-            # 软件商店无法打开的解决办法
-            echo -e "${huang}如果是中国和香港服务器，复制以下代码到终端运行:${bai}"
-            echo "sed -i \"/bt.cn/d\" /etc/hosts"
-            echo "echo \"103.179.243.14 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts"
-            echo ""
-            echo -e "${huang}如果是海外服务器，复制以下代码到终端运行:${bai}"
-            echo "sed -i \"/bt.cn/d\" /etc/hosts"
-            echo "echo \"128.1.164.196 www.bt.cn download.bt.cn api.bt.cn dg1.bt.cn dg2.bt.cn\" >> /etc/hosts"
-            echo ""
-            read -n 1 -s -p "按任意键继续..."
-            return_to_main_menu
+            solve_bt_issue
             ;;
         0)
             # 返回上级菜单
