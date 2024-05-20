@@ -120,7 +120,7 @@ EOF
 # 快捷键
 kuai() {
     read -p "请输入你的快捷按键: " kuaijiejian
-    echo "alias $kuaijiejian='~/rsync_pro.sh'" >> ~/.bashrc
+    echo "alias $kuaijiejian='~/tp.sh'" >> ~/.bashrc
     source ~/.bashrc
     echo -e "${lv}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${bai}"
     read -n 1 -s -p "按任意键继续..."
