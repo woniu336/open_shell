@@ -1,57 +1,97 @@
 #!/bin/bash
 
+# 定义颜色代码
+huang='\033[33m'
+bai='\033[0m'
+lv='\033[0;32m'
+lan='\033[0;34m'
+hong='\033[31m'
+kjlan='\033[38;2;0;255;255m'
+
+
+clear
 while true; do
-    echo "1) 安装rclone"
-    echo "2) 添加网盘"
-    echo "3) 挂载网盘"
-    echo "4) 网盘操作"
-    echo "5) 退出"
-	echo "6) 手动配置 (rclone config)"
+    echo -e "${kjlan}rclone工具箱${bai}"
+    echo "------------------------"
+    echo "1. 安装rclone"
+    echo "2. 添加网盘"
+    echo "3. 挂载网盘"
+    echo "4. 网盘操作▶"
+    echo "5. 手动配置 (config)"
+    echo "6. 查看网盘目录▶"
+    echo "0. 退出"
+    echo "------------------------"
+
 
     read -p "请选择要执行的操作: " choice
 
     case $choice in
 
-6)
+5)
     # 执行手动配置命令
     rclone config
     ;;
+6)
+clear
+PS3="请选择网盘序号: "  # 设置select提示符
+echo "已配置的网盘:"
+# 从rclone配置文件中提取已配置的网盘名称
+configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
+select cloud in $configured_clouds; do
+    echo "你选择的网盘是: $cloud"
+    # 使用rclone lsf命令获取网盘目录列表
+    directories=($(rclone lsf "${cloud}:"))
+    if [ ${#directories[@]} -eq 0 ]; then
+        echo "该网盘为空"
+    else
+        echo "该网盘包含以下目录,请选择序号:"
+        for i in "${!directories[@]}"; do
+            printf "%4d) %s\n" $((i+1)) "${directories[$i]}"
+        done
+        read -p "请输入目录序号(输入q退出): " choice
+        if [ "$choice" == "q" ]; then
+            break
+        elif [ "$choice" -ge 1 ] && [ "$choice" -le "${#directories[@]}" ]; then
+            target_dir="${directories[$choice-1]}"
+            rclone lsf "${cloud}:${target_dir}"
+        else
+            echo "无效的选择"
+        fi
+    fi
+    read -p "按回车键选择其他网盘,或按q退出..." 
+    if [ "$REPLY" == "q" ]; then
+        clear
+        break
+    fi
+done
 
-
+            ;;
         1)
 #!/bin/bash
-
-if command -v rclone &>/dev/null; then
-    echo "rclone已安装."
-else
-    if [ -f /etc/os-release ]; then
-        source /etc/os-release
-        if [[ $ID == "ubuntu" || $ID == "debian" ]]; then
-            sudo apt-get update
-            sudo apt-get install -y curl unzip fuse3
-            curl https://rclone.org/install.sh | sudo bash
-        elif [[ $ID == "centos" ]]; then
-            sudo yum install -y curl unzip fuse3
-            curl https://rclone.org/install.sh | sudo bash
-        else
-            echo "不支持的操作系统."
-        fi
-    else
-        echo "不支持的操作系统."
-    fi
+clear
+if ! command -v rclone &>/dev/null; then
+    echo "rclone未安装,正在安装..."
+    sudo apt-get update
+    sudo apt-get install -y curl unzip fuse3
+    curl https://rclone.org/install.sh | sudo bash
     echo "rclone安装完成."
+else
+    echo "rclone已安装."
 fi
+
 
             ;;
         2)
             # 添加网盘的操作
-            echo "1) 阿里云盘"
-            echo "2) 腾讯COS"
-            echo "3) Cloudflare R2"
-            echo "4) Backblaze B2"
-            echo "5) 阿里云oss"
-            echo "6) Sharepoint(onedrive)"
-            echo "7) 七牛Kodo(洛杉矶区域)"
+            clear
+            echo -e "${lv}可添加的网盘列表${bai}"
+            echo "1. 阿里云盘"
+            echo "2. 腾讯COS"
+            echo "3. Cloudflare R2"
+            echo "4. Backblaze B2"
+            echo "5. 阿里云oss"
+            echo "6. Sharepoint(onedrive)"
+            echo "7. 七牛Kodo(洛杉矶区域)"
             read -p "请选择要添加的网盘: " cloud_choice
 
             case $cloud_choice in
@@ -171,6 +211,7 @@ endpoint = $oss_endpoint
 acl = private
 EOL
                     echo "阿里云oss添加完成."
+                    clear
                     ;;
                 6)
                     # Sharepoint(onedrive)的配置
@@ -219,6 +260,7 @@ EOL
             ;;
         3)
             # 挂载网盘的操作
+            clear
             echo "请选择要挂载的网盘："
             if grep -q "\[aliyun\]" /root/.config/rclone/rclone.conf; then
                 echo "1) 挂载阿里云盘"
@@ -338,11 +380,13 @@ EOL
             esac
             ;;
  4)
+    clear
     while true; do
-        echo "1) 卸载挂载"
-        echo "2) 文件操作"
-		echo "3) 网盘检测"
-        echo "4) 返回上一层"
+        echo -e "${lv}rclone操作选项${bai}"
+        echo "1. 卸载挂载"
+        echo "2. 文件操作"
+		echo "3. 网盘检测"
+        echo "0. 返回上一层"
         
         read -p "请选择网盘操作: " disk_operation
         
@@ -449,15 +493,15 @@ EOL
                 fi
                 ;;
 2)
-    
+    clear
     while true; do
-        echo "1) 拷贝文件"
-        echo "2) 同步文件"
-        echo "3) 新建文件夹"
-        echo "4) 删除文件"
-        echo "5) 网盘互拷"
-        echo "6) 目录查询"
-        echo "7) 返回上一层"
+        echo -e "${lv}文件操作选项${bai}"
+        echo "1. 拷贝文件"
+        echo "2. 同步文件"
+        echo "3. 新建文件夹"
+        echo "4. 删除文件"
+        echo "5. 网盘互拷"
+        echo "0. 返回上一层"
 
         read -p "请选择文件操作: " file_operation
 
@@ -465,24 +509,24 @@ EOL
             1)
                 # 拷贝文件操作
                 read -p "请输入源路径: " source_path
-                read -p "请输入目标路径: " destination_path
+                read -p "请输入目标路径(例 oss:123hk/file): " destination_path
 
                 # 执行拷贝操作
-                rclone copy "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
+                rclone copy "$source_path" "$destination_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                 echo "拷贝操作已完成."
                 ;;
             2)
                 # 同步文件操作
                 read -p "请输入源路径: " source_path
-                read -p "请输入目标路径: " destination_path
+                read -p "请输入目标路径(例 oss:123hk/file): " destination_path
 
                 # 执行同步操作
-                rclone sync "$source_path" "$destination_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
+                rclone sync "$source_path" "$destination_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                 echo "同步操作已完成."
                 ;;
             3)
                 # 新建文件夹操作
-                read -p "请输入网盘路径: " cloud_path
+                read -p "请输入网盘路径(例 oss:123hk/file): " cloud_path
                 read -p "请输入文件夹名称: " folder_name
 
                 # 执行新建文件夹操作
@@ -491,7 +535,7 @@ EOL
                 ;;
             4)
                 # 删除文件操作
-                read -p "请输入网盘路径: " cloud_path
+                read -p "请输入网盘路径(例 oss:123hk/file): " cloud_path
 
                 # 执行删除文件操作
                 rclone delete "$cloud_path" --include "*"
@@ -499,8 +543,8 @@ EOL
                 ;;
 5)
                                     # 网盘互拷操作
-                                    read -p "请输入源网盘路径: " source_cloud_path
-                                    read -p "请输入目标网盘路径: " destination_cloud_path
+                                    read -p "请输入源网盘路径(例 oss:123hk/file): " source_cloud_path
+                                    read -p "请输入目标网盘路径(例 cos:123hk/file): " destination_cloud_path
 
                                     # 提示用户是否需要排除文件
                                     echo "是否需要排除文件？"
@@ -519,83 +563,17 @@ EOL
 
                                     # 执行拷贝操作，根据是否有排除规则来选择是否使用过滤规则文件
                                     if [ -f /root/.config/rclone/filter-file.txt ]; then
-                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse --filter-from /root/.config/rclone/filter-file.txt
+                                        rclone copy "$source_cloud_path" "$destination_cloud_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse --filter-from /root/.config/rclone/filter-file.txt
                                         echo "网盘互拷操作已完成."
                                         rm /root/.config/rclone/filter-file.txt # 删除临时的过滤规则文件
                                     else
-                                        rclone copy "$source_cloud_path" "$destination_cloud_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
+                                        rclone copy "$source_cloud_path" "$destination_cloud_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
                                         echo "网盘互拷操作已完成."
                                     fi
-                                    ;;
-6)
-PS3=""  # 清除select结构的提示符
-    echo "已配置的网盘："
-    # 从rclone配置文件中提取已配置的网盘名称
-    configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
-    
-    select cloud in $configured_clouds; do
-        # 使用rclone lsf命令获取网盘目录
-        cloud_directories=($(rclone lsf ${cloud}:))
-        echo "已选择网盘: ${cloud}"
-        echo "目录列表："
-        
-        # 显示目录的序号和格式化的名称
-        for ((i=1; i<=${#cloud_directories[@]}; i++)); do
-            echo "$i) ${cloud}:${cloud_directories[i-1]}"
-        done
+                                    ;;                 
 
-        read -p "请选择目录序号: " directory_choice
-        selected_directory="${cloud}:${cloud_directories[$((directory_choice-1))]}"
-        
-        echo "你选择的目录是：${selected_directory}"
-                            # 提示用户是否要复制到本地路径
-                            
-                                echo "是否要复制到本地路径？"
-                                echo "1) 是"
-                                echo "2) 否"
-                                read -p "请选择 (1/2): " copy_to_local
-
-                                case $copy_to_local in
-                                    1)
-                                        read -p "请输入本地路径: " local_path
-                                        # 执行文件复制操作
-                                        rclone copy "$selected_directory" "$local_path" --ignore-existing -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
-                                        echo "文件已复制到本地路径：$local_path"
-                                        ;;
-                                    2)
-                                        echo "未执行复制操作."
-                                        ;;
-                                    *)
-                                        echo "无效的选择，请重新选择 (1/2)."
-                                        ;;
-                                esac
-
-                                # 提示是否查看子目录内容
-                               
-                                    echo "是否查看 ${selected_directory} 下子目录所有内容？"
-                                    echo "1) 是"
-                                    echo "2) 否"
-                                    read -p "请选择 (1/2): " view_subdirectory
-
-                                    case $view_subdirectory in
-                                        1)
-                                            echo "子目录内容如下："
-                                            rclone ls "$selected_directory"
-                                            ;;
-                                        2)
-                                            echo "未查看子目录内容."
-                                            ;;
-                                        *)
-                                            echo "无效的选择，请重新选择 (1/2)."
-                                            ;;
-                                   
-                              
-     esac
-            done
-            ;;
-                     
-
-            7)
+            0)
+                clear
                 break
                 ;;
             *)
@@ -606,6 +584,7 @@ PS3=""  # 清除select结构的提示符
     ;;
 3)
     # 网盘检测
+    clear
     echo "正在检查已配置的网盘..."
 
     # 从rclone配置文件中获取所有已配置的网盘名称
@@ -622,11 +601,9 @@ PS3=""  # 清除select结构的提示符
         ["niu"]="七牛kodo"
         ["your_cloud"]="你的网盘路径" # 添加的新映射关系
     )
-
     # 使用Markdown格式输出网盘检测结果
     echo "| 网盘名称 | 状态     |"
     echo "|----------|----------|"
-
     for cloud in $configured_clouds; do
         # 获取网盘路径
         cloud_path="${cloud_paths[$cloud]:-$cloud}"
@@ -642,7 +619,8 @@ PS3=""  # 清除select结构的提示符
         echo "| $cloud_name   | $status     |"
     done
     ;;
-                    4)
+                    0)
+                        clear
                         break
                         ;;
                     *)
@@ -651,7 +629,7 @@ PS3=""  # 清除select结构的提示符
                 esac
             done
             ;;
-        5)
+        0)
             exit 0
             ;;
         *)

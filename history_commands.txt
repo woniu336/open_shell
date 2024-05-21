@@ -1,0 +1,1 @@
+0. rclone copy "od:µçÓ°/MEYD-754±±Ò°Î´ÄÎ.mp4" "E:\»º´æ" -u -v -P --transfers=20 --ignore-errors --buffer-size=128M --check-first --checkers=10 --drive-acknowledge-abuse 
