@@ -1138,7 +1138,7 @@ add_backup_task() {
         done
     elif [ "$backup_type" == "2" ]; then
         read -p "请输入数据库用户名: " DB_USER_r
-        read -s -p "请输入数据库密码: " DB_PASSWORD_r
+        read -s -p "请输入数据库密码(密码不可见): " DB_PASSWORD_r
         echo
 
         echo -e "${lan}已配置的网盘:${bai}"
@@ -1199,7 +1199,7 @@ backup_menu() {
                     ;;
                 "备份数据库")
                     read -p "请输入数据库用户名: " DB_USER_r
-                    read -s -p "请输入数据库密码: " DB_PASSWORD_r
+                    read -s -p "请输入数据库密码(密码不可见): " DB_PASSWORD_r
                     echo
                     backup_file="all_databases_$(date +%Y%m%d%H%M%S).sql.gz"
                     mysqldump -h127.0.0.1 -u"$DB_USER_r" -p"$DB_PASSWORD_r" --all-databases --events | gzip > "$backup_file"
