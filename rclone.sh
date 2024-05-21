@@ -34,17 +34,17 @@ while true; do
 6)
 clear
 PS3="请选择网盘序号: "  # 设置select提示符
-echo "已配置的网盘:"
+echo -e "${lan}已配置的网盘:${bai}"
 # 从rclone配置文件中提取已配置的网盘名称
 configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
 select cloud in $configured_clouds; do
-    echo "你选择的网盘是: $cloud"
+    echo -e "${huang}你选择的网盘是: $cloud${bai}"
     # 使用rclone lsf命令获取网盘目录列表
     directories=($(rclone lsf "${cloud}:"))
     if [ ${#directories[@]} -eq 0 ]; then
         echo "该网盘为空"
     else
-        echo "该网盘包含以下目录,请选择序号:"
+        echo -e "${lan}该网盘包含以下目录,输入序号选择目录:${bai}"
         for i in "${!directories[@]}"; do
             printf "%4d) %s\n" $((i+1)) "${directories[$i]}"
         done

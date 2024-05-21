@@ -55,6 +55,7 @@ menu_items=(
     "root私钥登录模式"
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
     "工具集合▶"
+    "备份目录到网盘"
     "设置脚本启动快捷键"
     "退出脚本"
 )
@@ -952,6 +953,7 @@ install_tools() {
     echo "6. BBR管理▶"
     echo "7. 路飞工具箱"
     echo "8. 科技lion脚本"
+    echo "9. rclone工具箱"
     echo "0. 返回主菜单"
     echo "------------------------"
 
@@ -966,6 +968,7 @@ install_tools() {
         6) bbr_management ;;
         7) tuo_tool ;;
         8) kjilion_tool ;;
+        9) rclone_tool ;;
         0) return_to_main_menu ;;
         *) echo "无效的选择。请再次尝试。" ;;
     esac
@@ -978,6 +981,10 @@ tuo_tool() {
 
 kjilion_tool() {
     curl -sS -O https://raw.githubusercontent.com/kejilion/sh/main/kejilion.sh && chmod +x kejilion.sh && ./kejilion.sh
+}
+
+rclone_tool() {
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone.sh && chmod +x rclone.sh && ./rclone.sh
 }
 
 install_rsync() {
@@ -1091,6 +1098,202 @@ bbr_management() {
     return_to_main_menu
 }
 
+# rclone定时备份
+add_backup_task() {
+    echo -e "${lan}请选择备份类型:${bai}"
+    echo "1) 文件备份计划"
+    echo "2) 数据库备份计划"
+    read -p "请输入选项编号: " backup_type
+
+    if [ "$backup_type" == "1" ]; then
+        read -p "请输入本地备份目录: " source_path
+        echo -e "${lan}已配置的网盘:${bai}"
+        configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
+        select cloud in $configured_clouds; do
+            echo -e "${huang}你选择的网盘是: $cloud${bai}"
+            directories=($(rclone lsf "${cloud}:/"))
+            if [ ${#directories[@]} -eq 0 ]; then
+                echo "该网盘为空"
+            else
+                echo -e "${lan}该网盘包含以下目录,输入序号选择目录:${bai}"
+                for i in "${!directories[@]}"; do
+                    printf "%4d) %s\n" $((i+1)) "${directories[$i]}"
+                done
+                read -p "请输入目录序号: " choice
+                if [ "$choice" == "q" ]; then
+                    break 2
+                elif [ "$choice" -ge 1 ] && [ "$choice" -le "${#directories[@]}" ]; then
+                    target_dir="${directories[$choice-1]}"
+                    backup_dir="file_backup"
+                    backup_path="$cloud:$target_dir/tp_backup"
+                    backup_file="$backup_dir.tar.gz"
+
+                    cron_job_compress="0 2 * * * tar -czf '$backup_file' '$source_path'"
+                    cron_job_upload="0 3 * * * rclone copy '$backup_file' '$backup_path' -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse"
+                    (crontab -l ; echo "$cron_job_compress" ; echo "$cron_job_upload") | crontab -
+                    echo -e "${lan}已添加到定时任务，可使用 crontab -l 命令查看${bai}"
+                    break
+                fi
+            fi
+        done
+    elif [ "$backup_type" == "2" ]; then
+        read -p "请输入数据库用户名: " DB_USER_r
+        read -s -p "请输入数据库密码: " DB_PASSWORD_r
+        echo
+
+        echo -e "${lan}已配置的网盘:${bai}"
+        configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
+        select cloud in $configured_clouds; do
+            echo -e "${huang}你选择的网盘是: $cloud${bai}"
+            directories=($(rclone lsf "${cloud}:/"))
+            if [ ${#directories[@]} -eq 0 ]; then
+                echo "该网盘为空"
+            else
+                echo -e "${lan}该网盘包含以下目录,输入序号选择目录:${bai}"
+                for i in "${!directories[@]}"; do
+                    printf "%4d) %s\n" $((i+1)) "${directories[$i]}"
+                done
+                read -p "请输入目录序号: " choice
+                if [ "$choice" == "q" ]; then
+                    break 2
+                elif [ "$choice" -ge 1 ] && [ "$choice" -le "${#directories[@]}" ]; then
+                    target_dir="${directories[$choice-1]}"
+                    backup_dir="tp_backup"
+                    db_destination_path="$cloud:$target_dir/$backup_dir"
+                    cron_job="30 3 * * * mysqldump -h127.0.0.1 -u$DB_USER_r -p$DB_PASSWORD_r --all-databases --events | gzip > all_databases.sql.gz && rclone copy all_databases.sql.gz '$db_destination_path' -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse"
+                    (crontab -l ; echo "$cron_job") | crontab -
+                    echo -e "${lan}已添加到定时任务，可使用 crontab -l 命令查看${bai}"
+                    break
+                fi
+            fi
+        done
+    else
+        echo "无效的选项，请重试。"
+    fi
+
+    read -n 1 -s -p "按任意键继续..."
+    return_to_main_menu
+}
+
+
+
+# 使用rclone备份文件
+backup_menu() {
+    clear
+    while true; do
+        greenline "————————————————————————————————————————————————————"
+        echo -e "    提示1：在工具集合菜单找到rclone"
+        echo -e "    提示2：请确保你已经配置好云盘"  
+        echo -e "    提示3：配置文件路径：/root/.config/rclone" 
+        greenline "————————————————————————————————————————————————————"
+        PS3="请选择操作: "
+        options=("备份文件" "备份数据库" "定时备份" "退出")
+        select opt in "${options[@]}"
+        do
+            case $opt in
+                "备份文件")
+                    read -p "请输入要备份的目录: " source_path
+                    backup_file="$source_path_$(date +%Y%m%d%H%M%S).tar.gz"
+                    tar -czf "$backup_file" "$source_path"
+                    select_cloud_and_backup "$backup_file" "tp_backup"
+                    ;;
+                "备份数据库")
+                    read -p "请输入数据库用户名: " DB_USER_r
+                    read -s -p "请输入数据库密码: " DB_PASSWORD_r
+                    echo
+                    backup_file="all_databases_$(date +%Y%m%d%H%M%S).sql.gz"
+                    mysqldump -h127.0.0.1 -u"$DB_USER_r" -p"$DB_PASSWORD_r" --all-databases --events | gzip > "$backup_file"
+                    select_cloud_and_backup "$backup_file" "tp_backup"
+                    ;;
+                "定时备份")
+                    clear
+                    add_backup_task
+                    ;;
+
+                "退出")
+                    exit 0  # 直接退出脚本
+                    ;;
+                *) echo "无效选择,请重试" ;;
+            esac
+        done
+        read -n 1 -s -p "按任意键继续..."
+        return_to_main_menu
+
+    done
+}
+
+select_cloud_and_backup() {
+    local file_name="$1"
+    local backup_dir="$2"
+
+    clear
+    while true; do
+        PS3="请输入序号选择网盘: "
+        echo -e "${lan}已配置的网盘:${bai}"
+        configured_clouds=$(grep '\[' ~/.config/rclone/rclone.conf | sed 's/\[\(.*\)\]/\1/')
+        select cloud in $configured_clouds; do
+            echo -e "${huang}你选择的网盘是: $cloud${bai}"
+            directories=($(rclone lsf "${cloud}:/"))
+            if [ ${#directories[@]} -eq 0 ]; then
+                echo "该网盘为空"
+            else
+                echo -e "${kjlan}该网盘包含以下目录,输入序号选择目录:${bai}"
+                for i in "${!directories[@]}"; do
+                    printf "%4d) %s\n" $((i+1)) "${directories[$i]}"
+                done
+                read -p "请输入目录序号: " choice
+                if [ "$choice" == "q" ]; then
+                    break 2
+                elif [ "$choice" -ge 1 ] && [ "$choice" -le "${#directories[@]}" ]; then
+                    target_dir="${directories[$choice-1]}"
+                    if [ -n "$backup_dir" ]; then
+                        backup_path="$cloud:$target_dir/$backup_dir"
+                        rclone copy "$file_name" "$backup_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
+                        echo -e "${kjlan}已将 $file_name 备份到 $backup_path${bai}"
+                        rm "$file_name" # 删除本地备份文件
+                        clean_old_backups "$backup_path" 10
+                        read -n 1 -s -p "按任意键继续..."
+                        return_to_main_menu
+                    else
+                        backup_path="$cloud:$target_dir"
+                        rclone copy "$file_name" "$backup_path" -u -v -P --transfers=6 --ignore-errors --buffer-size=16M --check-first --checkers=10 --drive-acknowledge-abuse
+                        echo -e "${kjlan}已将 $file_name 备份到 $backup_path${bai}"
+                        rm "$file_name" # 删除本地备份文件
+                        clean_old_backups "$backup_path" 10
+                        read -n 1 -s -p "按任意键继续..."
+                        return_to_main_menu
+                    fi
+                    break  # 添加这一行
+                else
+                    echo "无效的选择"
+                fi
+            fi
+            read -p "按任意键返回主菜单..." choice
+        done
+        break  # 添加这一行
+    done
+
+    return_to_main_menu
+}
+
+
+clean_old_backups() {
+    local backup_path="$1"
+    local keep_count="$2"
+    local backup_pattern=".*\.(tar.gz|sql.gz)$"  # 备份文件的模式
+
+    # 处理 backup_path 以确保格式正确
+    backup_path="${backup_path//\/\//\/}"
+
+    # 获取备份文件列表并按时间排序
+    mapfile -t backup_files < <(rclone ls "${backup_path}" | grep -E "$backup_pattern" | awk '{print $NF}' | sort -r)
+
+    # 删除超过保留数量的旧备份文件
+    for ((i=${keep_count}; i<${#backup_files[@]}; i++)); do
+        rclone deletefile "${backup_path}/${backup_files[i]}"
+    done
+}
+
 # 返回主菜单
 return_to_main_menu() {
 clear
@@ -1128,7 +1331,8 @@ main() {
             9) generate_ssh_key ;;
             10) install_bt_panel ;;
             11) install_tools ;;
-            12) kuai ;;
+            12) backup_menu ;;
+            13) kuai ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
