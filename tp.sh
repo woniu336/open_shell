@@ -56,6 +56,8 @@ menu_items=(
    "${kjlan}安装宝塔面板破解版▶ ${bai}"
     "工具集合▶"
     "rclone备份工具"
+	"${kjlan}ssl免费证书申请▶${bai}"
+	"宕机自动切换ip"
     "设置脚本启动快捷键"
     "退出脚本"
 )
@@ -1294,6 +1296,126 @@ clean_old_backups() {
     done
 }
 
+# 证书申请
+
+ssl_pro() {
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl_pro.sh && chmod +x ssl_pro.sh && ./ssl_pro.sh
+}
+
+# CloudFlare Api 宕机自动切换ip
+
+dns_update_menu_items=(
+    "下载脚本"
+    "安装依赖"
+    "配置服务"
+    "运行脚本"
+	"查看脚本状态"
+	"禁止脚本运行"
+    "返回主菜单"
+)
+
+display_dns_update_menu() {
+    echo ""
+	clear
+	greenline "————————————————————————————————————————————————————"
+    echo '
+    ******  cloudflare宕机自动切换ip  ******'
+	echo ""
+    echo -e "    教程：https://url.taoshuge.eu.org/pnFBhawh"
+	echo ""
+    greenline "————————————————————————————————————————————————————"
+    i=1
+    for item in "${dns_update_menu_items[@]}"; do
+        echo "$i) $item"
+        ((i++))
+    done
+}
+
+dns_update_menu() {
+    while true; do
+        display_dns_update_menu
+        echo "------------------------"
+        read -p "请输入序号选择：" dns_choice
+        case $dns_choice in
+            1) download_scripts ;;
+            2) install_dependencies ;;
+            3) run_dns_update_sh ;;
+            4) run_dns_update_py ;;
+			5) view_dns_update_py_process ;;
+			6) kill_dns_update_py ;;
+            7) return_to_main_menu ; break ;;
+            *) echo "无效的选择。请再次尝试。" ;;
+        esac
+    done
+}
+
+download_scripts() {
+    if [ -f "dns_update.sh" ] && [ -f "dns_update.py" ]; then
+        echo "脚本已存在，跳过下载。"
+        return
+    fi
+
+    echo "正在下载脚本..."
+    wget https://raw.githubusercontent.com/woniu336/open_shell/main/dns_update/dns_update.sh -O dns_update.sh >/dev/null 2>&1
+    wget https://raw.githubusercontent.com/woniu336/open_shell/main/dns_update/dns_update.py -O dns_update.py >/dev/null 2>&1
+    chmod +x dns_update.sh dns_update.py 
+    echo -e "${lan}脚本下载完成。${bai}"
+    read -n 1 -s -p "按任意键继续..."
+}
+
+
+install_dependencies() {
+    if command -v jq >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1 && python3 -c "import requests" >/dev/null 2>&1; then
+        echo "依赖已安装，跳过安装过程。"
+        return
+    fi
+
+    echo "正在安装依赖..."
+    sudo apt install -y python3-pip
+    pip install requests
+    sudo apt-get install -y jq
+    echo -e "${lan}依赖安装完成。${bai}"
+    read -n 1 -s -p "按任意键继续..."
+}
+
+
+run_dns_update_sh() {
+    echo "配置服务"
+    ./dns_update.sh
+    echo -e "${lan}服务配置完成。${bai}"
+    read -n 1 -s -p "按任意键继续..."
+}
+
+run_dns_update_py() {
+    echo "检查是否已经存在 dns_update.py 进程..."
+    if ps -ef | grep -q '[p]ython3 dns_update.py'; then
+        echo -e "${kjlan}dns_update.py 脚本已经在后台运行。${bai}"
+        read -n 1 -s -p "按任意键继续..."
+        return
+    fi
+    nohup python3 dns_update.py >> nohup.out 2>&1 &
+    echo -e "${kjlan}dns_update.py 脚本启动成功。${bai}"
+    read -n 1 -s -p "按任意键继续..."
+}
+
+view_dns_update_py_process() {
+    echo "检查是否有 dns_update.py 进程..."
+    if ps -ef | grep -q '[p]ython3 dns_update.py'; then
+        echo -e "${kjlan}dns_update.py 脚本正在后台运行。${bai}"
+    else
+        echo -e "${huang}没有找到 dns_update.py 进程。请确认脚本是否在运行。${bai}"
+    fi
+    read -n 1 -s -p "按任意键继续..."
+}
+
+
+
+kill_dns_update_py() {
+    echo -e "${huang}已禁止脚本运行${bai}"
+    pkill -f dns_update.py
+    read -n 1 -s -p "按任意键继续..."
+}
+
 # 返回主菜单
 return_to_main_menu() {
 clear
@@ -1332,7 +1454,9 @@ main() {
             10) install_bt_panel ;;
             11) install_tools ;;
             12) backup_menu ;;
-            13) kuai ;;
+			13) ssl_pro ;;
+			14) dns_update_menu ;;
+            15) kuai ;;
             0) exit_program ;;
             *) echo "无效的选择。请再次尝试。" ;;
         esac
