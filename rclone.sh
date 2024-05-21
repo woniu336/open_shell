@@ -102,20 +102,22 @@ fi
                         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                         chmod +x /usr/local/bin/docker-compose
                     fi
-
+                    clear
                     # 获取服务器公网IP
                     public_ip=$(curl -s https://api.ipify.org)
 
                     # 提示用户输入用户名
-                    read -p "请输入用户名: " username
+                    read -p "请输入用户名(任意): " username
 
                     # 提示用户输入密码并进行密码混淆
-                    read -p "请输入密码: " plain_password
+                    read -p "请输入密码(任意): " plain_password
                     obscured_password=$(rclone obscure "$plain_password")
 
                     # 提示用户获取refresh token
-                    echo "请在https://messense-aliyundrive-webdav-backendrefresh-token-ucs0wn.streamlit.app/获取refresh token"
-                    read -p "请输入refresh token: " refresh_token
+                    echo -e "${huang}提示：打开以下地址扫码获取token${bai}"
+                    echo -e "${kjlan}https://messense-aliyundrive-webdav-backendrefresh-token-ucs0wn.streamlit.app${bai}"
+                    echo ""
+                    read -p "请输入token: " refresh_token
 
                     # 创建rclone配置文件
                     mkdir -p /root/.config/rclone/
