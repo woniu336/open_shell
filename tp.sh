@@ -1103,8 +1103,11 @@ bbr_management() {
 # rclone定时备份
 add_backup_task() {
     echo -e "${lan}请选择备份类型:${bai}"
-    echo "1) 文件备份计划"
-    echo "2) 数据库备份计划"
+	echo "------------------------"
+    echo "1. 文件备份计划"
+	echo ""
+    echo "2. 数据库备份计划"
+	echo ""
     read -p "请输入选项编号: " backup_type
 
     if [ "$backup_type" == "1" ]; then
