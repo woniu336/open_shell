@@ -118,7 +118,7 @@ echo
 
             # 生成证书
             echo "正在为以下域名生成证书: $domain_list"
-            ~/.acme.sh/acme.sh --issue --dns dns_cf $domains_with_d
+            ~/.acme.sh/acme.sh --issue --dns dns_cf $domains_with_d --keylength ec-256
             echo -e "\033[32m证书生成成功!\033[0m"
 			
 			# 重启nginx
@@ -148,7 +148,7 @@ echo
 
             # 强制更新证书
             echo "正在强制更新以下域名的证书: $domain_list"
-            ~/.acme.sh/acme.sh --renew $domains_with_d --force
+            ~/.acme.sh/acme.sh --renew $domains_with_d --force --ecc
             echo "证书更新成功!"
             ;;
 
