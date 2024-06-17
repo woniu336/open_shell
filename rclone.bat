@@ -8,6 +8,7 @@ color 0A
 echo ==============================================
 echo.
 echo   rclone 脚本生成工具
+echo   https://d.99bilibili.eu.org/rclone
 echo.
 echo ==============================================
 
