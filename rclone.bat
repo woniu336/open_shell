@@ -1,14 +1,14 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: 设置颜色
-color 0A
-
 :: 提示信息
 echo ==============================================
 echo.
 echo   rclone 脚本生成工具
-echo   https://d.99bilibili.eu.org/rclone
+echo.
+echo   下载: https://d.99bilibili.eu.org/rclone
+echo.
+echo   rclone 解压目录: D:\rclone-v1.63.0-windows-amd64
 echo.
 echo ==============================================
 
