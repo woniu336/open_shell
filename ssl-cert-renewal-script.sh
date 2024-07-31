@@ -2,62 +2,57 @@
 
 # 定义证书存储目录
 certs_directory="/etc/letsencrypt/live/"
-days_before_expiry=30  # 设置在证书到期前30天内都可能触发续签
+days_before_expiry=30
 
-# 随机等待时间，最长12小时
-sleep_time=$((RANDOM % 43200))
-sleep $sleep_time
-
-# 检查certbot是否存在且可执行，同时确保不在systemd环境中
-if [ ! -x /usr/bin/certbot ] || [ -d /run/systemd/system ]; then
-    echo "Certbot不可用或在systemd环境中，退出脚本。"
+# 检查certbot是否存在且可执行
+certbot_path=$(which certbot)
+if [ -z "$certbot_path" ]; then
+    echo "错误：Certbot 未找到。请确保已安装 Certbot。"
     exit 1
 fi
 
+# 检查证书目录是否存在
+if [ ! -d "$certs_directory" ]; then
+    echo "错误：证书目录 $certs_directory 不存在。"
+    exit 1
+fi
+
+echo "域名                 过期时间                  剩余天数"
+echo "------------------------------------------------------"
+
+total_certs=0
+certs_to_renew=0
+
 # 遍历所有证书文件
 for cert_dir in $certs_directory*; do
-    # 获取域名
     yuming=$(basename "$cert_dir")
-    # 忽略 README 目录
     if [ "$yuming" = "README" ]; then
         continue
     fi
-    # 输出正在检查的证书信息
-    echo "检查证书过期日期： ${yuming}"
-    # 获取fullchain.pem文件路径
+
     cert_file="${cert_dir}/fullchain.pem"
-    # 获取证书过期日期
+    if [ ! -f "$cert_file" ]; then
+        continue
+    fi
+
+    total_certs=$((total_certs + 1))
+    
     expiration_date=$(openssl x509 -enddate -noout -in "${cert_file}" | cut -d "=" -f 2-)
-    # 输出证书过期日期
-    echo "过期日期： ${expiration_date}"
-    # 将日期转换为时间戳
     expiration_timestamp=$(date -d "${expiration_date}" +%s)
     current_timestamp=$(date +%s)
-    # 计算距离过期还有几天
     days_until_expiry=$(( ($expiration_timestamp - $current_timestamp) / 86400 ))
-    # 检查是否需要续签（在满足续签条件的情况下）
+
+    printf "%-20s %-25s %3d 天\n" "$yuming" "$expiration_date" "$days_until_expiry"
+
     if [ $days_until_expiry -le $days_before_expiry ]; then
-        echo "证书将在${days_until_expiry}天后过期，正在进行自动续签。"
-        iptables -P INPUT ACCEPT
-        iptables -P FORWARD ACCEPT
-        iptables -P OUTPUT ACCEPT
-        iptables -F
-        ip6tables -P INPUT ACCEPT
-        ip6tables -P FORWARD ACCEPT
-        ip6tables -P OUTPUT ACCEPT
-        ip6tables -F
-        cd ~
-        certbot -q renew --deploy-hook "systemctl restart lsws"
-        if [ $? -eq 0 ]; then
-            systemctl restart lsws
-            echo "证书已成功续签并安装。"
-        else
-            echo "证书续签失败，请检查日志以获取更多信息。"
-        fi
-    else
-        # 若未满足续签条件，则输出证书仍然有效
-        echo "证书仍然有效，距离过期还有 ${days_until_expiry} 天。"
+        certs_to_renew=$((certs_to_renew + 1))
+        $certbot_path -q renew --cert-name "$yuming" --deploy-hook "systemctl restart lsws"
     fi
-    # 输出分隔线
-    echo "--------------------------"
 done
+
+echo "------------------------------------------------------"
+echo "总结：检测到 $total_certs 个证书，$certs_to_renew 个需要续签。"
+
+if [ $certs_to_renew -gt 0 ]; then
+    echo "已尝试续签 $certs_to_renew 个证书。请检查上面的输出以确认续签状态。"
+fi
