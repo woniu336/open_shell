@@ -124,13 +124,6 @@ EOF
 
 chmod 777 env.conf
 
-# 如果 docker-compose 不存在，则安装
-if ! command -v docker-compose &> /dev/null; then
-    print_message "$YELLOW" "正在安装 docker-compose..."
-    sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-    sudo chmod +x /usr/local/bin/docker-compose
-fi
-
 # 启动容器
 print_message "$GREEN" "正在启动容器..."
 docker-compose up -d 
