@@ -148,8 +148,8 @@ show_menu() {
     clear
     echo -e "\n${TECH_BLUE}======================================${NC}"
     echo -e "${TECH_BLUE}         SSL证书管理工具${NC}"
-	echo -e "${TECH_BLUE}         提醒：仅支持宝塔面板使用${NC}"
-	echo -e "${GREEN}         blog: woniu336.github.io${NC}"
+    echo -e "${TECH_BLUE}         提醒：仅支持宝塔面板使用${NC}"
+    echo -e "${GREEN}         blog: woniu336.github.io${NC}"
     echo -e "${TECH_BLUE}======================================${NC}"
     echo -e "${GREEN}1.${NC} 安装Certbot"
     echo -e "${GREEN}2.${NC} 申请新证书"
