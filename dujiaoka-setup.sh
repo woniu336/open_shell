@@ -88,7 +88,7 @@ configure_dujiaoka() {
     echo -e "     - 网站名称: ${CYAN}[填写你的网站名称]${NC}"
     echo -e "     - 网站URL: ${CYAN}[填写完整域名，如 http://shop.example.com]${NC}"
     
-    echo -e "\n${GREEN}提示：后台地址/admin  默认用户名和密码：admin/admin${NC}"
+    echo -e "\n${GREEN}提示：后台地址/admin  默认用户名和密码：admin${NC}"
     echo -e ""
     read -p "$(echo -e ${YELLOW}"配置完成后，按回车键继续..."${NC})"
 }
@@ -117,9 +117,33 @@ disable_debug() {
     read -p "按回车键继续..."
 }
 
+# 完全删除独角数卡函数
+remove_dujiaoka() {
+    echo -e "${YELLOW}正在删除独角数卡，这需要你喝一杯水的时间...${NC}"
+    
+    # 停止并删除容器
+    docker stop faka faka-data faka-redis
+    docker rm faka faka-data faka-redis
+    
+    # 删除指定的镜像
+    docker rmi ghcr.io/apocalypsor/dujiaoka:latest redis:alpine mariadb:focal
+    
+    # 删除正确的网络名称
+    docker network rm dujiao_default
+    
+    # 删除相关文件和目录
+    rm -rf /root/dujiao
+    
+    echo -e "${GREEN}独角数卡已完全删除${NC}"
+    read -p "按回车键继续..."
+}
+
 # 主菜单
 show_menu() {
-    echo -e "${GREEN}===== 独角数卡安装和管理脚本 =====${NC}"
+    echo -e "${GREEN}======================================${NC}"
+    echo -e "${GREEN}    独角数卡安装和管理脚本${NC}"
+    echo -e "${CYAN}    Blog: woniu336.github.io${NC}"
+    echo -e "${GREEN}======================================${NC}"
     echo "1. 安装 Docker"
     echo "2. 查看 Docker 版本"
     echo "3. 安装独角数卡"
@@ -127,6 +151,7 @@ show_menu() {
     echo "5. 禁用安装"
     echo "6. 启用 HTTPS"
     echo "7. 禁用调试模式"
+    echo "8. 完全删除独角数卡"
     echo "0. 退出"
     echo -e "${GREEN}===================================${NC}"
 }
@@ -135,7 +160,7 @@ show_menu() {
 while true; do
     clear
     show_menu
-    read -p "请选择操作 (0-7): " choice
+    read -p "请选择操作 (0-8): " choice
     clear
     
     case $choice in
@@ -146,6 +171,7 @@ while true; do
         5) disable_install ;;
         6) enable_https ;;
         7) disable_debug ;;
+        8) remove_dujiaoka ;;
         0) echo "退出脚本"; exit 0 ;;
         *) echo -e "${RED}无效选择，请重新输入${NC}"; read -p "按回车键继续..." ;;
     esac
