@@ -137,18 +137,34 @@ list_certificates() {
     echo -e "${GREEN}+----------------------+---------------------+---------------------+${NC}"
 }
 
-# 主菜单
-while true; do
-    echo -e "\n${YELLOW}SSL证书管理工具${NC}"
-    echo "1. 安装Certbot"
-    echo "2. 申请新证书"
-    echo "3. 添加定时任务"
-    echo "4. 测试证书续签"
-    echo "5. 吊销证书"
-    echo "6. 列出现有证书"
-    echo "7. 退出"
-    read -p "请选择操作 (1-7): " choice
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+TECH_BLUE='\033[38;2;0;255;255m'  # 使用科技蓝替换黄色
+NC='\033[0m' # No Color
 
+# 主菜单
+show_menu() {
+    clear
+    echo -e "\n${TECH_BLUE}======================================${NC}"
+    echo -e "${TECH_BLUE}         SSL证书管理工具${NC}"
+	echo -e "${GREEN}         blog: woniu336.github.io${NC}"
+    echo -e "${TECH_BLUE}======================================${NC}"
+    echo -e "${GREEN}1.${NC} 安装Certbot"
+    echo -e "${GREEN}2.${NC} 申请新证书"
+    echo -e "${GREEN}3.${NC} 添加定时任务"
+    echo -e "${GREEN}4.${NC} 测试证书续签"
+    echo -e "${GREEN}5.${NC} 吊销证书"
+    echo -e "${GREEN}6.${NC} 列出现有证书"
+    echo -e "${RED}7.${NC} 退出"
+    echo -e "${TECH_BLUE}======================================${NC}"
+}
+
+# 主循环
+while true; do
+    show_menu
+    read -p "$(echo -e ${TECH_BLUE}"请选择操作 (1-7): "${NC})" choice
+    
     case $choice in
         1) install_certbot ;;
         2) apply_certificate ;;
@@ -156,7 +172,10 @@ while true; do
         4) test_renewal ;;
         5) revoke_certificate ;;
         6) list_certificates ;;
-        7) echo "退出程序"; exit 0 ;;
-        *) echo -e "${RED}无效选择，请重试${NC}" ;;
+        7) echo -e "${RED}退出程序${NC}"; exit 0 ;;
+        *) echo -e "${RED}无效选择，请重试${NC}"; sleep 2 ;;
     esac
+    
+    echo -e "\n${TECH_BLUE}按Enter键返回主菜单...${NC}"
+    read
 done
