@@ -67,7 +67,30 @@ move_certificate() {
 modify_cron_job() {
     echo -e "${YELLOW}正在修改续签定时任务...${NC}"
     echo "0 */12 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(43200))' && certbot -q renew --deploy-hook \"/etc/init.d/nginx restart\"" > /etc/cron.d/certbot
-    echo -e "${GREEN}续签定时任务已更新${NC}"
+    
+    # 创建新的自动复制证书脚本
+    cat > ~/autossl.sh << EOL
+#!/bin/bash
+
+# 复制证书到指定目录
+for domain in /etc/letsencrypt/live/*/; do
+    domain_name=\$(basename "\$domain")
+    mkdir -p "/www/server/panel/vhost/cert/\$domain_name"
+    cp "/etc/letsencrypt/live/\$domain_name/fullchain.pem" "/www/server/panel/vhost/cert/\$domain_name/fullchain.pem"
+    cp "/etc/letsencrypt/live/\$domain_name/privkey.pem" "/www/server/panel/vhost/cert/\$domain_name/privkey.pem"
+done
+
+# 重启Nginx
+/etc/init.d/nginx restart
+EOL
+
+    # 设置脚本权限
+    chmod +x ~/autossl.sh
+
+    # 添加新的cron任务
+    (crontab -l ; echo "20 2 * * * cd ~ && ./autossl.sh >/dev/null 2>&1") | crontab -
+
+    echo -e "${GREEN}续签定时任务已更新，并添加了自动复制证书的任务${NC}"
 }
 
 test_renewal() {
@@ -119,7 +142,7 @@ while true; do
     echo -e "\n${YELLOW}SSL证书管理工具${NC}"
     echo "1. 安装Certbot"
     echo "2. 申请新证书"
-    echo "3. 修改续签定时任务"
+    echo "3. 添加定时任务"
     echo "4. 测试证书续签"
     echo "5. 吊销证书"
     echo "6. 列出现有证书"
