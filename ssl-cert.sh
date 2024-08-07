@@ -49,19 +49,29 @@ move_certificate() {
     for file in "${cert_files[@]}"; do
         local src="/etc/letsencrypt/archive/${yuming}/${file}1"
         local dest="/etc/letsencrypt/live/${yuming}/${file}"
-        if [ -f "$src" ] && [ ! -L "$dest" ]; then
+        if [ -f "$src" ]; then
             sudo ln -sf "$src" "$dest"
             echo -e "${GREEN}创建符号链接: ${dest}${NC}"
+        else
+            echo -e "${RED}警告: 源文件不存在: ${src}${NC}"
         fi
     done
     
     # 复制证书文件
-    sudo cp /etc/letsencrypt/live/$yuming/fullchain.pem /www/server/panel/vhost/cert/${yuming}/fullchain.pem > /dev/null 2>&1
-    sudo cp /etc/letsencrypt/live/$yuming/privkey.pem /www/server/panel/vhost/cert/${yuming}/privkey.pem > /dev/null 2>&1
+    if [ -f "/etc/letsencrypt/live/${yuming}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${yuming}/privkey.pem" ]; then
+        sudo cp "/etc/letsencrypt/live/${yuming}/fullchain.pem" "/www/server/panel/vhost/cert/${yuming}/fullchain.pem"
+        sudo cp "/etc/letsencrypt/live/${yuming}/privkey.pem" "/www/server/panel/vhost/cert/${yuming}/privkey.pem"
+        echo -e "${GREEN}证书文件已复制${NC}"
+    else
+        echo -e "${RED}错误: 无法找到证书文件${NC}"
+    fi
     
     # 重启 Nginx
-    sudo /etc/init.d/nginx restart
-    echo -e "${GREEN}证书移动完成，Nginx已重启${NC}"
+    if sudo /etc/init.d/nginx restart; then
+        echo -e "${GREEN}证书移动完成，Nginx已重启${NC}"
+    else
+        echo -e "${RED}Nginx重启失败${NC}"
+    fi
 }
 
 modify_cron_job() {
