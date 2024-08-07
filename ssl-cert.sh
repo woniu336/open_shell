@@ -47,11 +47,11 @@ move_certificate() {
     # 检查并创建符号链接
     local cert_files=("cert.pem" "chain.pem" "fullchain.pem" "privkey.pem")
     for file in "${cert_files[@]}"; do
-        local src="/etc/letsencrypt/archive/${yuming}/${file}1"
+        local src="/etc/letsencrypt/archive/${yuming}/${file%.*}1.pem"
         local dest="/etc/letsencrypt/live/${yuming}/${file}"
         if [ -f "$src" ]; then
             sudo ln -sf "$src" "$dest"
-            echo -e "${GREEN}创建符号链接: ${dest}${NC}"
+            echo -e "${GREEN}符号链接成功: ${dest}${NC}"
         else
             echo -e "${RED}警告: 源文件不存在: ${src}${NC}"
         fi
