@@ -42,20 +42,6 @@ move_certificate() {
     
     # 创建必要的目录
     sudo mkdir -p /www/server/panel/vhost/cert/${yuming}
-    sudo mkdir -p /etc/letsencrypt/live/${yuming}
-    
-    # 检查并创建符号链接
-    local cert_files=("cert.pem" "chain.pem" "fullchain.pem" "privkey.pem")
-    for file in "${cert_files[@]}"; do
-        local src="/etc/letsencrypt/archive/${yuming}/${file%.*}1.pem"
-        local dest="/etc/letsencrypt/live/${yuming}/${file}"
-        if [ -f "$src" ]; then
-            sudo ln -sf "$src" "$dest"
-            echo -e "${GREEN}符号链接成功: ${dest}${NC}"
-        else
-            echo -e "${RED}警告: 源文件不存在: ${src}${NC}"
-        fi
-    done
     
     # 复制证书文件
     if [ -f "/etc/letsencrypt/live/${yuming}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${yuming}/privkey.pem" ]; then
