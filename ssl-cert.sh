@@ -42,6 +42,7 @@ move_certificate() {
     
     # 创建必要的目录
     sudo mkdir -p /www/server/panel/vhost/cert/${yuming}
+	sudo chmod 0755 /etc/letsencrypt/live
     
     # 复制证书文件
     if [ -f "/etc/letsencrypt/live/${yuming}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${yuming}/privkey.pem" ]; then
