@@ -19,6 +19,10 @@ apply_certificate() {
     # 提取主域名
     yuming=$(echo $domain_list | awk '{print $1}')
 
+   # 赋予权限	
+    sudo mkdir -p /etc/letsencrypt/live/${yuming}
+	sudo chmod 0755 /etc/letsencrypt/live
+	
     # 将域名列表转换为带有-d选项的字符串
     domains_with_d=""
     for domain in $domain_list; do
@@ -42,7 +46,6 @@ move_certificate() {
     
     # 创建必要的目录
     sudo mkdir -p /www/server/panel/vhost/cert/${yuming}
-	sudo chmod 0755 /etc/letsencrypt/live
     
     # 复制证书文件
     if [ -f "/etc/letsencrypt/live/${yuming}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${yuming}/privkey.pem" ]; then
