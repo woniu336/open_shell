@@ -19,10 +19,12 @@ apply_certificate() {
     # 提取主域名
     yuming=$(echo $domain_list | awk '{print $1}')
 
-   # 赋予权限	
-    sudo mkdir -p /etc/letsencrypt/live/${yuming}
-	sudo chmod 0755 /etc/letsencrypt/live
-	
+    # 检查 webroot 目录
+    if [ ! -d "/www/wwwroot/$yuming" ]; then
+        echo -e "${RED}错误: Webroot 目录 /www/wwwroot/$yuming 不存在${NC}"
+        return 1
+    fi
+
     # 将域名列表转换为带有-d选项的字符串
     domains_with_d=""
     for domain in $domain_list; do
@@ -30,13 +32,25 @@ apply_certificate() {
     done
 
     echo -e "${YELLOW}正在申请证书...${NC}"
-    certbot certonly --non-interactive --agree-tos -m demo@gmail.com --webroot -w /www/wwwroot/$yuming $domains_with_d --no-eff-email --key-type ecdsa --force-renewal
+    sudo certbot certonly --non-interactive --agree-tos -m demo@gmail.com \
+         --webroot -w /www/wwwroot/$yuming $domains_with_d \
+         --no-eff-email --key-type ecdsa
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}证书申请成功${NC}"
-        move_certificate $yuming
+        # 检查证书是否实际生成
+        if [ -d "/etc/letsencrypt/live/$yuming" ]; then
+            echo -e "${GREEN}证书文件已成功生成在 /etc/letsencrypt/live/$yuming${NC}"
+            move_certificate $yuming
+        else
+            echo -e "${RED}警告: 证书目录 /etc/letsencrypt/live/$yuming 未找到${NC}"
+            echo -e "${YELLOW}正在检查 Certbot 日志...${NC}"
+            sudo tail -n 50 /var/log/letsencrypt/letsencrypt.log
+        fi
     else
         echo -e "${RED}证书申请失败${NC}"
+        echo -e "${YELLOW}正在检查 Certbot 日志...${NC}"
+        sudo tail -n 50 /var/log/letsencrypt/letsencrypt.log
     fi
 }
 
