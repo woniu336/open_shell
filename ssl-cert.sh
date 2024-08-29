@@ -167,6 +167,83 @@ list_certificates() {
     echo -e "${GREEN}+----------------------+---------------------+---------------------+${NC}"
 }
 
+list_certificate_names() {
+    echo -e "${YELLOW}当前存在的证书名称:${NC}"
+    echo -e "${GREEN}+----------------------+${NC}"
+    printf "${GREEN}| %-20s |${NC}\n" "证书名称"
+    echo -e "${GREEN}+----------------------+${NC}"
+    
+    for cert in /etc/letsencrypt/live/*; do
+        cert_name=$(basename $cert)
+        if [ "$cert_name" != "README" ]; then
+            printf "| %-20s |\n" "$cert_name"
+        fi
+    done
+    
+    echo -e "${GREEN}+----------------------+${NC}"
+}
+
+manual_renewal() {
+    list_certificate_names
+    read -p "请输入要手动续签的证书名称: " cert_name
+    read -p "请输入站点目录 (例如 /www/wwwroot/example.com): " webroot_path
+
+    read -p "是否需要强制续签证书？(y/n): " force_renew
+    if [[ "$force_renew" =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}正在强制续签证书...${NC}"
+        output=$(sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path --force-renewal 2>&1)
+        status=$?
+    else
+        echo -e "${YELLOW}正在手动续签证书...${NC}"
+        output=$(sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path 2>&1)
+        status=$?
+    fi
+
+    if [ $status -eq 0 ]; then
+        if echo "$output" | grep -q "Cert not yet due for renewal"; then
+            echo -e "${YELLOW}证书尚未到期，不需要进行续签。${NC}"
+        else
+            echo -e "${GREEN}手动续签成功${NC}"
+
+            # 复制证书文件
+            if [ -f "/etc/letsencrypt/live/${cert_name}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${cert_name}/privkey.pem" ]; then
+                sudo cp "/etc/letsencrypt/live/${cert_name}/fullchain.pem" "/www/server/panel/vhost/cert/${cert_name}/fullchain.pem"
+                sudo cp "/etc/letsencrypt/live/${cert_name}/privkey.pem" "/www/server/panel/vhost/cert/${cert_name}/privkey.pem"
+                echo -e "${GREEN}证书文件已复制${NC}"
+            else
+                echo -e "${RED}错误: 无法找到证书文件${NC}"
+            fi
+
+            # 重启 Nginx
+            if sudo /etc/init.d/nginx restart; then
+                echo -e "${GREEN}证书移动完成，Nginx已重启${NC}"
+            else
+                echo -e "${RED}Nginx重启失败${NC}"
+            fi
+        fi
+    else
+        if echo "$output" | grep -q "Cert not yet due for renewal"; then
+            echo -e "${YELLOW}证书尚未到期，不需要进行续签。${NC}"
+        else
+            echo -e "${RED}手动续签失败${NC}"
+        fi
+    fi
+}
+
+test_renewal_manual() {
+    list_certificate_names
+    read -p "请输入要测试续签的证书名称: " cert_name
+    read -p "请输入站点目录 (例如 /www/wwwroot/example.com): " webroot_path
+
+    echo -e "${YELLOW}正在进行续签测试...${NC}"
+    sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path --dry-run
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}续签测试成功${NC}"
+    else
+        echo -e "${RED}续签测试失败${NC}"
+    fi
+}
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -182,19 +259,20 @@ show_menu() {
     echo -e "${GREEN}         blog: woniu336.github.io${NC}"
     echo -e "${TECH_BLUE}======================================${NC}"
     echo -e "${GREEN}1.${NC} 安装Certbot"
-    echo -e "${GREEN}2.${NC} 申请新证书"
+    echo -e "${GREEN}2.${NC} ${RED}申请新证书 ★${NC}"
     echo -e "${GREEN}3.${NC} 添加定时任务"
-    echo -e "${GREEN}4.${NC} 测试证书续签"
+    echo -e "${GREEN}4.${NC} 全部续签测试"
     echo -e "${GREEN}5.${NC} 吊销证书"
     echo -e "${GREEN}6.${NC} 列出现有证书"
-    echo -e "${RED}7.${NC} 退出"
+    echo -e "${GREEN}7.${NC} ${RED}手动续签证书 ★${NC}"
+    echo -e "${GREEN}8.${NC} 续签有效测试"
+    echo -e "${RED}0.${NC} 退出"
     echo -e "${TECH_BLUE}======================================${NC}"
 }
-
 # 主循环
 while true; do
     show_menu
-    read -p "$(echo -e ${TECH_BLUE}"请选择操作 (1-7): "${NC})" choice
+    read -p "$(echo -e ${TECH_BLUE}"请选择操作 (1-9): "${NC})" choice
     
     case $choice in
         1) install_certbot ;;
@@ -203,7 +281,9 @@ while true; do
         4) test_renewal ;;
         5) revoke_certificate ;;
         6) list_certificates ;;
-        7) echo -e "${RED}退出程序${NC}"; exit 0 ;;
+        7) manual_renewal ;;
+        8) test_renewal_manual ;;
+        0) echo -e "${RED}退出程序${NC}"; exit 0 ;;
         *) echo -e "${RED}无效选择，请重试${NC}"; sleep 2 ;;
     esac
     
