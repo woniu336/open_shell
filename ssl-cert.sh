@@ -191,42 +191,52 @@ manual_renewal() {
     read -p "是否需要强制续签证书？(y/n): " force_renew
     if [[ "$force_renew" =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}正在强制续签证书...${NC}"
-        output=$(sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path --force-renewal 2>&1)
+        sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path --force-renewal --reuse-key
         status=$?
     else
         echo -e "${YELLOW}正在手动续签证书...${NC}"
-        output=$(sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path 2>&1)
+        sudo certbot renew --cert-name $cert_name --key-type ecdsa --webroot-path $webroot_path --reuse-key
         status=$?
     fi
 
     if [ $status -eq 0 ]; then
-        if echo "$output" | grep -q "Cert not yet due for renewal"; then
-            echo -e "${YELLOW}证书尚未到期，不需要进行续签。${NC}"
+        echo -e "${GREEN}手动续签成功${NC}"
+
+        # 获取最新的证书文件后缀
+        latest_cert=$(ls -v "/etc/letsencrypt/archive/${cert_name}/cert"* | tail -n 1)
+        latest_chain=$(ls -v "/etc/letsencrypt/archive/${cert_name}/chain"* | tail -n 1)
+        latest_fullchain=$(ls -v "/etc/letsencrypt/archive/${cert_name}/fullchain"* | tail -n 1)
+        latest_privkey=$(ls -v "/etc/letsencrypt/archive/${cert_name}/privkey"* | tail -n 1)
+
+        # 重命名最新的证书文件
+        sudo mv "$latest_cert" "/etc/letsencrypt/archive/${cert_name}/cert1.pem"
+        sudo mv "$latest_chain" "/etc/letsencrypt/archive/${cert_name}/chain1.pem"
+        sudo mv "$latest_fullchain" "/etc/letsencrypt/archive/${cert_name}/fullchain1.pem"
+        sudo mv "$latest_privkey" "/etc/letsencrypt/archive/${cert_name}/privkey1.pem"
+
+        # 更新符号链接
+        sudo ln -sf "/etc/letsencrypt/archive/${cert_name}/cert1.pem" "/etc/letsencrypt/live/${cert_name}/cert.pem"
+        sudo ln -sf "/etc/letsencrypt/archive/${cert_name}/chain1.pem" "/etc/letsencrypt/live/${cert_name}/chain.pem"
+        sudo ln -sf "/etc/letsencrypt/archive/${cert_name}/fullchain1.pem" "/etc/letsencrypt/live/${cert_name}/fullchain.pem"
+        sudo ln -sf "/etc/letsencrypt/archive/${cert_name}/privkey1.pem" "/etc/letsencrypt/live/${cert_name}/privkey.pem"
+
+        # 复制证书文件
+        if [ -f "/etc/letsencrypt/live/${cert_name}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${cert_name}/privkey.pem" ]; then
+            sudo cp "/etc/letsencrypt/live/${cert_name}/fullchain.pem" "/www/server/panel/vhost/cert/${cert_name}/fullchain.pem"
+            sudo cp "/etc/letsencrypt/live/${cert_name}/privkey.pem" "/www/server/panel/vhost/cert/${cert_name}/privkey.pem"
+            echo -e "${GREEN}证书文件已复制${NC}"
         else
-            echo -e "${GREEN}手动续签成功${NC}"
+            echo -e "${RED}错误: 无法找到证书文件${NC}"
+        fi
 
-            # 复制证书文件
-            if [ -f "/etc/letsencrypt/live/${cert_name}/fullchain.pem" ] && [ -f "/etc/letsencrypt/live/${cert_name}/privkey.pem" ]; then
-                sudo cp "/etc/letsencrypt/live/${cert_name}/fullchain.pem" "/www/server/panel/vhost/cert/${cert_name}/fullchain.pem"
-                sudo cp "/etc/letsencrypt/live/${cert_name}/privkey.pem" "/www/server/panel/vhost/cert/${cert_name}/privkey.pem"
-                echo -e "${GREEN}证书文件已复制${NC}"
-            else
-                echo -e "${RED}错误: 无法找到证书文件${NC}"
-            fi
-
-            # 重启 Nginx
-            if sudo /etc/init.d/nginx restart; then
-                echo -e "${GREEN}证书移动完成，Nginx已重启${NC}"
-            else
-                echo -e "${RED}Nginx重启失败${NC}"
-            fi
+        # 重启 Nginx
+        if sudo /etc/init.d/nginx restart; then
+            echo -e "${GREEN}证书移动完成，Nginx已重启${NC}"
+        else
+            echo -e "${RED}Nginx重启失败${NC}"
         fi
     else
-        if echo "$output" | grep -q "Cert not yet due for renewal"; then
-            echo -e "${YELLOW}证书尚未到期，不需要进行续签。${NC}"
-        else
-            echo -e "${RED}手动续签失败${NC}"
-        fi
+        echo -e "${RED}手动续签失败${NC}"
     fi
 }
 
