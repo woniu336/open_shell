@@ -117,10 +117,13 @@ EOL
     # 设置脚本权限
     chmod +x ~/autossl.sh
 
-    # 添加新的cron任务
-    (crontab -l ; echo "20 2 * * * cd ~ && ./autossl.sh >/dev/null 2>&1") | crontab -
-
-    echo -e "${GREEN}续签定时任务已更新，并添加了自动复制证书的任务${NC}"
+    # 检查并添加新的cron任务
+    if ! crontab -l | grep -q "20 2 \* \* \* cd ~ && ./autossl.sh >/dev/null 2>&1"; then
+        (crontab -l ; echo "20 2 * * * cd ~ && ./autossl.sh >/dev/null 2>&1") | crontab -
+        echo -e "${GREEN}定时任务添加成功${NC}"
+    else
+        echo -e "${GREEN}定时任务已存在，跳过添加${NC}"
+    fi
 }
 
 test_renewal() {
