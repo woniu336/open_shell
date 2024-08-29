@@ -32,21 +32,12 @@ apply_certificate() {
     done
 
     echo -e "${YELLOW}正在申请证书...${NC}"
-    sudo certbot certonly --non-interactive --agree-tos -m demo@gmail.com \
-         --webroot -w /www/wwwroot/$yuming $domains_with_d \
-         --no-eff-email --key-type ecdsa
+    sudo certbot certonly --non-interactive --agree-tos -m demo@gmail.com --webroot -w /www/wwwroot/$yuming $domains_with_d --no-eff-email --key-type ecdsa --force-renewal
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}证书申请成功${NC}"
-        # 检查证书是否实际生成
-        if [ -d "/etc/letsencrypt/live/$yuming" ]; then
-            echo -e "${GREEN}证书文件已成功生成在 /etc/letsencrypt/live/$yuming${NC}"
-            move_certificate $yuming
-        else
-            echo -e "${RED}警告: 证书目录 /etc/letsencrypt/live/$yuming 未找到${NC}"
-            echo -e "${YELLOW}正在检查 Certbot 日志...${NC}"
-            sudo tail -n 50 /var/log/letsencrypt/letsencrypt.log
-        fi
+        secure_certificate_directory $yuming
+        move_certificate $yuming
     else
         echo -e "${RED}证书申请失败${NC}"
         echo -e "${YELLOW}正在检查 Certbot 日志...${NC}"
@@ -83,19 +74,44 @@ modify_cron_job() {
     echo "0 */12 * * * root test -x /usr/bin/certbot -a \! -d /run/systemd/system && perl -e 'sleep int(rand(43200))' && certbot -q renew --deploy-hook \"/etc/init.d/nginx restart\"" > /etc/cron.d/certbot
     
     # 创建新的自动复制证书脚本
-    cat > ~/autossl.sh << EOL
+    cat > ~/autossl.sh << 'EOL'
 #!/bin/bash
 
 # 复制证书到指定目录
-for domain in /etc/letsencrypt/live/*/; do
-    domain_name=\$(basename "\$domain")
-    mkdir -p "/www/server/panel/vhost/cert/\$domain_name"
-    cp "/etc/letsencrypt/live/\$domain_name/fullchain.pem" "/www/server/panel/vhost/cert/\$domain_name/fullchain.pem"
-    cp "/etc/letsencrypt/live/\$domain_name/privkey.pem" "/www/server/panel/vhost/cert/\$domain_name/privkey.pem"
+for domain in /etc/letsencrypt/archive/*/; do
+    domain_name=$(basename "$domain")
+    
+    # 检查 /etc/letsencrypt/live/${domain_name} 是否存在
+    if [ -d "/etc/letsencrypt/live/${domain_name}" ]; then
+        echo "目录 /etc/letsencrypt/live/${domain_name} 已存在。"
+    else
+        # 如果不存在，创建目录并创建软链接
+        mkdir -p "/etc/letsencrypt/live/${domain_name}"
+        ln -s "/etc/letsencrypt/archive/${domain_name}/fullchain1.pem" "/etc/letsencrypt/live/${domain_name}/fullchain.pem"
+        ln -s "/etc/letsencrypt/archive/${domain_name}/privkey1.pem" "/etc/letsencrypt/live/${domain_name}/privkey.pem"
+        ln -s "/etc/letsencrypt/archive/${domain_name}/cert1.pem" "/etc/letsencrypt/live/${domain_name}/cert.pem"
+        ln -s "/etc/letsencrypt/archive/${domain_name}/chain1.pem" "/etc/letsencrypt/live/${domain_name}/chain.pem"
+        echo "已为域名 ${domain_name} 创建软链接。"
+    fi
+
+    mkdir -p "/www/server/panel/vhost/cert/$domain_name"
+    cp "/etc/letsencrypt/live/$domain_name/fullchain.pem" "/www/server/panel/vhost/cert/$domain_name/fullchain.pem"
+    cp "/etc/letsencrypt/live/$domain_name/privkey.pem" "/www/server/panel/vhost/cert/$domain_name/privkey.pem"
 done
 
-# 重启Nginx
-/etc/init.d/nginx restart
+# 重启Nginx并捕获输出
+restart_output=$(/etc/init.d/nginx restart 2>&1)
+
+# 提取警告信息
+warnings=$(echo "$restart_output" | grep -E 'nginx: \[warn\]')
+
+# 如果有警告信息，则输出简洁提醒
+if [ -n "$warnings" ]; then
+    echo "Nginx 重启时检测到警告信息，请检查配置。"
+    echo "$warnings"
+else
+    echo "Nginx 重启成功，未检测到警告信息。"
+fi
 EOL
 
     # 设置脚本权限
