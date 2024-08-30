@@ -36,7 +36,6 @@ apply_certificate() {
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}证书申请成功${NC}"
-        secure_certificate_directory $yuming
         move_certificate $yuming
     else
         echo -e "${RED}证书申请失败${NC}"
