@@ -8,7 +8,7 @@ log_file="/home/domain/logssl"
 # 确保日志文件存在,并清空旧内容
 > "$log_file"
 
-for host in `cat ${dir}/check_domains.txt` #读取存储了需要监控的域名文件
+for host in `cat ${dir}/check_ssl.txt` #读取存储了需要监控的域名文件
 do
  end_data=`date +%s -d "$(echo |openssl s_client -servername $host  -connect $host:443 2>/dev/null | openssl x509 -noout -dates|awk -F '=' '/notAfter/{print $2}')"`
  #当前时间戳
