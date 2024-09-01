@@ -17,7 +17,7 @@ do
  
  days=$(expr $(expr $end_data - $new_date) / 86400) #计算SSL正式到期时间和当前时间的差值
  
- if [ $days -lt 7 ]; #当到期时间小于n天时，发钉钉群告警并写入日志
+ if [ $days -lt 7 ];
  
  then
     alert_message="告警域名：$host    ssl证书即将到期，剩余：$days 天"
