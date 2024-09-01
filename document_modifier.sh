@@ -209,8 +209,8 @@ notification_test_menu() {
 ssl_expiry_test() {
     echo "正在执行 SSL 证书到期测试..."
     cd /home/domain
-    # 备份整行原始设置
-    original_line=$(grep 'if \[ $days -lt [0-9]* \];' check_ssl.sh)
+    # 备份整行原始设置，使用 `sed` 来去除行首行尾的空白字符
+    original_line=$(grep 'if \[ $days -lt [0-9]* \];' check_ssl.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
     # 提取原始天数
     original_value=$(echo "$original_line" | awk '{print $5}' | tr -d ';')
     echo "原始设置为: $original_value 天"
@@ -231,7 +231,8 @@ ssl_expiry_test() {
     # 询问是否恢复原始设置
     read -p "是否恢复原始设置？(y/n): " restore_settings
     if [[ $restore_settings == "y" ]]; then
-        sed -i "s/if \[ \$days -lt [0-9]* \];/$original_line/" check_ssl.sh
+        # 使用 sed 的内联编辑模式来精确替换，避免引入额外的空格
+        sed -i "s/^[[:space:]]*if \[ \$days -lt [0-9]* \];.*$/$original_line/" check_ssl.sh
         echo "已恢复原始设置为: $original_value 天"
     else
         echo "保留当前设置为: $test_days 天"
