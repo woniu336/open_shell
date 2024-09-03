@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Function to URL encode a string
+# URL编码函数
 urlencode() {
     local string="${1}"
     local strlen=${#string}
@@ -17,22 +17,12 @@ urlencode() {
     echo "${encoded}"
 }
 
-# Function to extract URLs from sitemap
+# 从sitemap提取URL的函数
 extract_urls_from_sitemap() {
-    local sitemap_url="$1"
-    curl -s "$sitemap_url" | grep -oP '(?<=<loc>)https?://[^<]+'
+    curl -s "$1" | grep -oP '(?<=<loc>)https?://[^<]+'
 }
 
-# Function to submit a single URL
-submit_single_url() {
-    local url="$1"
-    local key="$2"
-    local search_engine="$3"
-    encoded_url=$(urlencode "$url")
-    curl -s "https://${search_engine}/indexnow?url=${encoded_url}&key=${key}"
-}
-
-# Function to submit multiple URLs
+# 提交多个URL的函数
 submit_multiple_urls() {
     local host="$1"
     local key="$2"
@@ -40,37 +30,44 @@ submit_multiple_urls() {
     shift 3
     local urls=("$@")
     
-    # Convert URL list to JSON array
+    # 将URL列表转换为JSON数组
     local url_json_array=$(printf '%s\n' "${urls[@]}" | jq -R . | jq -s .)
     
-    # Prepare JSON data
+    # 准备JSON数据
     local json_data=$(jq -n \
                   --arg host "$host" \
                   --arg key "$key" \
                   --argjson urlList "$url_json_array" \
                   '{host: $host, key: $key, urlList: $urlList}')
     
-    echo "Debug: JSON data to be sent:"
-    echo "$json_data"
-    
-    # Submit URLs
-    local response=$(curl -v -X POST "https://${search_engine}/indexnow" \
+    # 提交URL并获取状态码
+    local status_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://${search_engine}/indexnow" \
          -H "Content-Type: application/json; charset=utf-8" \
          -d "$json_data")
-    echo "Response: $response"
+    
+    # 根据状态码输出结果
+    case $status_code in
+        200) echo "成功：URL已成功提交。" ;;
+        202) echo "已接受：URL将稍后处理。" ;;
+        400) echo "错误：无效请求。请检查您的参数。" ;;
+        403) echo "错误：未授权。请验证您的API密钥。" ;;
+        422) echo "错误：无法处理的实体。请检查您的JSON格式。" ;;
+        429) echo "错误：请求过多。请稍后再试。" ;;
+        *)   echo "意外的状态码：$status_code" ;;
+    esac
 }
 
-# Check for required commands
+# 检查必需的命令
 for cmd in curl grep jq; do
     if ! command -v $cmd &> /dev/null; then
-        echo "Error: Required command '$cmd' not found. Please install it and try again."
+        echo "错误：未找到必需的命令 '$cmd'。请安装它并重试。"
         exit 1
     fi
 done
 
-# Main script
+# 检查参数数量
 if [ "$#" -ne 4 ]; then
-    echo "Usage: $0 <search_engine> <key> <host> <sitemap_url>"
+    echo "用法: $0 <搜索引擎> <密钥> <主机> <sitemap_url>"
     exit 1
 fi
 
@@ -79,26 +76,18 @@ key="$2"
 host="$3"
 sitemap_url="$4"
 
-echo "Extracting URLs from sitemap..."
+# 提取URL
 urls=($(extract_urls_from_sitemap "$sitemap_url"))
-
 if [ ${#urls[@]} -eq 0 ]; then
-    echo "No URLs found in the sitemap."
+    echo "在sitemap中未找到URL。"
     exit 1
 fi
 
-echo "Found ${#urls[@]} URLs in the sitemap."
-
-echo "Debug: First few URLs extracted from sitemap:"
-printf '%s\n' "${urls[@]:0:5}"
-
-# Check if we have more than 10,000 URLs
+# 检查URL数量是否超过10000
 if [ ${#urls[@]} -gt 10000 ]; then
-    echo "Warning: More than 10,000 URLs found. Submitting only the first 10,000."
+    echo "警告：发现超过10,000个URL。仅提交前10,000个。"
     urls=("${urls[@]:0:10000}")
 fi
 
-echo "Submitting URLs to IndexNow..."
+# 提交URL
 submit_multiple_urls "$host" "$key" "$search_engine" "${urls[@]}"
-
-echo "Done."
