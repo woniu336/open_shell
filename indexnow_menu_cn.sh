@@ -205,6 +205,15 @@ show_key_guide() {
     read -n 1 -s
 }
 
+
+# 显示获取密钥指南
+task_mg() {
+    clear
+	curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/indexnow-task-manager.sh && chmod +x indexnow-task-manager.sh && ./indexnow-task-manager.sh
+    echo "按任意键返回主菜单..."
+    read -n 1 -s
+}
+
 # 显示主菜单
 show_main_menu() {
     clear
@@ -223,6 +232,7 @@ show_main_menu() {
     echo -e "${CYAN}4.${NC} 查看站点"
     echo -e "${CYAN}5.${NC} 更换端点"
     echo -e "${CYAN}6.${NC} 获取密钥指南"
+    echo -e "${CYAN}7.${NC} 站点地图定时提交"
     echo -e "${CYAN}0.${NC} 退出"
     echo -e "${YELLOW}=========================================${NC}"
     echo -e "当前端点: ${GREEN}$SEARCH_ENGINE${NC}"
@@ -241,6 +251,7 @@ while true; do
         4) view_sites;;
         5) change_endpoint;;
         6) show_key_guide;;
+		7) task_mg;;
         0) echo -e "${YELLOW}感谢使用，再见！${NC}"; exit 0;;
         *) echo -e "${RED}无效的选择。请重试。${NC}";;
     esac
