@@ -70,8 +70,7 @@ install_fail2ban() {
         if [ $? -eq 0 ]; then
             log_info "Fail2ban 安装成功"
             systemctl enable fail2ban
-            systemctl start fail2ban
-			systemctl restart fail2ban
+            systemctl restart fail2ban
             log_info "Fail2ban 服务已启动并设置为开机自启"
             # 只在首次安装时下载配置文件
             download_files
@@ -390,11 +389,11 @@ main_menu() {
         echo -e "${CYAN}3.${NC} 模拟 SSH 登录失败"
         echo
         echo -e "${GREEN}网站防护:${NC}"
-        echo -e "${CYAN}4.${NC} 开启网站保护（默认开启）"
+        echo -e "${CYAN}4.${NC} 开启网站保护"
         echo -e "${CYAN}5.${NC} 关闭网站保护"
         echo
         echo -e "${GREEN}查看记录:${NC}"
-        echo -e "${CYAN}6.${NC} 查看所有拦截记录（包括 SSH 和网站）"
+        echo -e "${CYAN}6.${NC} 查看所有拦截记录"
         echo -e "${CYAN}7.${NC} 查看日志实时监控"
         echo
         echo -e "${GREEN}配置选项:${NC}"
