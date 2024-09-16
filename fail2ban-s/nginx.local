@@ -1,0 +1,39 @@
+[fail2ban-nginx-cc]
+enabled = true
+filter = fail2ban-nginx-cc
+port = http,https
+logpath = /www/wwwlogs/access.log
+maxretry = 2
+bantime = 3600
+findtime = 600
+ignoreip = 192.168.0.1/24
+
+[nginx-http-auth]
+enabled = true
+filter = nginx-http-auth
+port = http,https
+logpath = /www/server/nginx/logs/error.log
+
+[nginx-limit-req]
+enabled = true
+filter = nginx-limit-req
+port = http,https
+logpath = /www/server/nginx/logs/error.log
+
+[nginx-botsearch]
+enabled = true
+filter = nginx-botsearch
+port = http,https
+logpath = /www/server/nginx/logs/error.log
+
+[nginx-bad-request]
+enabled = true
+filter = nginx-bad-request
+port = http,https
+logpath = /www/wwwlogs/access.log
+
+[php-url-fopen]
+enabled = true
+filter = php-url-fopen
+port = http,https
+logpath = /www/wwwlogs/access.log
