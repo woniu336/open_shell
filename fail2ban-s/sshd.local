@@ -1,5 +1,7 @@
 [sshd]
-
 enabled = true
 mode   = normal
 backend = systemd
+bantime  = 1h
+findtime = 10m
+maxretry = 5
