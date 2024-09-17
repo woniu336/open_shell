@@ -65,26 +65,38 @@ log_info() {
 install_fail2ban() {
     log_info "检查 Fail2ban 是否已安装..."
     if ! [ -x "$(command -v fail2ban-client)" ]; then
-        log_info "Fail2ban 未安装，开始安装过程..."
-        apt update -y && apt install -y fail2ban
-        if [ $? -eq 0 ]; then
-            log_info "Fail2ban 安装成功"
-            systemctl enable fail2ban
-            systemctl restart fail2ban
-            log_info "Fail2ban 服务已启动并设置为开机自启"
-            # 只在首次安装时下载配置文件
-            download_files
+        log_info "Fail2ban 未安装，是否要安装? (y/n)"
+        read -r install_choice
+        if [[ $install_choice =~ ^[Yy]$ ]]; then
+            log_info "开始安装 Fail2ban..."
+            apt update -y && apt install -y fail2ban
+            if [ $? -eq 0 ]; then
+                log_info "Fail2ban 安装成功"
+                systemctl enable fail2ban
+                systemctl restart fail2ban
+                log_info "Fail2ban 服务已启动并设置为开机自启"
+                # 只在首次安装时下载配置文件
+                download_files
+            else
+                log_error "Fail2ban 安装失败，请检查您的系统和网络设置"
+                return 1
+            fi
         else
-            log_error "Fail2ban 安装失败，请检查您的系统和网络设置"
-            exit 1
+            log_info "取消安装 Fail2ban"
+            return 1
         fi
     else
-        log_info "Fail2ban 已经安装"
+        log_info "Fail2ban 已经安装，跳过安装步骤"
     fi
 }
 
 # 文件下载函数
 download_files() {
+    if [ -f "/etc/fail2ban/jail.d/nginx.local" ] && [ -f "/etc/fail2ban/jail.d/sshd.local" ]; then
+        log_info "配置文件已存在，跳过下载"
+        return 0
+    fi
+
     log_info "检查并下载配置文件..."
     
     # 创建临时目录
@@ -375,6 +387,7 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+
 # 修改: 主菜单函数
 main_menu() {
     while true; do
@@ -383,29 +396,32 @@ main_menu() {
         echo -e "${YELLOW}          Fail2ban 服务器防御程序${NC}"
         echo -e "${BLUE}================================================${NC}"
         echo
+        echo -e "${GREEN}Fail2ban 管理:${NC}"
+        echo -e "${CYAN}1.${NC} 安装/重新安装 Fail2ban"
+        echo
         echo -e "${GREEN}SSH 防护:${NC}"
-        echo -e "${CYAN}1.${NC} 开启 SSH 防暴力破解"
-        echo -e "${CYAN}2.${NC} 关闭 SSH 防暴力破解"
-        echo -e "${CYAN}3.${NC} 模拟 SSH 登录失败"
+        echo -e "${CYAN}2.${NC} 开启 SSH 防暴力破解"
+        echo -e "${CYAN}3.${NC} 关闭 SSH 防暴力破解"
+        echo -e "${CYAN}4.${NC} 模拟 SSH 登录失败"
         echo
         echo -e "${GREEN}网站防护:${NC}"
-        echo -e "${CYAN}4.${NC} 开启网站保护"
-        echo -e "${CYAN}5.${NC} 关闭网站保护"
+        echo -e "${CYAN}5.${NC} 开启网站保护"
+        echo -e "${CYAN}6.${NC} 关闭网站保护"
         echo
         echo -e "${GREEN}查看记录:${NC}"
-        echo -e "${CYAN}6.${NC} 查看所有拦截记录"
-        echo -e "${CYAN}7.${NC} 查看日志实时监控"
+        echo -e "${CYAN}7.${NC} 查看所有拦截记录"
+        echo -e "${CYAN}8.${NC} 查看日志实时监控"
         echo
         echo -e "${GREEN}配置选项:${NC}"
-        echo -e "${CYAN}8.${NC} 配置拦截参数"
-        echo -e "${CYAN}9.${NC} 卸载防御程序"
-        echo -e "${CYAN}10.${NC} 解除被 ban 的 IP"
-        echo -e "${CYAN}11.${NC} 修改监控日志路径"
+        echo -e "${CYAN}9.${NC} 配置拦截参数"
+        echo -e "${CYAN}10.${NC} 卸载防御程序"
+        echo -e "${CYAN}11.${NC} 解除被 ban 的 IP"
+        echo -e "${CYAN}12.${NC} 修改监控日志路径"
         echo
         echo -e "${GREEN}钉钉通知:${NC}"
-        echo -e "${CYAN}12.${NC} 钉钉通知设置"
-        echo -e "${CYAN}13.${NC} 启动钉钉通知监控"
-        echo -e "${CYAN}14.${NC} 停止钉钉通知监控"
+        echo -e "${CYAN}13.${NC} 钉钉通知设置"
+        echo -e "${CYAN}14.${NC} 启动钉钉通知监控"
+        echo -e "${CYAN}15.${NC} 停止钉钉通知监控"
         echo
         echo -e "${RED}0. 退出${NC}"
         echo -e "${BLUE}================================================${NC}"
@@ -413,41 +429,44 @@ main_menu() {
         read -p "$(echo -e ${YELLOW}"请输入你的选择: "${NC})" choice
         case $choice in
             1)
+                install_fail2ban
+                ;;
+            2)
                 sed -i 's/false/true/g' /etc/fail2ban/jail.d/sshd.local
                 systemctl restart fail2ban
                 log_info "SSH防暴力破解已开启"
                 ;;
-            2)
+            3)
                 sed -i 's/true/false/g' /etc/fail2ban/jail.d/sshd.local
                 systemctl restart fail2ban
                 log_info "SSH防暴力破解已关闭"
                 ;;
-            3)
+            4)
                 check_ssh_port
                 test_ssh_fail2ban
                 ;;
-            4)
+            5)
                 sed -i 's/false/true/g' /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "网站保护已开启"
                 ;;
-            5)
+            6)
                 sed -i 's/true/false/g' /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "网站保护已关闭"
                 ;;
-            6)
+            7)
                 view_website_bans
                 ;;
-            7)
+            8)
                 tail -f /var/log/fail2ban.log
                 ;;
-            8)
+            9)
                 nano /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "配置已更新，fail2ban 服务已重启"
                 ;;
-            9)
+            10)
                 read -p "$(echo -e ${RED}"确定要卸载防御程序吗？此操作将完全移除 Fail2ban (y/n): "${NC})" confirm
                 if [ "$confirm" = "y" ]; then
                     uninstall_fail2ban
@@ -455,18 +474,18 @@ main_menu() {
                     log_info "取消卸载"
                 fi
                 ;;
-            10)
+            11)
                 read -p "请输入被ban的IP地址: " banned_ip
                 sudo fail2ban-client unban $banned_ip
                 log_info "IP $banned_ip 已解除封禁"
                 ;;
-            11)
+            12)
                 modify_log_path
                 ;;
-            12)
+            13)
                 dingtalk_submenu
                 ;;
-            13)
+            14)
                 if [ -z "$DINGTALK_WEBHOOK" ]; then
                     log_error "请先设置钉钉 Webhook"
                 elif [ -f /var/run/fail2ban_monitor.pid ]; then
@@ -478,7 +497,7 @@ main_menu() {
                     log_info "监控进程已在后台启动（PID: $(cat /var/run/fail2ban_monitor.pid)）"
                 fi
                 ;;
-            14)
+            15)
                 if [ -f /var/run/fail2ban_monitor.pid ]; then
                     kill $(cat /var/run/fail2ban_monitor.pid)
                     rm /var/run/fail2ban_monitor.pid
@@ -499,7 +518,6 @@ main_menu() {
         read -p "$(echo -e ${YELLOW}"按任意键返回主菜单..."${NC})"
     done
 }
-
 # 钉钉通知设置子菜单
 dingtalk_submenu() {
     while true; do
