@@ -338,11 +338,35 @@ check_ssh_port() {
     echo -e "${YELLOW}当前 SSH 端口: $SSH_PORT${NC}"
 }
 
-# 新增: 测试 SSH Fail2ban 函数
+# 检查并安装 sshpass
+check_and_install_sshpass() {
+    if ! command -v sshpass &> /dev/null
+    then
+        echo -e "${YELLOW}sshpass 未安装，正在尝试安装...${NC}"
+        if [ -x "$(command -v apt-get)" ]; then
+            sudo apt-get update
+            sudo apt-get install -y sshpass
+        elif [ -x "$(command -v yum)" ]; then
+            sudo yum install -y sshpass
+        elif [ -x "$(command -v brew)" ]; then
+            brew install hudochenkov/sshpass/sshpass
+        else
+            echo -e "${RED}无法确定包管理器，请手动安装 sshpass${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}sshpass 已安装${NC}"
+    fi
+}
+
+# 测试 SSH Fail2ban 函数
 test_ssh_fail2ban() {
     echo -e "${YELLOW}开始测试 SSH Fail2ban 配置...${NC}"
     echo -e "${YELLOW}请确保您已经正确配置了 Fail2ban 并启用了 SSH 防护。${NC}"
     echo
+
+    # 检查并安装 sshpass
+    check_and_install_sshpass
 
     # 1. 检查 Fail2ban 状态
     echo -e "${GREEN}1. 检查 Fail2ban 状态${NC}"
