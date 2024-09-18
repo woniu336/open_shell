@@ -1,7 +1,7 @@
 <?php
 namespace app\common\extend\upload;
 
-class Btjson
+class Cf
 {
     public $name = 'Cloudflare R2存储';
     public $ver = '1.0';
@@ -15,12 +15,12 @@ class Btjson
 
     public function __construct()
     {
-        $this->accessKey = $GLOBALS['config']['upload']['api']['btjson']['access_key'];
-        $this->secretKey = $GLOBALS['config']['upload']['api']['btjson']['secret_key'];
-        $this->endpoint = $GLOBALS['config']['upload']['api']['btjson']['endpoint'];
-        $this->customDomain = $GLOBALS['config']['upload']['api']['btjson']['custom_domain'] ?? null;
-        $this->bucketName = $GLOBALS['config']['upload']['api']['btjson']['bucket_name'];
-        $this->uploadPathTemplate = $GLOBALS['config']['upload']['api']['btjson']['upload_path_template'] ?? 'img/%y/%mo/%d';
+        $this->accessKey = $GLOBALS['config']['upload']['api']['cf']['access_key'];
+        $this->secretKey = $GLOBALS['config']['upload']['api']['cf']['secret_key'];
+        $this->endpoint = $GLOBALS['config']['upload']['api']['cf']['endpoint'];
+        $this->customDomain = $GLOBALS['config']['upload']['api']['cf']['custom_domain'] ?? null;
+        $this->bucketName = $GLOBALS['config']['upload']['api']['cf']['bucket_name'];
+        $this->uploadPathTemplate = $GLOBALS['config']['upload']['api']['cf']['upload_path_template'] ?? 'img/%y/%mo/%d';
     }
 
     public function submit($filePath)

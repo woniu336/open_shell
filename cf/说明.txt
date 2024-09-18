@@ -1,8 +1,10 @@
 这是苹果cms后台对接cloudflare r2存储文件，路径：
 
-站点目录/application/common/extend/upload/Btjson.php
+站点目录/application/common/extend/upload/Cf.php
 
-站点目录/application/admin/view/extend/upload/btjson.html
+站点目录/application/admin/view/extend/upload/cf.html
+
+上传路径：img/%y/%mo/%d
 
 注意：文件有bug，不能设置自定义域名，否则无效！
 
