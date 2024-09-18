@@ -1,0 +1,11 @@
+这是苹果cms后台对接cloudflare r2存储文件，路径：
+
+站点目录/application/common/extend/upload/Btjson.php
+
+站点目录/application/admin/view/extend/upload/btjson.html
+
+注意：文件有bug，不能设置自定义域名，否则无效！
+
+采集后，还需要替换地址，后台打开-数据库-执行SQL语句-替换命令：
+
+UPDATE {pre}vod SET vod_pic=REPLACE(vod_pic, 'mac://xxxxxx.r2.cloudflarestorage.com/web', 'https://自定义域名')

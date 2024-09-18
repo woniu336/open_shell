@@ -1,0 +1,44 @@
+<div class="layui-form-item upload_mode mode_btjson" {if condition="$config['upload']['mode'] neq 'Btjson'"}style="display:none;" {/if}>
+    <label class="layui-form-label">Cloudflare R2存储：</label>
+    <div class="layui-input-block">
+        <a href="https://dash.cloudflare.com" target="_blank" class="layui-btn layui-btn-primary">请确认R2配置正确</a>
+    </div>
+</div>
+<div class="layui-form-item upload_mode mode_Btjson" {if condition="$config['upload']['mode'] neq 'Btjson'"}style="display:none;" {/if}>
+    <div class="layui-form-item">
+        <label class="layui-form-label">Endpoint：</label>
+        <div class="layui-input-block  w500">
+            <input type="text" name="upload[api][btjson][endpoint]" placeholder="R2 Endpoint" value="{$config['upload']['api']['btjson']['endpoint']}" class="layui-input" >
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">Access Key：</label>
+        <div class="layui-input-block  w500">
+            <input type="text" name="upload[api][btjson][access_key]" placeholder="Access Key" value="{$config['upload']['api']['btjson']['access_key']}" class="layui-input" >
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">Secret Key：</label>
+        <div class="layui-input-block  w500">
+            <input type="password" name="upload[api][btjson][secret_key]" placeholder="Secret Key" value="{$config['upload']['api']['btjson']['secret_key']}" class="layui-input" >
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">Bucket名称：</label>
+        <div class="layui-input-block  w500">
+            <input type="text" name="upload[api][btjson][bucket_name]" placeholder="Bucket名称" value="{$config['upload']['api']['btjson']['bucket_name']}" class="layui-input" >
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">自定义域名：</label>
+        <div class="layui-input-block  w500">
+            <input type="text" name="upload[api][btjson][custom_domain]" placeholder="自定义域名（可选）" value="{$config['upload']['api']['btjson']['custom_domain']}" class="layui-input">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">上传路径模板：</label>
+        <div class="layui-input-block  w500">
+            <input type="text" name="upload[api][btjson][upload_path_template]" placeholder="上传路径模板（例如：img/%y/%mo/%d）" value="{$config['upload']['api']['btjson']['upload_path_template']}" class="layui-input">
+        </div>
+    </div>
+</div>
