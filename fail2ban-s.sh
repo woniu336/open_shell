@@ -401,6 +401,62 @@ test_ssh_fail2ban() {
     echo -e "${YELLOW}测试完成。请检查上面的输出以确认 Fail2ban 是否正确拦截了模拟的攻击。${NC}"
 }
 
+# 新增: UFW 管理函数
+ufw_management() {
+    while true; do
+        clear
+        echo -e "${BLUE}================================================${NC}"
+        echo -e "${YELLOW}              UFW 防火墙管理${NC}"
+        echo -e "${BLUE}================================================${NC}"
+        echo
+        echo -e "${CYAN}1.${NC} 屏蔽 IP"
+        echo -e "${CYAN}2.${NC} 解除 IP 屏蔽"
+        echo -e "${CYAN}3.${NC} 查看已屏蔽的 IP"
+        echo -e "${CYAN}4.${NC} 开启 UFW"
+        echo -e "${CYAN}5.${NC} 关闭 UFW"
+        echo -e "${CYAN}6.${NC} 查看 UFW 状态"
+        echo -e "${CYAN}0.${NC} 返回主菜单"
+        echo
+        echo -e "${BLUE}================================================${NC}"
+        echo
+        read -p "$(echo -e ${YELLOW}"请输入你的选择: "${NC})" ufw_choice
+        case $ufw_choice in
+            1)
+                read -p "请输入要屏蔽的 IP 地址: " ip_to_block
+                sudo ufw deny from $ip_to_block
+                log_info "IP $ip_to_block 已被屏蔽"
+                ;;
+            2)
+                read -p "请输入要解除屏蔽的 IP 地址: " ip_to_unblock
+                sudo ufw delete deny from $ip_to_unblock
+                log_info "IP $ip_to_unblock 已解除屏蔽"
+                ;;
+            3)
+                echo -e "${YELLOW}已屏蔽的 IP 列表：${NC}"
+                sudo ufw status | grep DENY
+                ;;
+            4)
+                sudo ufw enable
+                log_info "UFW 已开启"
+                ;;
+            5)
+                sudo ufw disable
+                log_info "UFW 已关闭"
+                ;;
+            6)
+                sudo ufw status verbose
+                ;;
+            0)
+                return
+                ;;
+            *)
+                log_error "无效选择，请重试"
+                ;;
+        esac
+        echo
+        read -p "$(echo -e ${YELLOW}"按任意键继续..."${NC})"
+    done
+}
 
 # 颜色定义
 RED='\033[0;31m'
@@ -446,6 +502,9 @@ main_menu() {
         echo -e "${CYAN}13.${NC} 钉钉通知设置"
         echo -e "${CYAN}14.${NC} 启动钉钉通知监控"
         echo -e "${CYAN}15.${NC} 停止钉钉通知监控"
+        echo
+        echo -e "${GREEN}UFW 防火墙:${NC}"
+        echo -e "${CYAN}16.${NC} UFW 防火墙管理"
         echo
         echo -e "${RED}0. 退出${NC}"
         echo -e "${BLUE}================================================${NC}"
@@ -529,6 +588,9 @@ main_menu() {
                 else
                     log_info "没有正在运行的监控进程"
                 fi
+                ;;
+            16)
+                ufw_management
                 ;;
             0)
                 echo -e "${GREEN}感谢使用 Fail2ban 服务器防御程序，再见！${NC}"
