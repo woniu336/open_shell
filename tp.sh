@@ -833,7 +833,8 @@ ipv6_address=$(curl -s --max-time 1 ipv6.ip.sb)
 
 generate_ssh_key() {
     # 生成密钥对
-    ssh-keygen -t rsa -b 4096 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
+    # ssh-keygen -t rsa -b 4096 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
+	ssh-keygen -t ed25519 -C "xxxx@gmail.com" -f /root/.ssh/sshkey -N ""
 
     # 存放公钥文件到对应位置并授权
     cat ~/.ssh/sshkey.pub >> ~/.ssh/authorized_keys
