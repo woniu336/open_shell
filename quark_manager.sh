@@ -24,6 +24,7 @@ show_menu() {
     echo -e "${BLUE}5.${NC} 设置定时转存任务"
     echo -e "${BLUE}6.${NC} 设置钉钉通知"
     echo -e "${BLUE}7.${NC} 删除转存任务"
+    echo -e "${BLUE}8.${NC} 检查链接有效性"
     echo -e "${BLUE}0.${NC} 退出"
     echo -e "${LIGHT_BLUE}==========================================${NC}"
 }
@@ -208,6 +209,14 @@ delete_transfer_task() {
     fi
 }
 
+# 函数: 检查链接有效性
+check_link_validity() {
+    echo -e "${YELLOW}正在检查所有转存链接的有效性...${NC}"
+    python3 /root/quark/check_quark_links.py "$CONFIG_FILE"
+    echo -e "${YELLOW}检查完成。${NC}"
+}
+
+
 # 函数: 等待用户按Enter键
 wait_for_enter() {
     echo -e "${YELLOW}按Enter键返回主菜单...${NC}"
@@ -227,6 +236,7 @@ while true; do
         5) set_cron_job ;;
         6) set_dingtalk_notify; wait_for_enter ;;
         7) delete_transfer_task; wait_for_enter ;;
+        8) check_link_validity; wait_for_enter ;;
         0) echo -e "${GREEN}退出程序${NC}"; exit 0 ;;
         *) echo -e "${RED}无效的选择,请重新输入${NC}"; wait_for_enter ;;
     esac
