@@ -1,9 +1,11 @@
 #!/bin/bash
 
 # 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+LIGHT_BLUE='\033[1;34m'
 YELLOW='\033[0;33m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # 配置文件路径
@@ -14,16 +16,16 @@ QUARK_AUTO_SAVE_SCRIPT="/root/quark/quark_auto_save.py"
 
 # 函数: 显示菜单
 show_menu() {
-    echo -e "${YELLOW}=== 夸克网盘自动追更管理脚本 ===${NC}"
-    echo "1. 更新Cookie"
-    echo "2. 添加转存信息"
-    echo "3. 测试新添加的转存"
-    echo "4. 运行全部转存"
-    echo "5. 设置定时转存任务"
-    echo "6. 设置钉钉通知"
-    echo "7. 删除转存任务"
-    echo "0. 退出"
-    echo -e "${YELLOW}=================================${NC}"
+    echo -e "${LIGHT_BLUE}======= 夸克网盘自动追更管理脚本 =======${NC}"
+    echo -e "${BLUE}1.${NC} 更新Cookie"
+    echo -e "${BLUE}2.${NC} 添加转存信息"
+    echo -e "${BLUE}3.${NC} 测试新添加的转存"
+    echo -e "${BLUE}4.${NC} 运行全部转存"
+    echo -e "${BLUE}5.${NC} 设置定时转存任务"
+    echo -e "${BLUE}6.${NC} 设置钉钉通知"
+    echo -e "${BLUE}7.${NC} 删除转存任务"
+    echo -e "${BLUE}0.${NC} 退出"
+    echo -e "${LIGHT_BLUE}==========================================${NC}"
 }
 
 # 函数: 更新Cookie
@@ -107,10 +109,12 @@ run_all_transfers() {
 # 函数: 设置定时转存任务
 set_cron_job() {
     while true; do
-        echo -e "${YELLOW}定时任务子菜单:${NC}"
-        echo "1. 设置定时任务"
-        echo "2. 删除定时任务"
-        echo "0. 返回主菜单"
+        clear
+        echo -e "${LIGHT_BLUE}======= 定时任务子菜单 =======${NC}"
+        echo -e "${BLUE}1.${NC} 设置定时任务"
+        echo -e "${BLUE}2.${NC} 删除定时任务"
+        echo -e "${BLUE}0.${NC} 返回主菜单"
+        echo -e "${LIGHT_BLUE}================================${NC}"
         read -p "请选择操作: " subchoice
 
         case $subchoice in
@@ -143,9 +147,9 @@ set_cron_job() {
 
 # 函数: 设置钉钉通知
 set_dingtalk_notify() {
-    echo -e "${YELLOW}请输入钉钉机器人的token(Webhook地址后面的token):${NC}"
+    echo -e "${YELLOW}请输入钉钉机器人的token【Webhook地址后面的token】:${NC}"
     read access_token
-    echo -e "${YELLOW}请输入钉钉机器人的secret(加签):${NC}"
+    echo -e "${YELLOW}请输入钉钉机器人的secret【加签】:${NC}"
     read secret
 
     # 更新配置文件中的钉钉通知设置
@@ -192,7 +196,7 @@ while true; do
         5) set_cron_job ;;
         6) set_dingtalk_notify; wait_for_enter ;;
         7) delete_transfer_task; wait_for_enter ;;
-        0) echo "退出程序"; exit 0 ;;
+        0) echo -e "${GREEN}退出程序${NC}"; exit 0 ;;
         *) echo -e "${RED}无效的选择,请重新输入${NC}"; wait_for_enter ;;
     esac
 done
