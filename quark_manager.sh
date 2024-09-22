@@ -160,15 +160,46 @@ set_dingtalk_notify() {
 
 # 函数: 删除转存任务
 delete_transfer_task() {
-    echo -e "${YELLOW}请输入要删除的任务文件名:${NC}"
-    read task_name
-
+    # 从配置文件中获取任务总数
+    task_count=$(jq '.tasklist | length' $CONFIG_FILE)
+    
+    echo -e "${YELLOW}当前共有 $task_count 个转存任务${NC}"
+    
+    # 显示任务列表
+    echo -e "\n${LIGHT_BLUE}============ 转存任务列表 ============${NC}"
+    printf "${BLUE}%-6s %-30s${NC}\n" "序号" "文件名"
+    echo -e "${LIGHT_BLUE}=======================================${NC}"
+    
+    for i in $(seq 0 $((task_count-1))); do
+        task_name=$(jq -r ".tasklist[$i].taskname" $CONFIG_FILE)
+        if [ $((i % 2)) -eq 0 ]; then
+            printf "${GREEN}%-6s %-30s${NC}\n" "$((i+1))" "$task_name"
+        else
+            printf "${YELLOW}%-6s %-30s${NC}\n" "$((i+1))" "$task_name"
+        fi
+    done
+    
+    echo -e "${LIGHT_BLUE}=======================================${NC}\n"
+    
+    echo -e "${YELLOW}请输入要删除的任务序号或文件名:${NC}"
+    read input
+    
+    # 判断输入是序号还是文件名
+    if [[ "$input" =~ ^[0-9]+$ ]] && [ "$input" -le "$task_count" ] && [ "$input" -gt 0 ]; then
+        # 输入为序号
+        index=$((input-1))
+        task_name=$(jq -r ".tasklist[$index].taskname" $CONFIG_FILE)
+    else
+        # 输入为文件名
+        task_name=$input
+    fi
+    
     # 从配置文件中删除匹配的任务
     jq '.tasklist = [.tasklist[] | select(.taskname != "'"$task_name"'")]' $CONFIG_FILE > tmp.$$.json && mv tmp.$$.json $CONFIG_FILE
-
+    
     # 从 movie_list.txt 中删除对应的行
     sed -i "/^$task_name=/d" $MOVIE_LIST_FILE
-
+    
     # 检查是否成功删除
     if grep -q "$task_name" $CONFIG_FILE; then
         echo -e "${RED}未找到名为 '$task_name' 的任务,删除失败${NC}"
