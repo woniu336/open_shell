@@ -46,7 +46,7 @@ add_transfer_info() {
         echo -e "${YELLOW}请输入转存链接:${NC}"
         read share_url
         
-        echo -e "${YELLOW}请输入转存目录(提示：目录不能为空):${NC}"
+        echo -e "${YELLOW}请输入转存目录 (例如：/电视剧/繁花):${NC}"
         read save_path
         
         echo -e "${YELLOW}转存子目录,多个以|分隔 (如果不转存,直接按回车):${NC}"
