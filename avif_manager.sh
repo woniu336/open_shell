@@ -4,7 +4,11 @@
 img_dir=""
 
 # 颜色定义
+CYAN='\033[0;36m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
 # 输出到控制台（绿色）
@@ -157,17 +161,20 @@ restore_original() {
 # 主菜单
 show_menu() {
     clear
-    echo "========================================="
-    echo "            AVIF 图片管理器              "
-    echo "========================================="
-    echo "1. 设置目录"
-    echo "2. 转换为AVIF并删除原图"
-    echo "3. 转换为AVIF并保留原图"
-    echo "4. 恢复原图（删除AVIF）"
-    echo "5. 退出"
-    echo "========================================="
+    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║       ${WHITE}AVIF 图片管理器 v1.0${CYAN}            ║${NC}"
+    echo -e "${CYAN}╠════════════════════════════════════════╣${NC}"
+    echo -e "${CYAN}║                                        ║${NC}"
+    echo -e "${CYAN}║  ${YELLOW}1.${WHITE} 设置目录                         ${CYAN}║${NC}"
+    echo -e "${CYAN}║  ${YELLOW}2.${WHITE} 转换为AVIF并删除原图             ${CYAN}║${NC}"
+    echo -e "${CYAN}║  ${YELLOW}3.${WHITE} 转换为AVIF并保留原图             ${CYAN}║${NC}"
+    echo -e "${CYAN}║  ${YELLOW}4.${WHITE} 删除AVIF图片                     ${CYAN}║${NC}"
+    echo -e "${CYAN}║  ${YELLOW}5.${WHITE} 退出程序                         ${CYAN}║${NC}"
+    echo -e "${CYAN}║                                        ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
     echo
-    read -p "请选择操作 (1-5): " choice
+    echo -e -n "${GREEN}请选择操作 (1-5):${NC} "
+    read choice
     
     case $choice in
         1) set_directories ;;
@@ -189,12 +196,16 @@ show_menu() {
             fi
             restore_original 
             ;;
-        5) exit 0 ;;
-        *) echo "无效选择，请重试。" ;;
+        5) 
+            echo -e "${YELLOW}感谢使用，再见！${NC}"
+            exit 0 
+            ;;
+        *) echo -e "${YELLOW}无效选择，请重试。${NC}" ;;
     esac
     
     echo
-    read -p "操作完成，按回车键返回主菜单..."
+    echo -e "${GREEN}操作完成，按回车键返回主菜单...${NC}"
+    read
 }
 
 # 主程序
