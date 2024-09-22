@@ -30,7 +30,8 @@ show_menu() {
 update_cookie() {
     echo -e "${YELLOW}请输入新的Cookie:${NC}"
     read new_cookie
-    sed -i 's/"cookie": \[.*\]/"cookie": ["'"$new_cookie"'"]/' $CONFIG_FILE
+    # 使用jq命令更新JSON配置文件
+    jq --arg cookie "$new_cookie" '.cookie = [$cookie]' $CONFIG_FILE > tmp.$$.json && mv tmp.$$.json $CONFIG_FILE
     echo -e "${GREEN}Cookie已更新${NC}"
 }
 
@@ -105,11 +106,40 @@ run_all_transfers() {
 
 # 函数: 设置定时转存任务
 set_cron_job() {
-    echo -e "${YELLOW}请输入定时任务表达式 (例如: 0 8,18,21 * * * 表示在每天的8点、18点和21点执行):${NC}"
-    read cron_expression
-    (crontab -l 2>/dev/null; echo "$cron_expression /usr/bin/python3 $QUARK_AUTO_SAVE_SCRIPT $CONFIG_FILE") | crontab -
-    echo -e "${GREEN}定时任务已设置${NC}"
+    while true; do
+        echo -e "${YELLOW}定时任务子菜单:${NC}"
+        echo "1. 设置定时任务"
+        echo "2. 删除定时任务"
+        echo "0. 返回主菜单"
+        read -p "请选择操作: " subchoice
+
+        case $subchoice in
+            1)
+                echo -e "${YELLOW}请输入定时任务表达式 (直接回车使用默认: 0 8,18,21 * * *):${NC}"
+                read cron_expression
+                if [ -z "$cron_expression" ]; then
+                    cron_expression="0 8,18,21 * * *"
+                fi
+                (crontab -l 2>/dev/null | grep -v "quark_auto_save.py"; echo "$cron_expression python3 $QUARK_AUTO_SAVE_SCRIPT $CONFIG_FILE") | crontab -
+                echo -e "${GREEN}定时任务已设置: $cron_expression${NC}"
+                ;;
+            2)
+                crontab -l 2>/dev/null | grep -v "quark_auto_save.py" | crontab -
+                echo -e "${GREEN}定时任务已删除${NC}"
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选择，请重新输入${NC}"
+                ;;
+        esac
+        
+        echo -e "${YELLOW}按Enter键继续...${NC}"
+        read
+    done
 }
+
 
 # 函数: 设置钉钉通知
 set_dingtalk_notify() {
@@ -159,7 +189,7 @@ while true; do
         2) add_transfer_info; wait_for_enter ;;
         3) test_new_transfer; wait_for_enter ;;
         4) run_all_transfers; wait_for_enter ;;
-        5) set_cron_job; wait_for_enter ;;
+        5) set_cron_job ;;
         6) set_dingtalk_notify; wait_for_enter ;;
         7) delete_transfer_task; wait_for_enter ;;
         0) echo "退出程序"; exit 0 ;;
