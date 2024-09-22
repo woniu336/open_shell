@@ -1,0 +1,22 @@
+{
+    "cookie": [
+        ""
+    ],
+    "push_config": {
+        "QUARK_SIGN_NOTIFY": true,
+        "DD_BOT_SECRET": "",
+        "DD_BOT_TOKEN": "",
+        "CONSOLE": true
+    },
+    "emby": {
+        "url": "",
+        "apikey": ""
+    },
+    "tasklist": [],
+    "magic_regex": {
+        "$TV": {
+            "pattern": ".*?(S\\d{1,2}E)?P?(\\d{1,3}).*?\\.(mp4|mkv)",
+            "replace": "\\1\\2.\\3"
+        }
+    }
+}
