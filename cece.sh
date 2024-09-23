@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # 定义要处理的目录列表
-DIRECTORIES=("/www/wwwroot/a.cc")
+DIRECTORIES=("/www/wwwroot/a.cc" "/www/wwwroot/b.com")
 
 # 定义备份根目录
 BACKUP_ROOT="/opt/backup"
 
 # 定义恶意代码模式
-MALICIOUS_PATTERN='stristr|httpGet|char\(|jsc20244|jschl\.nn02\.cc'
+MALICIOUS_PATTERN='stristr|httpGet|char\(|jsc20244\.com|jschl\.nn02\.cc'
 
 # 创建日期时间戳
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
