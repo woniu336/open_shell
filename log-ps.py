@@ -1,13 +1,18 @@
 import re
-import sys
-import requests
+import subprocess
+import os
 from collections import defaultdict, Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from ua_parser import user_agent_parser
+from urllib.parse import urlparse
 
 class LogAnalyzer:
-    def __init__(self, log_file):
-        self.log_file = log_file
+    def __init__(self):
+        self.log_files = [
+            '/www/wwwlogs/123.cc.log',
+            '/www/wwwlogs/456.cc.log',
+            # 在这里添加更多日志文件路径
+        ]
         self.pattern = re.compile(
             r'(?P<ip>\d+\.\d+\.\d+\.\d+)\s+'
             r'(?P<request_url>\S+)\s+'
@@ -19,157 +24,242 @@ class LogAnalyzer:
             r'(?P<user_agent>[^"]+)\s+-\s+\[(?P<response_size>\d+),(?P<response_time>\d+\.\d+)\]'
         )
         self.records = []
-        self.whitelist = set([
-            '1.1.1.1',
-            '192.168.1.1',
-            '10.0.0.1',
-            '172.16.0.1'
-        ])   # 添加多个IP到白名单
-        self.suspicious_patterns = ['/xxxx.com/', '/axxx/']  # 可疑URL模式列表
+        self.url_counter = Counter()
+        self.ip_pattern = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+        self.output_file = open('analyze_logs.txt', 'w', encoding='utf-8')
+        self.whitelist = self.load_whitelist()
+
+    def log(self, message: str):
+        print(message)
+        self.output_file.write(message + '\n')
+
+    def load_whitelist(self):
+        whitelist_file = 'ip_whitelist.txt'
+        if not os.path.exists(whitelist_file):
+            with open(whitelist_file, 'w') as f:
+                pass
+            self.log(f"创建了空白的白名单文件：{whitelist_file}")
+        else:
+            self.log(f"白名单文件 {whitelist_file} 已存在，跳过创建。")
+
+        whitelist = set()
+        with open(whitelist_file, 'r') as f:
+            for line in f:
+                ip = line.strip()
+                if self.ip_pattern.match(ip):
+                    whitelist.add(ip)
+        return whitelist
 
     def simplify_user_agent(self, user_agent):
-        """
-        使用 ua-parser 解析用户代理，提取主要关键词。
-        """
         parsed_ua = user_agent_parser.Parse(user_agent)
         ua_family = parsed_ua['user_agent']['family']
         os_family = parsed_ua['os']['family']
         device_family = parsed_ua['device']['family']
 
-        # 优先返回 UA family，如果是爬虫则返回对应名称
         if 'bot' in ua_family.lower() or 'crawler' in ua_family.lower() or 'spider' in ua_family.lower():
-            return ua_family
+            return ua_family, True
         elif os_family:
-            return os_family
+            return os_family, False
         elif device_family:
-            return device_family
+            return device_family, False
         else:
-            return 'Unknown'
+            return 'Unknown', False
 
-    def get_ip_country(self, ip):
-        """
-        使用 ip-api.com 获取IP的国家信息。
-        """
-        try:
-            response = requests.get(f'http://ip-api.com/json/{ip}', timeout=5)
-            data = response.json()
-            if data['status'] == 'success':
-                return data.get('country', '未知')
-            else:
-                return '未知'
-        except requests.RequestException:
-            return '未知'
-
-    def parse_logs(self, target_ip):
-        with open(self.log_file, 'r', encoding='utf-8', errors='ignore') as f:
-            for line_number, line in enumerate(f, 1):
-                match = self.pattern.match(line)
-                if match:
-                    data = match.groupdict()
-                    if data['ip'] == target_ip:
-                        simplified_ua = self.simplify_user_agent(data['user_agent'])
-                        country = self.get_ip_country(data['ip'])
-                        self.records.append({
-                            'IP地址': data['ip'],
-                            '国家': country,
-                            '时间': data['time'],
-                            '请求类型': data['method'],
-                            '请求URL': data['url'],
-                            '状态码': data['status'],
-                            '来源URL': data['referrer'],
-                            '用户代理': simplified_ua,
-                            '响应时间（秒）': data['response_time']
-                        })
-                else:
-                    # 检查是否包含目标IP但未匹配
-                    if target_ip in line:
-                        print(f"调试信息: 第 {line_number} 行未匹配正则表达式: {line.strip()}")
+    def parse_logs(self):
+        self.log("开始解析日志文件...")
+        for log_file in self.log_files:
+            self.log(f"正在处理日志文件: {log_file}")
+            try:
+                with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line in f:
+                        match = self.pattern.match(line)
+                        if match:
+                            data = match.groupdict()
+                            simplified_ua, is_crawler = self.simplify_user_agent(data['user_agent'])
+                            full_url = f"https://{data['domain']}{data['url']}"
+                            self.records.append({
+                                'IP地址': data['ip'],
+                                '时间': data['time'],
+                                '请求类型': data['method'],
+                                '请求URL': full_url,
+                                '状态码': data['status'],
+                                '用户代理': simplified_ua,
+                                '响应时间（秒）': data['response_time'],
+                                '是爬虫': is_crawler
+                            })
+                            self.url_counter[full_url] += 1
+            except Exception as e:
+                self.log(f"无法读取日志文件 {log_file}: {e}")
+        self.log("日志解析完成。\n")
 
     def display_summary_table(self):
         if not self.records:
-            print("没有找到匹配的记录。")
+            self.log("没有找到匹配的记录。")
             return
 
-        total_requests = len(self.records)
-        
-        # 统计用户代理和状态码
-        user_agents = [record['用户代理'] for record in self.records]
-        status_codes = [record['状态码'] for record in self.records]
-        most_common_ua = Counter(user_agents).most_common(1)[0][0]
-        unique_status_codes = ', '.join(sorted(set(status_codes)))
+        normal_ip_data = defaultdict(lambda: {
+            'count': 0, 
+            'user_agents': set(),
+            'request_types': set(),
+            'status_codes': set(),
+            'response_times': []
+        })
+        crawler_ip_data = defaultdict(lambda: {
+            'count': 0, 
+            'user_agents': set(),
+            'request_types': set(),
+            'status_codes': set(),
+            'response_times': []
+        })
 
-        print("\n## IP访问汇总\n")
-        print(f"| IP地址           | 国家 | 访问次数 | 用户代理 | 状态码 |\n|---|---|---|---|---|\n| {self.records[0]['IP地址']} | {self.records[0]['国家']} | {total_requests} | {most_common_ua} | {unique_status_codes} |")
-
-    def display_url_pattern_table(self):
-        if not self.records:
-            return
-
-        url_counts = defaultdict(int)
         for record in self.records:
-            url_counts[record['请求URL']] += 1
+            ip = record['IP地址']
+            data = crawler_ip_data[ip] if record['是爬虫'] else normal_ip_data[ip]
+            data['count'] += 1
+            data['user_agents'].add(record['用户代理'])
+            data['request_types'].add(record['请求类型'])
+            data['status_codes'].add(record['状态码'])
+            data['response_times'].append(float(record['响应时间（秒）']))
 
-        print("\n## 访问URL行为模式\n")
-        print("| 请求URL                                         | 访问次数 |\n|---|---|\n")
-        for url, count in sorted(url_counts.items(), key=lambda item: item[1], reverse=True):
-            print(f"| {url} | {count} |")
+        self.log("\n## 普通IP访问汇总（前20个IP）\n")
+        self._display_ip_table(normal_ip_data)
 
-    def check_url_pattern(self, url):
-        return any(pattern in url for pattern in self.suspicious_patterns)
+        self.log("\n## 爬虫IP访问汇总（前20个IP）\n")
+        self._display_ip_table(crawler_ip_data)
 
-    def analyze_behavior(self):
-        if not self.records:
-            print("没有记录可供分析。")
-            return
+    def _display_ip_table(self, ip_data):
+        self.log("| IP地址 | 访问次数 | 用户代理 | 请求类型 | 状态码 | 平均响应时间(秒) |")
+        self.log("|--------|----------|----------|----------|--------|-------------------|")
+        for ip, data in sorted(ip_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]:
+            user_agents = ', '.join(data['user_agents'])
+            request_types = ', '.join(data['request_types'])
+            status_codes = ', '.join(data['status_codes'])
+            avg_response_time = sum(data['response_times']) / len(data['response_times'])
+            
+            self.log(f"| {ip} | {data['count']} | {user_agents} | {request_types} | {status_codes} | {avg_response_time:.3f} |")
 
-        if self.records[0]['IP地址'] in self.whitelist:
-            print("\n该IP在白名单中，行为正常。")
-            return
+    def display_top_urls(self):
+        self.log("\n## 访问次数最多的前20个URL\n")
+        self.log("| URL | 访问次数 |")
+        self.log("|-----|----------|")
+        for url, count in self.url_counter.most_common(20):
+            self.log(f"| {url} | {count} |")
 
-        request_count = len(self.records)
-        suspicious_urls = any(self.check_url_pattern(record['请求URL']) for record in self.records)
+    def analyze_high_frequency_ips(self):
+        ip_time_requests = defaultdict(lambda: defaultdict(int))
+        ip_is_crawler = {}
+        for record in self.records:
+            ip = record['IP地址']
+            ip_is_crawler[ip] = record['是爬虫']
+            try:
+                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S %z')
+            except ValueError:
+                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S')
+                record_time = record_time.replace(tzinfo=timezone.utc)
+            minute_key = record_time.strftime('%Y-%m-%d %H:%M')
+            ip_time_requests[ip][minute_key] += 1
 
-        # 时间窗口分析
-        try:
-            times = sorted([datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S %z') for record in self.records])
-        except ValueError:
-            print("\n时间格式解析错误，无法进行时间窗口分析。")
-            times = []
+        high_frequency_ips = []
+        for ip, time_requests in ip_time_requests.items():
+            if any(count > 20 for count in time_requests.values()):
+                high_frequency_ips.append((ip, max(time_requests.values()), ip_is_crawler[ip]))
 
-        window_start = times[0] if times else None
-        window_end = window_start + timedelta(minutes=1) if window_start else None
-        requests_in_window = 0
-        max_requests_in_window = 0
-
-        for time in times:
-            if window_end and time > window_end:
-                window_start = time
-                window_end = window_start + timedelta(minutes=1)
-                requests_in_window = 1
-            else:
-                requests_in_window += 1
-                if requests_in_window > max_requests_in_window:
-                    max_requests_in_window = requests_in_window
-
-        high_freq = request_count > 50  # 调整后的总请求次数阈值
-        high_freq_window = max_requests_in_window > 20 if max_requests_in_window else False  # 每分钟请求次数阈值
-
-        if high_freq or suspicious_urls or high_freq_window:
-            print("\n该IP的行为可能具有恶意性。")
+        if high_frequency_ips:
+            self.log("\n## 高频率访问IP汇总（每分钟请求次数超过20次）\n")
+            self.log("| IP地址 | 最高每分钟请求次数 |")
+            self.log("|--------|---------------------|")
+            for ip, max_requests, is_crawler in sorted(high_frequency_ips, key=lambda x: x[1], reverse=True):
+                ip_display = f"{ip} (爬虫)" if is_crawler else ip
+                self.log(f"| {ip_display} | {max_requests} |")
         else:
-            print("\n该IP的行为看起来正常。")
+            self.log("\n暂时没有超过每分钟请求次数阈值的IP。")
+
+    def analyze_suspicious_ips(self):
+        ip_time_requests = defaultdict(list)
+        for record in self.records:
+            ip = record['IP地址']
+            if not self.ip_pattern.match(ip) or record['是爬虫'] or ip in self.whitelist:
+                continue
+            try:
+                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S %z')
+            except ValueError:
+                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S')
+                record_time = record_time.replace(tzinfo=timezone.utc)
+            ip_time_requests[ip].append(record_time)
+
+        suspicious_ips = []
+        for ip, times in ip_time_requests.items():
+            times.sort()
+            for i in range(len(times) - 70):
+                if times[i+69] - times[i] <= timedelta(minutes=5):
+                    suspicious_ips.append(ip)
+                    break
+
+        if suspicious_ips:
+            self.log("\n## 可疑IP列表（5分钟内访问次数超过70次，不包括爬虫和白名单IP）\n")
+            self.log("| IP地址 |")
+            self.log("|--------|")
+            for ip in suspicious_ips:
+                self.log(f"| {ip} |")
+                # 执行命令
+                try:
+                    subprocess.run(
+                        ["sudo", "fail2ban-client", "set", "fail2ban-nginx-cc", "banip", ip],
+                        check=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    self.log(f"已成功封禁IP: {ip}")
+                except subprocess.CalledProcessError as e:
+                    self.log(f"封禁IP {ip} 时出错: {e}")
+                except Exception as e:
+                    self.log(f"执行封禁IP {ip} 时出现未预料的错误: {e}")
+        else:
+            self.log("\n暂时没有发现可疑IP。")
+
+    def display_error_status_ips(self):
+        error_ip_data = defaultdict(lambda: defaultdict(int))
+        
+        for record in self.records:
+            status_code = int(record['状态码'])
+            ip = record['IP地址']
+            
+            if 400 <= status_code < 600:
+                error_ip_data[ip][status_code] += 1
+
+        # 计算每个IP的总错误次数
+        ip_total_errors = {
+            ip: sum(status_counts.values()) 
+            for ip, status_counts in error_ip_data.items()
+        }
+        
+        # 获取错误次数最多的前10个IP
+        top_10_ips = sorted(ip_total_errors.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        self.log("\n## 状态码为4xx或5xx的IP汇总（前10个）\n")
+        self.log("| IP地址 | 状态码 | 次数 |")
+        self.log("|--------|--------|------|")
+        
+        for ip, _ in top_10_ips:
+            status_counts = error_ip_data[ip]
+            for status, count in sorted(status_counts.items()):
+                self.log(f"| {ip} | {status} | {count} |")
+
+    def close(self):
+        self.output_file.close()
 
 def main():
-    if len(sys.argv) != 3:
-        print("用法: python analyze_logs_ua_parser.py <日志文件路径> <目标IP地址>")
-        sys.exit(1)
-    log_file = sys.argv[1]
-    target_ip = sys.argv[2]
-    analyzer = LogAnalyzer(log_file)
-    analyzer.parse_logs(target_ip)
-    analyzer.display_summary_table()
-    analyzer.display_url_pattern_table()
-    analyzer.analyze_behavior()
+    analyzer = LogAnalyzer()
+    try:
+        analyzer.parse_logs()
+        analyzer.display_summary_table()
+        analyzer.display_top_urls()
+        analyzer.analyze_high_frequency_ips()
+        analyzer.analyze_suspicious_ips()
+        analyzer.display_error_status_ips()
+    finally:
+        analyzer.close()
 
 if __name__ == "__main__":
     main()
