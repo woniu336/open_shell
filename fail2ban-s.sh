@@ -458,6 +458,48 @@ ufw_management() {
     done
 }
 
+# 修改: 手动拦截恶意 IP 函数
+manual_ban_ip() {
+    echo -e "${YELLOW}手动拦截恶意 IP${NC}"
+    echo -e "${BLUE}================================================${NC}"
+    echo -e "${CYAN}可用的 Fail2ban 区域:${NC}"
+    
+    # 获取并显示可用的区域列表
+    local jails=($(fail2ban-client status | grep "Jail list:" | sed -E 's/^[^:]+:[ \t]*//' | tr ',' ' '))
+    for i in "${!jails[@]}"; do
+        echo -e "${CYAN}$((i+1)).${NC} ${jails[$i]}"
+    done
+    
+    echo -e "${BLUE}================================================${NC}"
+    
+    # 让用户选择区域
+    local jail_index
+    while true; do
+        read -p "$(echo -e ${YELLOW}"请输入区域序号: "${NC})" jail_index
+        if [[ "$jail_index" =~ ^[0-9]+$ ]] && [ "$jail_index" -ge 1 ] && [ "$jail_index" -le "${#jails[@]}" ]; then
+            break
+        else
+            echo -e "${RED}无效的序号，请重试${NC}"
+        fi
+    done
+    
+    local selected_jail="${jails[$((jail_index-1))]}"
+    
+    read -p "$(echo -e ${YELLOW}"请输入要拦截的 IP 地址: "${NC})" ip_to_ban
+    
+    if [ -z "$ip_to_ban" ]; then
+        log_error "IP 地址不能为空"
+        return
+    fi
+    
+    sudo fail2ban-client set $selected_jail banip $ip_to_ban
+    if [ $? -eq 0 ]; then
+        log_info "IP $ip_to_ban 已成功在 $selected_jail 区域中被拦截"
+    else
+        log_error "拦截 IP $ip_to_ban 失败，请检查 IP 地址是否正确"
+    fi
+}
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -505,6 +547,9 @@ main_menu() {
         echo
         echo -e "${GREEN}UFW 防火墙:${NC}"
         echo -e "${CYAN}16.${NC} UFW 防火墙管理"
+        echo
+        echo -e "${GREEN}手动操作:${NC}"
+        echo -e "${CYAN}17.${NC} 手动拦截恶意 IP"
         echo
         echo -e "${RED}0. 退出${NC}"
         echo -e "${BLUE}================================================${NC}"
@@ -591,6 +636,9 @@ main_menu() {
                 ;;
             16)
                 ufw_management
+                ;;
+            17)
+                manual_ban_ip
                 ;;
             0)
                 echo -e "${GREEN}感谢使用 Fail2ban 服务器防御程序，再见！${NC}"
