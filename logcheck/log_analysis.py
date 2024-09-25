@@ -5,8 +5,11 @@ import ipaddress
 from datetime import datetime
 import os
 
-# 定义日志文件路径
-LOG_PATH = "/www/wwwlogs/123.cc.log"
+# 定义日志文件路径列表
+LOG_PATHS = [
+    "/www/wwwlogs/111.cc.log",
+    "/www/wwwlogs/222.cc.log"
+]
 
 # 定义GeoIP数据库路径
 GEOIP_DB_PATH = "/root/data/GeoLite2-City.mmdb"
@@ -20,13 +23,21 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 # 定义输出文件路径
 OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, f"log_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
 
-# 定义常见爬虫IP列表
+# 扩展常见爬虫IP列表
 CRAWLER_IPS = [
-    ipaddress.ip_network("66.249.68.0/24"),  # Googlebot
+    ipaddress.ip_network("66.249.64.0/19"),  # Googlebot
     ipaddress.ip_network("40.77.167.0/24"),  # bingbot
     ipaddress.ip_network("157.55.39.0/24"),  # bingbot
     ipaddress.ip_network("52.167.144.0/24"),  # bingbot
     ipaddress.ip_network("207.46.13.0/24"),  # bingbot
+    ipaddress.ip_network("72.30.198.0/24"),  # Yahoo! Slurp
+    ipaddress.ip_network("209.191.64.0/18"),  # Yahoo!
+    ipaddress.ip_network("199.16.156.0/22"),  # Twitter
+    ipaddress.ip_network("199.59.148.0/22"),  # Twitter
+    ipaddress.ip_network("65.52.0.0/14"),    # Microsoft
+    ipaddress.ip_network("131.253.21.0/24"), # Microsoft
+    ipaddress.ip_network("131.253.24.0/22"), # Microsoft
+    ipaddress.ip_network("131.253.46.0/23"), # Microsoft
 ]
 
 def is_crawler_ip(ip):
