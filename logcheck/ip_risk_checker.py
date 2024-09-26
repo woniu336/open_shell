@@ -64,7 +64,7 @@ def menu(suspicious_ips, ip_regions, whitelist):
         print("5. 查看拉黑列表")
         print("6. 查看UFW状态")
         print("7. 添加IP到白名单")
-        print("8. 退出")
+        print("0. 退出")
         choice = input("请选择一个选项: ")
 
         if choice == '1':
@@ -88,7 +88,7 @@ def menu(suspicious_ips, ip_regions, whitelist):
         elif choice == '7':
             ip_to_whitelist = input("请输入要添加到白名单的IP: ")
             add_to_whitelist(ip_to_whitelist)
-        elif choice == '8':
+        elif choice == '0':
             break
         else:
             print("无效选项，请重试。")

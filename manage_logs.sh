@@ -61,9 +61,21 @@ show_menu() {
     echo -e "│  ${BLUE}5.${NC} 生成汇总报告                                  ${BLUE}│"
     echo -e "│  ${BLUE}6.${NC} 执行可疑IP风险检查                            ${BLUE}│"
     echo -e "│  ${BLUE}7.${NC} 添加IP到白名单                                ${BLUE}│"
-    echo -e "│  ${BLUE}8.${NC} 退出                                          ${BLUE}│"
+    echo -e "│  ${BLUE}8.${NC} 设置脚本启动快捷键                            ${BLUE}│"
+    echo -e "│  ${BLUE}0.${NC} 退出                                          ${BLUE}│"
     echo -e "└────────────────────────────────────────────────┘${NC}"
 }
+
+# 新增函数：设置脚本启动快捷键
+set_shortcut() {
+    clear_and_show_title
+    read -p "请输入你想要的快捷按键 (例如: L): " shortcut
+    echo "alias $shortcut='bash $PWD/manage_logs.sh'" >> ~/.bashrc
+    source ~/.bashrc
+    echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
+    sleep 5
+}
+
 # 更新 Python 脚本中的路径
 update_python_scripts() {
     # 更新 log_analysis.py
@@ -230,7 +242,7 @@ load_log_paths
 # 主循环中的 case 语句更新
 while true; do
     show_menu
-    read -p "请输入您的选择 (1-8): " choice
+    read -p "请输入您的选择 (0-8): " choice
     case $choice in
         1) change_log_paths ;;
         2) run_web_log_analysis ;;
@@ -240,12 +252,13 @@ while true; do
         6) 
             clear_and_show_title
             echo "正在执行可疑IP风险检查..."
-            python3 "$REPORT_PATH/ip_risk_checker.py"  # 添加 $REPORT_PATH
+            python3 "$REPORT_PATH/ip_risk_checker.py"
             echo "按 Enter 键继续..."
             read
             ;;
-        7) add_ip_to_whitelist ;;  # 新增处理
-        8) clear_and_show_title; echo "感谢使用，再见！"; exit 0 ;;
+        7) add_ip_to_whitelist ;;
+        8) set_shortcut ;;
+        0) clear_and_show_title; echo "感谢使用，再见！"; exit 0 ;;
         *) echo "无效选择,请重试"; sleep 2 ;;
     esac
 done
