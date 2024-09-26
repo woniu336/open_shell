@@ -7,7 +7,7 @@ import os
 
 # 定义日志文件路径列表
 LOG_PATHS = [
-    "/www/wwwlogs/123.com.log",
+    "/www/wwwlogs/123.log",
     # 在这里添加更多日志文件路径
 ]
 
@@ -29,6 +29,7 @@ WHITELIST_PATH = "/root/logcheck/ip_whitelist.txt"
 # 扩展常见爬虫IP列表
 CRAWLER_IPS = [
     ipaddress.ip_network("66.249.64.0/19"),  # Googlebot
+    ipaddress.ip_network("66.249.79.0/24"),  # 新添加的Googlebot IP范围
     ipaddress.ip_network("40.77.167.0/24"),  # bingbot
     ipaddress.ip_network("157.55.39.0/24"),  # bingbot
     ipaddress.ip_network("52.167.144.0/24"),  # bingbot
@@ -41,6 +42,7 @@ CRAWLER_IPS = [
     ipaddress.ip_network("131.253.21.0/24"), # Microsoft
     ipaddress.ip_network("131.253.24.0/22"), # Microsoft
     ipaddress.ip_network("131.253.46.0/23"), # Microsoft
+    ipaddress.ip_network("57.141.3.0/24"),   # FacebookBot IP范围
 ]
 
 def load_whitelist():
