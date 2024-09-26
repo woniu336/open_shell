@@ -423,7 +423,7 @@ ufw_management() {
         case $ufw_choice in
             1)
                 read -p "请输入要屏蔽的 IP 地址: " ip_to_block
-                sudo ufw deny from $ip_to_block
+				sudo ufw insert 1 deny from $ip_to_block to any
                 log_info "IP $ip_to_block 已被屏蔽"
                 ;;
             2)
