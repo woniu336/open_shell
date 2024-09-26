@@ -423,7 +423,7 @@ ufw_management() {
         case $ufw_choice in
             1)
                 read -p "请输入要屏蔽的 IP 地址: " ip_to_block
-				sudo ufw insert 1 deny from $ip_to_block to any
+                sudo ufw insert 1 deny from $ip_to_block to any
                 log_info "IP $ip_to_block 已被屏蔽"
                 ;;
             2)
@@ -518,40 +518,24 @@ main_menu() {
         echo -e "${YELLOW}          Fail2ban 服务器防御程序${NC}"
         echo -e "${BLUE}================================================${NC}"
         echo
-        echo -e "${GREEN}Fail2ban 管理:${NC}"
-        echo -e "${CYAN}1.${NC} 安装/重新安装 Fail2ban"
-        echo
-        echo -e "${GREEN}SSH 防护:${NC}"
+        echo -e "${CYAN}1.${NC} 重装 Fail2ban"
         echo -e "${CYAN}2.${NC} 开启 SSH 防暴力破解"
         echo -e "${CYAN}3.${NC} 关闭 SSH 防暴力破解"
         echo -e "${CYAN}4.${NC} 模拟 SSH 登录失败"
-        echo
-        echo -e "${GREEN}网站防护:${NC}"
         echo -e "${CYAN}5.${NC} 开启网站保护"
         echo -e "${CYAN}6.${NC} 关闭网站保护"
-        echo
-        echo -e "${GREEN}查看记录:${NC}"
         echo -e "${CYAN}7.${NC} 查看所有拦截记录"
         echo -e "${CYAN}8.${NC} 查看日志实时监控"
-        echo
-        echo -e "${GREEN}配置选项:${NC}"
         echo -e "${CYAN}9.${NC} 配置拦截参数"
         echo -e "${CYAN}10.${NC} 卸载防御程序"
         echo -e "${CYAN}11.${NC} 解除被 ban 的 IP"
         echo -e "${CYAN}12.${NC} 修改监控日志路径"
-        echo
-        echo -e "${GREEN}钉钉通知:${NC}"
         echo -e "${CYAN}13.${NC} 钉钉通知设置"
         echo -e "${CYAN}14.${NC} 启动钉钉通知监控"
         echo -e "${CYAN}15.${NC} 停止钉钉通知监控"
-        echo
-        echo -e "${GREEN}UFW 防火墙:${NC}"
         echo -e "${CYAN}16.${NC} UFW 防火墙管理"
-        echo
-        echo -e "${GREEN}手动操作:${NC}"
-        echo -e "${CYAN}17.${NC} 手动拦截恶意 IP"
-        echo
-        echo -e "${RED}0. 退出${NC}"
+        echo -e "${CYAN}17.${NC} 丢进小黑屋"
+        echo -e "${RED}0.${NC} 退出"
         echo -e "${BLUE}================================================${NC}"
         echo
         read -p "$(echo -e ${YELLOW}"请输入你的选择: "${NC})" choice
