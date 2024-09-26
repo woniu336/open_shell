@@ -4,13 +4,11 @@ import os
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta, timezone
 from ua_parser import user_agent_parser
-from urllib.parse import urlparse
 
 class LogAnalyzer:
     def __init__(self):
         self.log_files = [
-            '/www/wwwlogs/123.cc.log',
-            '/www/wwwlogs/456.cc.log',
+            '/www/wwwlogs/123.com.log',
             # 在这里添加更多日志文件路径
         ]
         self.pattern = re.compile(
@@ -34,7 +32,7 @@ class LogAnalyzer:
         self.output_file.write(message + '\n')
 
     def load_whitelist(self):
-        whitelist_file = 'ip_whitelist.txt'
+        whitelist_file = '/root/logcheck/ip_whitelist.txt'
         if not os.path.exists(whitelist_file):
             with open(whitelist_file, 'w') as f:
                 pass
@@ -114,6 +112,8 @@ class LogAnalyzer:
 
         for record in self.records:
             ip = record['IP地址']
+            if ip in self.whitelist:
+                continue  # 排除白名单中的IP
             data = crawler_ip_data[ip] if record['是爬虫'] else normal_ip_data[ip]
             data['count'] += 1
             data['user_agents'].add(record['用户代理'])
@@ -161,7 +161,7 @@ class LogAnalyzer:
 
         high_frequency_ips = []
         for ip, time_requests in ip_time_requests.items():
-            if any(count > 20 for count in time_requests.values()):
+            if any(count > 20 for count in time_requests.values()) and ip not in self.whitelist and not ip_is_crawler[ip]:
                 high_frequency_ips.append((ip, max(time_requests.values()), ip_is_crawler[ip]))
 
         if high_frequency_ips:
@@ -204,7 +204,7 @@ class LogAnalyzer:
                 # 执行命令
                 try:
                     subprocess.run(
-                        ["sudo", "fail2ban-client", "set", "fail2ban-nginx-cc", "banip", ip],
+                        ["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"],
                         check=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
@@ -225,7 +225,7 @@ class LogAnalyzer:
             status_code = int(record['状态码'])
             ip = record['IP地址']
             
-            if 400 <= status_code < 600:
+            if 400 <= status_code < 600 and ip not in self.whitelist:
                 error_ip_data[ip][status_code] += 1
 
         # 计算每个IP的总错误次数

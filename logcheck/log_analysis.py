@@ -7,21 +7,24 @@ import os
 
 # 定义日志文件路径列表
 LOG_PATHS = [
-    "/www/wwwlogs/111.cc.log",
-    "/www/wwwlogs/222.cc.log"
+    "/www/wwwlogs/123.com.log",
+    # 在这里添加更多日志文件路径
 ]
 
 # 定义GeoIP数据库路径
 GEOIP_DB_PATH = "/root/data/GeoLite2-City.mmdb"
 
 # 定义输出文件夹路径
-OUTPUT_FOLDER = "/root/data"
+OUTPUT_FOLDER = "/root/logcheck"
 
 # 确保输出文件夹存在
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # 定义输出文件路径
-OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, f"log_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, "log_analysis.txt")
+
+# 定义白名单文件路径
+WHITELIST_PATH = "/root/logcheck/ip_whitelist.txt"
 
 # 扩展常见爬虫IP列表
 CRAWLER_IPS = [
@@ -39,6 +42,16 @@ CRAWLER_IPS = [
     ipaddress.ip_network("131.253.24.0/22"), # Microsoft
     ipaddress.ip_network("131.253.46.0/23"), # Microsoft
 ]
+
+def load_whitelist():
+    whitelist = set()
+    if os.path.exists(WHITELIST_PATH):
+        with open(WHITELIST_PATH, 'r') as f:
+            for line in f:
+                ip = line.strip()
+                if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+                    whitelist.add(ip)
+    return whitelist
 
 def is_crawler_ip(ip):
     try:
@@ -74,10 +87,12 @@ def get_ip_location(ip, reader):
     except:
         return "Unknown", "Unknown", "Unknown"
 
-def analyze_ips(ip_time_pairs, reader):
+def analyze_ips(ip_time_pairs, reader, whitelist):
     asia_ips = []
     north_america_ips = []
     for ip, timestamp in ip_time_pairs:
+        if ip in whitelist:
+            continue  # 排除白名单中的IP
         continent, country, city = get_ip_location(ip, reader)
         if continent == "Asia":
             asia_ips.append((ip, city))
@@ -88,9 +103,11 @@ def analyze_ips(ip_time_pairs, reader):
 def get_top_ips(ips, n=15):
     return Counter(ips).most_common(n)
 
-def get_suspicious_ips(ip_time_pairs, reader):
+def get_suspicious_ips(ip_time_pairs, reader, whitelist):
     ip_minute_counts = {}
     for ip, timestamp in ip_time_pairs:
+        if ip in whitelist:
+            continue  # 排除白名单中的IP
         minute_key = timestamp.strftime('%Y-%m-%d %H:%M')
         if ip not in ip_minute_counts:
             ip_minute_counts[ip] = Counter()
@@ -135,10 +152,15 @@ def write_results_to_file(output_path, asia_ips, north_america_ips, suspicious_i
 def main():
     reader = geoip2.database.Reader(GEOIP_DB_PATH)
     
-    ip_time_pairs = parse_log_file(LOG_PATH)
+    all_ip_time_pairs = []
+    whitelist = load_whitelist()  # 加载白名单
+    for log_path in LOG_PATHS:
+        if log_path:  # 只处理非空路径
+            ip_time_pairs = parse_log_file(log_path)
+            all_ip_time_pairs.extend(ip_time_pairs)
     
-    asia_ips, north_america_ips = analyze_ips(ip_time_pairs, reader)
-    suspicious_ips = get_suspicious_ips(ip_time_pairs, reader)
+    asia_ips, north_america_ips = analyze_ips(all_ip_time_pairs, reader, whitelist)
+    suspicious_ips = get_suspicious_ips(all_ip_time_pairs, reader, whitelist)
     
     write_results_to_file(OUTPUT_PATH, asia_ips, north_america_ips, suspicious_ips)
     

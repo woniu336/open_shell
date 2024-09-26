@@ -4,7 +4,7 @@ import gzip
 import shutil
 
 # 替换为您的 MaxMind 许可密钥
-LICENSE_KEY = "xxxxx"
+LICENSE_KEY = ""
 
 # 下载 URL
 DOWNLOAD_URL = f"https://download.maxmind.com/app/geoip_download?edition_id=GeoLite2-City&license_key={LICENSE_KEY}&suffix=tar.gz"
@@ -13,6 +13,10 @@ DOWNLOAD_URL = f"https://download.maxmind.com/app/geoip_download?edition_id=GeoL
 SAVE_PATH = "/root/data/GeoLite2-City.mmdb"
 
 def download_geoip_database():
+    if not LICENSE_KEY:
+        print("错误：未设置 MaxMind 许可密钥。请在脚本中设置 LICENSE_KEY。")
+        return
+
     response = requests.get(DOWNLOAD_URL)
     if response.status_code == 200:
         with open("GeoLite2-City.tar.gz", "wb") as f:

@@ -1,6 +1,13 @@
 
 ## 路飞工具箱
 
+文件行结束符格式不一致，Git 会自动转换
+
+
+```bash
+git config --global core.autocrlf true
+```
+
 
 
 <br>
