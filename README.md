@@ -8,6 +8,11 @@
 git config --global core.autocrlf true
 ```
 
+添加gitee仓库
+
+```
+git remote set-url --add origin git@gitee.com:dayu777/open_shell.git
+```
 
 
 <br>
