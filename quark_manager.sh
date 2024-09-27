@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # 颜色定义
-BLUE='\033[0;34m'
-LIGHT_BLUE='\033[1;34m'
+CYAN='\033[0;36m'
+LIGHT_CYAN='\033[1;36m'
 YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -16,17 +16,33 @@ QUARK_AUTO_SAVE_SCRIPT="/root/quark/quark_auto_save.py"
 
 # 函数: 显示菜单
 show_menu() {
-    echo -e "${LIGHT_BLUE}======= 夸克网盘自动追更管理脚本 =======${NC}"
-    echo -e "${BLUE}1.${NC} 更新Cookie"
-    echo -e "${BLUE}2.${NC} 添加转存信息"
-    echo -e "${BLUE}3.${NC} 测试新添加的转存"
-    echo -e "${BLUE}4.${NC} 运行全部转存"
-    echo -e "${BLUE}5.${NC} 设置定时转存任务"
-    echo -e "${BLUE}6.${NC} 设置钉钉通知"
-    echo -e "${BLUE}7.${NC} 删除转存任务"
-    echo -e "${BLUE}8.${NC} 检查链接有效性"
-    echo -e "${BLUE}0.${NC} 退出"
-    echo -e "${LIGHT_BLUE}==========================================${NC}"
+    clear
+    echo -e "${CYAN}┌────────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│       夸克网盘自动追更管理脚本             │${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────┤${NC}"
+    echo -e "${YELLOW}│  教程：https://woniu336.github.io/p/330/   │${NC}"
+    echo -e "${CYAN}├────────────────────────────────────────────┤${NC}"
+    echo -e "${LIGHT_CYAN}│  1.${NC} 更新Cookie                           ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  2.${NC} 添加转存信息                         ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  3.${NC} 测试新添加的转存                     ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  4.${NC} 运行全部转存                         ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  5.${NC} 设置定时转存任务                     ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  6.${NC} 设置钉钉通知                         ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  7.${NC} 删除转存任务                         ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  8.${NC} 检查链接有效性                       ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  9.${NC} 设置脚本启动快捷键                   ${CYAN}│${NC}"
+    echo -e "${LIGHT_CYAN}│  0.${NC} 退出                                 ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────────┘${NC}"
+}
+
+# 新增函数：设置脚本启动快捷键
+set_shortcut() {
+    sed -i '/alias.*quark_manager.sh/d' ~/.bashrc
+    read -p "请输入你想要的快捷按键 (例如: Q): " shortcut
+    echo "alias $shortcut='bash $PWD/quark_manager.sh'" >> ~/.bashrc
+    source ~/.bashrc
+    echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
+    sleep 5
 }
 
 # 函数: 更新Cookie
@@ -237,6 +253,7 @@ while true; do
         6) set_dingtalk_notify; wait_for_enter ;;
         7) delete_transfer_task; wait_for_enter ;;
         8) check_link_validity; wait_for_enter ;;
+        9) set_shortcut; wait_for_enter ;;
         0) echo -e "${GREEN}退出程序${NC}"; exit 0 ;;
         *) echo -e "${RED}无效的选择,请重新输入${NC}"; wait_for_enter ;;
     esac

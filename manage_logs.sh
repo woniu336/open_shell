@@ -31,19 +31,21 @@ save_log_paths() {
 }
 
 # 定义颜色
+CYAN='\033[0;36m'
+LIGHT_CYAN='\033[1;36m'
+YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # 清屏并显示标题
 clear_and_show_title() {
     clear
-    echo -e "${BLUE}┌────────────────────────────────────────────────┐"
+    echo -e "${CYAN}┌────────────────────────────────────────────────┐"
     echo -e "│                                                │"
-    echo -e "│        ${GREEN}高级日志分析与安全管理系统 v1.0${BLUE}        │"
+    echo -e "│        ${GREEN}高级日志分析与安全管理系统 v1.0${CYAN}        │"
     echo -e "│                                                │"
-    echo -e "│  ${NC}教程: ${YELLOW}https://woniu336.github.io/p/332/${BLUE}           │"
+    echo -e "│  ${NC}教程: ${YELLOW}https://woniu336.github.io/p/332/${CYAN}           │"
     echo -e "│                                                │"
     echo -e "└────────────────────────────────────────────────┘${NC}"
     echo
@@ -53,19 +55,19 @@ clear_and_show_title() {
 show_menu() {
     clear_and_show_title
     echo -e "${GREEN}请选择操作:${NC}"
-    echo -e "${BLUE}┌────────────────────────────────────────────────┐"
-    echo -e "│  ${BLUE}1.${NC} 安装依赖文件                                 ${BLUE}│"
-    echo -e "│  ${BLUE}2.${NC} 添加或更改日志路径⭐                         ${BLUE}│"
-    echo -e "│  ${BLUE}3.${NC} 执行网站日志分析                             ${BLUE}│"
-    echo -e "│  ${BLUE}4.${NC} 分析IP地区分布                               ${BLUE}│"
-    echo -e "│  ${BLUE}5.${NC} 更新地理位置数据                             ${BLUE}│"
-    echo -e "│  ${BLUE}6.${NC} 生成汇总报告                                 ${BLUE}│"
-    echo -e "│  ${BLUE}7.${NC} 执行可疑IP风险检查⭐                         ${BLUE}│"
-    echo -e "│  ${BLUE}8.${NC} 添加IP到白名单                               ${BLUE}│"
-    echo -e "│  ${BLUE}9.${NC} 执行风险日志查杀⭐                           ${BLUE}│"
-    echo -e "│  ${BLUE}10.${NC} 定时拉黑风险IP                              ${BLUE}│"
-    echo -e "│  ${BLUE}11.${NC} 设置脚本启动快捷键                          ${BLUE}│"
-    echo -e "│  ${BLUE}0.${NC} 退出                                         ${BLUE}│"
+    echo -e "${CYAN}┌────────────────────────────────────────────────┐"
+    echo -e "│  ${LIGHT_CYAN}1.${NC} 安装依赖文件                                 ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}2.${NC} 添加或更改日志路径⭐                         ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}3.${NC} 执行网站日志分析                             ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}4.${NC} 分析IP地区分布                               ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}5.${NC} 更新地理位置数据                             ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}6.${NC} 生成汇总报告                                 ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}7.${NC} 执行可疑IP风险检查⭐                         ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}8.${NC} 添加IP到白名单                               ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}9.${NC} 执行风险日志查杀⭐                           ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}10.${NC} 定时拉黑风险IP                              ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}11.${NC} 设置脚本启动快捷键                          ${CYAN}│"
+    echo -e "│  ${LIGHT_CYAN}0.${NC} 退出                                         ${CYAN}│"
     echo -e "└────────────────────────────────────────────────┘${NC}"
 }
 
