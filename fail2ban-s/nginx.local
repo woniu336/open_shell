@@ -3,8 +3,8 @@ enabled = true
 filter = fail2ban-nginx-cc
 port = http,https
 logpath = /www/wwwlogs/access.log
-maxretry = 2
-bantime = 3600
+maxretry = 20
+bantime = 1d
 findtime = 600
 ignoreip = 192.168.0.1/24
 

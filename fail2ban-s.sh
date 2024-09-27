@@ -3,8 +3,8 @@
 # 钉钉机器人Webhook URL
 DINGTALK_WEBHOOK=""
 
-# 通知频率(默认为120秒)
-NOTIFICATION_INTERVAL=180
+# 通知频率(默认为600秒)
+NOTIFICATION_INTERVAL=600
 
 # 设置钉钉 Webhook 函数 (如果还未更新)
 set_dingtalk_webhook() {
@@ -60,6 +60,15 @@ log_info() {
     logger -t fail2ban-script "[信息] $1"
 }
 
+# 新增函数：设置脚本启动快捷键
+set_shortcut() {
+    sed -i '/alias.*fail2ban-s.sh/d' ~/.bashrc
+    read -p "请输入你想要的快捷按键 (例如: L): " shortcut
+    echo "alias $shortcut='bash $PWD/fail2ban-s.sh'" >> ~/.bashrc
+    source ~/.bashrc
+    echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
+    sleep 5
+}
 
 # 安装 Fail2ban 函数
 install_fail2ban() {
@@ -524,17 +533,18 @@ main_menu() {
         echo -e "${CYAN}4.${NC} 模拟 SSH 登录失败"
         echo -e "${CYAN}5.${NC} 开启网站保护"
         echo -e "${CYAN}6.${NC} 关闭网站保护"
-        echo -e "${CYAN}7.${NC} 查看所有拦截记录"
+        echo -e "${CYAN}7.${NC} 查看所有拦截记录⭐"
         echo -e "${CYAN}8.${NC} 查看日志实时监控"
         echo -e "${CYAN}9.${NC} 配置拦截参数"
         echo -e "${CYAN}10.${NC} 卸载防御程序"
         echo -e "${CYAN}11.${NC} 解除被 ban 的 IP"
-        echo -e "${CYAN}12.${NC} 修改监控日志路径"
+        echo -e "${CYAN}12.${NC} 修改监控日志路径⭐"
         echo -e "${CYAN}13.${NC} 钉钉通知设置"
         echo -e "${CYAN}14.${NC} 启动钉钉通知监控"
         echo -e "${CYAN}15.${NC} 停止钉钉通知监控"
         echo -e "${CYAN}16.${NC} UFW 防火墙管理"
         echo -e "${CYAN}17.${NC} 丢进小黑屋"
+        echo -e "${CYAN}18.${NC} 设置脚本启动快捷键⭐"
         echo -e "${RED}0.${NC} 退出"
         echo -e "${BLUE}================================================${NC}"
         echo
@@ -623,6 +633,9 @@ main_menu() {
                 ;;
             17)
                 manual_ban_ip
+                ;;
+            18)
+                set_shortcut
                 ;;
             0)
                 echo -e "${GREEN}感谢使用 Fail2ban 服务器防御程序，再见！${NC}"
