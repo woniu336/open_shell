@@ -63,7 +63,7 @@ log_info() {
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
     sed -i '/alias.*fail2ban-s.sh/d' ~/.bashrc
-    read -p "请输入你想要的快捷按键 (例如: L): " shortcut
+    read -p "请输入你想要的快捷按键 (例如: F): " shortcut
     echo "alias $shortcut='bash $PWD/fail2ban-s.sh'" >> ~/.bashrc
     source ~/.bashrc
     echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"

@@ -68,7 +68,7 @@ show_menu() {
 
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
-    clear_and_show_title
+    sed -i '/alias.*manage_logs.sh/d' ~/.bashrc
     read -p "请输入你想要的快捷按键 (例如: L): " shortcut
     echo "alias $shortcut='bash $PWD/manage_logs.sh'" >> ~/.bashrc
     source ~/.bashrc
