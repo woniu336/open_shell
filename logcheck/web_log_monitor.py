@@ -12,13 +12,14 @@ class LogAnalyzer:
             # 在这里添加更多日志文件路径
         ]
         self.pattern = re.compile(
-            r'(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+-\s+-\s+'
-            r'\[(?P<time>\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2})\s[^\]]+\]\s+'
+            r'(?P<ip>\d+\.\d+\.\d+\.\d+)\s+'
+            r'(?P<request_url>\S+)\s+'
+            r'\[(?P<time>[^\]]+)\]\s+'
+            r'(?P<domain>\S+)\s+'
             r'"(?P<method>\S+)\s+(?P<url>\S+)\s+(?P<protocol>[^"]+)"\s+'
             r'(?P<status>\d+)\s+'
-            r'(?P<response_size>\d+)\s+'
             r'"(?P<referrer>[^"]*)"\s+'
-            r'"(?P<user_agent>[^"]+)"'
+            r'(?P<user_agent>[^"]+)\s+-\s+\[(?P<response_size>\d+),(?P<response_time>\d+\.\d+)\]'
         )
         self.records = []
         self.url_counter = Counter()
@@ -73,18 +74,18 @@ class LogAnalyzer:
                         if match:
                             data = match.groupdict()
                             simplified_ua, is_crawler = self.simplify_user_agent(data['user_agent'])
+                            full_url = f"https://{data['domain']}{data['url']}"
                             self.records.append({
                                 'IP地址': data['ip'],
                                 '时间': data['time'],
                                 '请求类型': data['method'],
-                                '请求URL': data['url'],
+                                '请求URL': full_url,
                                 '状态码': data['status'],
                                 '用户代理': simplified_ua,
-                                '响应大小': data['response_size'],
-                                '引用页': data['referrer'],
+                                '响应时间（秒）': data['response_time'],
                                 '是爬虫': is_crawler
                             })
-                            self.url_counter[data['url']] += 1
+                            self.url_counter[full_url] += 1
             except Exception as e:
                 self.log(f"无法读取日志文件 {log_file}: {e}")
         self.log("日志解析完成。\n")
@@ -99,14 +100,14 @@ class LogAnalyzer:
             'user_agents': set(),
             'request_types': set(),
             'status_codes': set(),
-            'response_sizes': []
+            'response_times': []
         })
         crawler_ip_data = defaultdict(lambda: {
             'count': 0, 
             'user_agents': set(),
             'request_types': set(),
             'status_codes': set(),
-            'response_sizes': []
+            'response_times': []
         })
 
         for record in self.records:
@@ -118,7 +119,7 @@ class LogAnalyzer:
             data['user_agents'].add(record['用户代理'])
             data['request_types'].add(record['请求类型'])
             data['status_codes'].add(record['状态码'])
-            data['response_sizes'].append(int(record['响应大小']))
+            data['response_times'].append(float(record['响应时间（秒）']))
 
         self.log("\n## 普通IP访问汇总（前20个IP）\n")
         self._display_ip_table(normal_ip_data)
@@ -127,15 +128,15 @@ class LogAnalyzer:
         self._display_ip_table(crawler_ip_data)
 
     def _display_ip_table(self, ip_data):
-        self.log("| IP地址 | 访问次数 | 用户代理 | 请求类型 | 状态码 | 平均响应大小(字节) |")
+        self.log("| IP地址 | 访问次数 | 用户代理 | 请求类型 | 状态码 | 平均响应时间(秒) |")
         self.log("|--------|----------|----------|----------|--------|-------------------|")
         for ip, data in sorted(ip_data.items(), key=lambda x: x[1]['count'], reverse=True)[:20]:
             user_agents = ', '.join(data['user_agents'])
             request_types = ', '.join(data['request_types'])
             status_codes = ', '.join(data['status_codes'])
-            avg_response_size = sum(data['response_sizes']) / len(data['response_sizes'])
+            avg_response_time = sum(data['response_times']) / len(data['response_times'])
             
-            self.log(f"| {ip} | {data['count']} | {user_agents} | {request_types} | {status_codes} | {avg_response_size:.3f} |")
+            self.log(f"| {ip} | {data['count']} | {user_agents} | {request_types} | {status_codes} | {avg_response_time:.3f} |")
 
     def display_top_urls(self):
         self.log("\n## 访问次数最多的前20个URL\n")
@@ -151,10 +152,8 @@ class LogAnalyzer:
             ip = record['IP地址']
             ip_is_crawler[ip] = record['是爬虫']
             try:
-                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S')  # 修改时间解析
-                record_time = record_time.replace(tzinfo=timezone.utc)
+                record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S %z')
             except ValueError:
-                # 处理没有时区的情况
                 record_time = datetime.strptime(record['时间'], '%d/%b/%Y:%H:%M:%S')
                 record_time = record_time.replace(tzinfo=timezone.utc)
             minute_key = record_time.strftime('%Y-%m-%d %H:%M')
