@@ -205,6 +205,7 @@ class LogAnalyzer:
                 try:
                     subprocess.run(
                         ["sudo", "fail2ban-client", "set", "fail2ban-nginx-cc", "banip", ip],
+                        #["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"],
                         check=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
