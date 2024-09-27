@@ -22,31 +22,32 @@ set_dingtalk_webhook() {
 # 设置通知频率函数
 set_notification_interval() {
     # 定义颜色
+    CYAN='\033[0;36m'
+    LIGHT_CYAN='\033[1;36m'
+    YELLOW='\033[0;33m'
     GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
     NC='\033[0m' # No Color
 
     clear
-    echo -e "${BLUE}======================================${NC}"
+    echo -e "${CYAN}======================================${NC}"
     echo -e "${GREEN}        通知频率设置${NC}"
-    echo -e "${BLUE}======================================${NC}"
+    echo -e "${CYAN}======================================${NC}"
     echo
     echo -e "${YELLOW}当前通知频率为:${NC} ${GREEN}$NOTIFICATION_INTERVAL 秒${NC}"
     echo
     echo -e "${YELLOW}要更改通知频率，请按以下步骤操作：${NC}"
     echo
-    echo -e "${BLUE}1.${NC} 使用文本编辑器打开此脚本文件"
-    echo -e "${BLUE}2.${NC} 找到 ${GREEN}'NOTIFICATION_INTERVAL='${NC} 这一行"
-    echo -e "${BLUE}3.${NC} 将其值改为您想要的秒数"
-    echo -e "${BLUE}4.${NC} 保存文件并退出编辑器"
-    echo -e "${BLUE}5.${NC} 停止通知监控（如果正在运行）"
-    echo -e "${BLUE}6.${NC} 重新设置 Webhook"
-    echo -e "${BLUE}7.${NC} 启动通知监控"
+    echo -e "${LIGHT_CYAN}1.${NC} 使用文本编辑器打开此脚本文件"
+    echo -e "${LIGHT_CYAN}2.${NC} 找到 ${GREEN}'NOTIFICATION_INTERVAL='${NC} 这一行"
+    echo -e "${LIGHT_CYAN}3.${NC} 将其值改为您想要的秒数"
+    echo -e "${LIGHT_CYAN}4.${NC} 保存文件并退出编辑器"
+    echo -e "${LIGHT_CYAN}5.${NC} 停止通知监控（如果正在运行）"
+    echo -e "${LIGHT_CYAN}6.${NC} 重新设置 Webhook"
+    echo -e "${LIGHT_CYAN}7.${NC} 启动通知监控"
     echo
     echo -e "${YELLOW}注意：${NC}更改后，新的频率将在下次启动监控时生效"
     echo
-    echo -e "${BLUE}======================================${NC}"
+    echo -e "${CYAN}======================================${NC}"
 }
 
 # 日志函数
@@ -523,9 +524,9 @@ NC='\033[0m' # No Color
 main_menu() {
     while true; do
         clear
-        echo -e "${BLUE}================================================${NC}"
+        echo -e "${CYAN}================================================${NC}"
         echo -e "${YELLOW}          Fail2ban 服务器防御程序${NC}"
-        echo -e "${BLUE}================================================${NC}"
+        echo -e "${CYAN}================================================${NC}"
         echo
         echo -e "${CYAN}1.${NC} 重装 Fail2ban"
         echo -e "${CYAN}2.${NC} 开启 SSH 防暴力破解"
@@ -546,7 +547,7 @@ main_menu() {
         echo -e "${CYAN}17.${NC} 丢进小黑屋"
         echo -e "${CYAN}18.${NC} 设置脚本启动快捷键⭐"
         echo -e "${RED}0.${NC} 退出"
-        echo -e "${BLUE}================================================${NC}"
+        echo -e "${CYAN}================================================${NC}"
         echo
         read -p "$(echo -e ${YELLOW}"请输入你的选择: "${NC})" choice
         case $choice in
