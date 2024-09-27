@@ -21,6 +21,7 @@ def read_severe_risk_ips(log_file):
 
 def ban_ip(ip):
     command = f"sudo fail2ban-client set fail2ban-nginx-cc banip {ip}"
+    #command = f"sudo ufw insert 1 deny from {ip} to any"
     try:
         result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
         logging.info(f"成功将IP {ip} 加入黑名单")

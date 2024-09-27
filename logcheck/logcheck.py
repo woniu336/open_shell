@@ -212,6 +212,7 @@ def format_output(attacks):
             for attack in severe_attacks:
                 ip = attack['ip']
                 command = f"sudo fail2ban-client set fail2ban-nginx-cc banip {ip}"
+                #command = f"sudo ufw insert 1 deny from {ip} to any"
                 print(f"执行命令: {command}")
                 # 取消下面的注释以实际执行命令
                 import os
