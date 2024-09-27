@@ -59,9 +59,11 @@ show_menu() {
     echo -e "│  ${BLUE}3.${NC} 分析IP地区分布                                ${BLUE}│"
     echo -e "│  ${BLUE}4.${NC} 更新地理位置数据                              ${BLUE}│"
     echo -e "│  ${BLUE}5.${NC} 生成汇总报告                                  ${BLUE}│"
-    echo -e "│  ${BLUE}6.${NC} 执行可疑IP风险检查                            ${BLUE}│"
+    echo -e "│  ${BLUE}6.${NC} 执行可疑IP风险检查⭐                          ${BLUE}│"
     echo -e "│  ${BLUE}7.${NC} 添加IP到白名单                                ${BLUE}│"
-    echo -e "│  ${BLUE}8.${NC} 设置脚本启动快捷键                            ${BLUE}│"
+    echo -e "│  ${BLUE}8.${NC} 执行风险日志查杀⭐                            ${BLUE}│"
+    echo -e "│  ${BLUE}9.${NC} 定时拉黑风险IP                                ${BLUE}│"
+    echo -e "│  ${BLUE}10.${NC} 设置脚本启动快捷键                           ${BLUE}│"
     echo -e "│  ${BLUE}0.${NC} 退出                                          ${BLUE}│"
     echo -e "└────────────────────────────────────────────────┘${NC}"
 }
@@ -74,6 +76,69 @@ set_shortcut() {
     source ~/.bashrc
     echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
     sleep 5
+}
+
+# 新增函数：管理定时任务子菜单
+manage_cron_job() {
+    while true; do
+        clear_and_show_title
+        echo -e "${GREEN}定时拉黑风险IP任务管理:${NC}"
+        echo -e "${BLUE}┌────────────────────────────────────────────────┐"
+        echo -e "│  ${BLUE}1.${NC} 设置定时任务                                  ${BLUE}│"
+        echo -e "│  ${BLUE}2.${NC} 删除定时任务                                  ${BLUE}│"
+        echo -e "│  ${BLUE}3.${NC} 返回主菜单                                    ${BLUE}│"
+        echo -e "└────────────────────────────────────────────────┘${NC}"
+        read -p "请选择操作 (1-3): " subchoice
+
+        case $subchoice in
+            1) set_cron_job ;;
+            2) delete_cron_job ;;
+            3) return ;;
+            *) echo "无效选择，请重试"; sleep 2 ;;
+        esac
+    done
+}
+
+# 修改函数：设置定时拉黑风险IP
+set_cron_job() {
+    clear_and_show_title
+    echo "正在检查定时拉黑风险IP任务..."
+    
+    # 检查是否已存在相同的定时任务
+    if crontab -l | grep -q 'run_log_check_and_ban.sh'; then
+        echo "定时任务已存在。每天凌晨 2:18 执行。"
+        echo "风险IP保存在 /root/logcheck/severe_risk_ips.log"
+        echo "按 Enter 键继续..."
+        read
+        return
+    fi
+    
+    (crontab -l ; echo "*/2 * * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
+    #(crontab -l ; echo "18 2 * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
+    echo "定时任务已设置。每天凌晨 2:18 执行。"
+    echo "任务将执行 run_log_check_and_ban.sh 脚本"
+    echo "风险IP将保存在 /root/logcheck/severe_risk_ips.log"
+    echo "按 Enter 键继续..."
+    read
+}
+
+delete_cron_job() {
+    clear_and_show_title
+    echo "正在检查定时拉黑风险IP任务..."
+    
+    # 检查是否存在要删除的定时任务
+    if ! crontab -l | grep -q 'run_log_check_and_ban.sh'; then
+        echo "未找到相关的定时任务。"
+        echo "按 Enter 键继续..."
+        read
+        return
+    fi
+    
+    echo "正在删除定时拉黑风险IP任务..."
+    crontab -l | grep -v 'run_log_check_and_ban.sh' | crontab -
+    echo "定时任务已删除。"
+    echo "按 Enter 键继续..."
+    read
 }
 
 # 更新 Python 脚本中的路径
@@ -98,6 +163,17 @@ update_python_scripts() {
         sed -i "/self.log_files = \[/,/\]/c\        self.log_files = [\n$web_log_paths_string            # 在这里添加更多日志文件路径\n        ]" "$REPORT_PATH/web_log_monitor.py"
     else
         echo "警告：$REPORT_PATH/web_log_monitor.py 文件不存在。"
+    fi
+
+    # 更新 logcheck.py
+    if [ -f "$REPORT_PATH/logcheck.py" ]; then
+        local logcheck_paths_string=""
+        for path in "${LOG_PATHS[@]}"; do
+            logcheck_paths_string+="    \"$path\",\n"
+        done
+        sed -i "/LOG_PATHS = \[/,/\]/c\LOG_PATHS = [\n$logcheck_paths_string    # 在这里添加更多日志文件路径\n]" "$REPORT_PATH/logcheck.py"
+    else
+        echo "警告：$REPORT_PATH/logcheck.py 文件不存在。"
     fi
 }
 
@@ -242,7 +318,7 @@ load_log_paths
 # 主循环中的 case 语句更新
 while true; do
     show_menu
-    read -p "请输入您的选择 (0-8): " choice
+    read -p "请输入您的选择 (0-10): " choice
     case $choice in
         1) change_log_paths ;;
         2) run_web_log_analysis ;;
@@ -257,7 +333,15 @@ while true; do
             read
             ;;
         7) add_ip_to_whitelist ;;
-        8) set_shortcut ;;
+        8) 
+            clear_and_show_title
+            echo "正在执行日志检查..."
+            python3 "$REPORT_PATH/logcheck.py"
+            echo "按 Enter 键继续..."
+            read
+            ;;
+        9) manage_cron_job ;;
+        10) set_shortcut ;;
         0) clear_and_show_title; echo "感谢使用，再见！"; exit 0 ;;
         *) echo "无效选择,请重试"; sleep 2 ;;
     esac

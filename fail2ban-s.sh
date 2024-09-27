@@ -8,7 +8,7 @@ NOTIFICATION_INTERVAL=600
 
 # 设置钉钉 Webhook 函数 (如果还未更新)
 set_dingtalk_webhook() {
-    read -p "请输入完整的钉钉机器人 Webhook URL: " webhook
+    read -p "请输入完整的钉钉机器人 Webhook【提示:取消勾选加签并添加本机IP到IP地址段】: " webhook
     DINGTALK_WEBHOOK=$webhook
     if [ -n "$DINGTALK_WEBHOOK" ]; then
         log_info "钉钉 Webhook 已成功设置为: $DINGTALK_WEBHOOK"
@@ -63,7 +63,7 @@ log_info() {
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
     sed -i '/alias.*fail2ban-s.sh/d' ~/.bashrc
-    read -p "请输入你想要的快捷按键 (例如: F): " shortcut
+    read -p "请输入你想要的快捷按键 (例如: L): " shortcut
     echo "alias $shortcut='bash $PWD/fail2ban-s.sh'" >> ~/.bashrc
     source ~/.bashrc
     echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
@@ -215,8 +215,8 @@ parse_fail2ban_status() {
     echo "过滤器: $filter"
     echo "当前失败次数: ${currently_failed:-0}"
     echo "总失败次数: ${total_failed:-0}"
-    echo "当前封禁次数: ${currently_banned:-0}"
-    echo "总封禁次数: ${total_banned:-0}"
+    echo "当前封禁IP: ${currently_banned:-0}"
+    echo "总封禁IP: ${total_banned:-0}"
     echo "日志路径: ${log_path:-未设置}"
     echo "封禁IP列表: ${banned_ip_list:-无}"
 }
