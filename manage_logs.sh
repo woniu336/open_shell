@@ -167,8 +167,8 @@ set_cron_job() {
         return
     fi
     
-    (crontab -l ; echo "*/2 * * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
-    #(crontab -l ; echo "18 2 * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
+    #(crontab -l ; echo "*/2 * * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
+    (crontab -l ; echo "18 2 * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -
     echo "定时任务已设置。每天凌晨 2:18 执行。"
     echo "任务将执行 run_log_check_and_ban.sh 脚本"
     echo "风险IP将保存在 /root/logcheck/severe_risk_ips.log"
