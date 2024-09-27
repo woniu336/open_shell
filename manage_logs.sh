@@ -54,19 +54,73 @@ show_menu() {
     clear_and_show_title
     echo -e "${GREEN}请选择操作:${NC}"
     echo -e "${BLUE}┌────────────────────────────────────────────────┐"
-    echo -e "│  ${BLUE}1.${NC} 添加或更改日志路径                            ${BLUE}│"
-    echo -e "│  ${BLUE}2.${NC} 执行网站日志分析                              ${BLUE}│"
-    echo -e "│  ${BLUE}3.${NC} 分析IP地区分布                                ${BLUE}│"
-    echo -e "│  ${BLUE}4.${NC} 更新地理位置数据                              ${BLUE}│"
-    echo -e "│  ${BLUE}5.${NC} 生成汇总报告                                  ${BLUE}│"
-    echo -e "│  ${BLUE}6.${NC} 执行可疑IP风险检查⭐                          ${BLUE}│"
-    echo -e "│  ${BLUE}7.${NC} 添加IP到白名单                                ${BLUE}│"
-    echo -e "│  ${BLUE}8.${NC} 执行风险日志查杀⭐                            ${BLUE}│"
-    echo -e "│  ${BLUE}9.${NC} 定时拉黑风险IP                                ${BLUE}│"
-    echo -e "│  ${BLUE}10.${NC} 设置脚本启动快捷键                           ${BLUE}│"
-    echo -e "│  ${BLUE}0.${NC} 退出                                          ${BLUE}│"
+    echo -e "│  ${BLUE}1.${NC} 安装依赖文件                                 ${BLUE}│"
+    echo -e "│  ${BLUE}2.${NC} 添加或更改日志路径⭐                         ${BLUE}│"
+    echo -e "│  ${BLUE}3.${NC} 执行网站日志分析                             ${BLUE}│"
+    echo -e "│  ${BLUE}4.${NC} 分析IP地区分布                               ${BLUE}│"
+    echo -e "│  ${BLUE}5.${NC} 更新地理位置数据                             ${BLUE}│"
+    echo -e "│  ${BLUE}6.${NC} 生成汇总报告                                 ${BLUE}│"
+    echo -e "│  ${BLUE}7.${NC} 执行可疑IP风险检查⭐                         ${BLUE}│"
+    echo -e "│  ${BLUE}8.${NC} 添加IP到白名单                               ${BLUE}│"
+    echo -e "│  ${BLUE}9.${NC} 执行风险日志查杀⭐                           ${BLUE}│"
+    echo -e "│  ${BLUE}10.${NC} 定时拉黑风险IP                              ${BLUE}│"
+    echo -e "│  ${BLUE}11.${NC} 设置脚本启动快捷键                          ${BLUE}│"
+    echo -e "│  ${BLUE}0.${NC} 退出                                         ${BLUE}│"
     echo -e "└────────────────────────────────────────────────┘${NC}"
 }
+
+install_dependencies() {
+    clear_and_show_title
+    echo "正在检查并安装依赖文件..."
+    
+    # 检查并安装 pip3
+    if ! command -v pip3 &> /dev/null; then
+        echo "正在安装 pip3..."
+        sudo apt update
+        sudo apt install -y python3-pip
+    else
+        echo "pip3 已安装,跳过..."
+    fi
+    
+    # 安装 Python 依赖库
+    echo "正在检查并安装 Python 依赖库..."
+    pip3 install --upgrade ua-parser geoip2 requests
+    
+    # 创建必要的目录和文件
+    echo "正在检查并创建必要的目录和文件..."
+    mkdir -p /root/data
+    mkdir -p /root/logcheck
+    touch /root/logcheck/log_paths.conf
+    touch /root/logcheck/ip_whitelist.txt
+    
+    # 下载必要的 Python 脚本
+    echo "正在检查并下载必要的 Python 脚本..."
+    cd /root/logcheck
+    
+    scripts=(
+        "geoip_fetch.py"
+        "ip_risk_checker.py"
+        "log_analysis.py"
+        "web_log_monitor.py"
+        "logcheck.py"
+        "ban_severe_risk_ips.py"
+        "run_log_check_and_ban.sh"
+    )
+    
+    for script in "${scripts[@]}"; do
+        if [ -f "$script" ]; then
+            echo "$script 已存在,跳过下载..."
+        else
+            echo "正在下载 $script..."
+            wget https://raw.githubusercontent.com/woniu336/open_shell/main/logcheck/$script
+        fi
+    done
+    
+    echo "依赖文件安装和检查完成。"
+    echo "按 Enter 键继续..."
+    read
+}
+
 
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
@@ -318,30 +372,31 @@ load_log_paths
 # 主循环中的 case 语句更新
 while true; do
     show_menu
-    read -p "请输入您的选择 (0-10): " choice
+    read -p "请输入您的选择 (0-11): " choice
     case $choice in
-        1) change_log_paths ;;
-        2) run_web_log_analysis ;;
-        3) analyze_ip_distribution ;;
-        4) update_geoip_data ;;
-        5) generate_summary_report ;;
-        6) 
+        1) install_dependencies ;;
+        2) change_log_paths ;;
+        3) run_web_log_analysis ;;
+        4) analyze_ip_distribution ;;
+        5) update_geoip_data ;;
+        6) generate_summary_report ;;
+        7) 
             clear_and_show_title
             echo "正在执行可疑IP风险检查..."
             python3 "$REPORT_PATH/ip_risk_checker.py"
             echo "按 Enter 键继续..."
             read
             ;;
-        7) add_ip_to_whitelist ;;
-        8) 
+        8) add_ip_to_whitelist ;;
+        9) 
             clear_and_show_title
             echo "正在执行日志检查..."
             python3 "$REPORT_PATH/logcheck.py"
             echo "按 Enter 键继续..."
             read
             ;;
-        9) manage_cron_job ;;
-        10) set_shortcut ;;
+        10) manage_cron_job ;;
+        11) set_shortcut ;;
         0) clear_and_show_title; echo "感谢使用，再见！"; exit 0 ;;
         *) echo "无效选择,请重试"; sleep 2 ;;
     esac
