@@ -1,11 +1,10 @@
 [sshd]
-enabled   = true
-mode      = normal
-port      = 5533  # 需要更改为真实端口
-filter    = sshd
-banaction = iptables
-backend   = auto
-maxretry  = 20
-findtime  = 1d
-bantime   = 2w
+enabled = true
+port = 5533
+filter = sshd
+logpath = /var/log/auth.log
+maxretry = 5
+bantime = 2w
+findtime = 1d
+banaction = ufw-allports
 ignoreip  = 127.0.0.1/8 ::1 192.168.1.0/24
