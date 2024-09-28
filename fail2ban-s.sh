@@ -124,37 +124,46 @@ download_files() {
     # 创建临时目录
     temp_dir=$(mktemp -d)
     
-    # 下载文件到临时目录
-    cd "$temp_dir"
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/fail2ban-nginx-cc.conf > /dev/null 2>&1
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/nginx-bad-request.conf > /dev/null 2>&1
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/nginx.local > /dev/null 2>&1
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/sshd.local > /dev/null 2>&1
-    
-    # 检查并复制文件
-    for file in fail2ban-nginx-cc.conf nginx-bad-request.conf; do
-        if [ ! -f "/etc/fail2ban/filter.d/$file" ]; then
-            cp "$file" "/etc/fail2ban/filter.d/"
-            log_info "已添加 $file 到 /etc/fail2ban/filter.d/"
-        else
-            log_info "$file 已存在，跳过"
-        fi
-    done
-    
-    # 检查并复制 jail 配置文件
-    if [ ! -f "/etc/fail2ban/jail.d/nginx.local" ]; then
-        cp nginx.local /etc/fail2ban/jail.d/
-        log_info "已添加 nginx.local 到 /etc/fail2ban/jail.d/"
+# 下载文件到临时目录
+cd "$temp_dir"
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/fail2ban-nginx-cc.conf > /dev/null 2>&1
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/nginx-bad-request.conf > /dev/null 2>&1
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/nginx.local > /dev/null 2>&1
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/sshd.local > /dev/null 2>&1
+curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fail2ban-s/ufw-allports.conf > /dev/null 2>&1
+
+# 检查并复制文件
+for file in fail2ban-nginx-cc.conf nginx-bad-request.conf; do
+    if [ ! -f "/etc/fail2ban/filter.d/$file" ]; then
+        cp "$file" "/etc/fail2ban/filter.d/"
+        log_info "已添加 $file 到 /etc/fail2ban/filter.d/"
     else
-        log_info "nginx.local 已存在，跳过"
+        log_info "$file 已存在，跳过"
     fi
-    
-    if [ ! -f "/etc/fail2ban/jail.d/sshd.local" ]; then
-        cp sshd.local /etc/fail2ban/jail.d/
-        log_info "已添加 sshd.local 到 /etc/fail2ban/jail.d/"
-    else
-        log_info "sshd.local 已存在，跳过"
-    fi
+done
+
+# 检查并复制 jail 配置文件
+if [ ! -f "/etc/fail2ban/jail.d/nginx.local" ]; then
+    cp nginx.local /etc/fail2ban/jail.d/
+    log_info "已添加 nginx.local 到 /etc/fail2ban/jail.d/"
+else
+    log_info "nginx.local 已存在，跳过"
+fi
+
+if [ ! -f "/etc/fail2ban/jail.d/sshd.local" ]; then
+    cp sshd.local /etc/fail2ban/jail.d/
+    log_info "已添加 sshd.local 到 /etc/fail2ban/jail.d/"
+else
+    log_info "sshd.local 已存在，跳过"
+fi
+
+# 检查并复制 ufw-allports.conf 文件
+if [ ! -f "/etc/fail2ban/action.d/ufw-allports.conf" ]; then
+    cp ufw-allports.conf /etc/fail2ban/action.d/
+    log_info "已添加 ufw-allports.conf 到 /etc/fail2ban/action.d/"
+else
+    log_info "ufw-allports.conf 已存在，跳过"
+fi
     
     # 清理临时目录
     rm -rf "$temp_dir"
