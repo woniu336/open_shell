@@ -37,12 +37,24 @@ show_menu() {
 
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
-    sed -i '/alias.*quark_manager.sh/d' ~/.bashrc
-    read -p "请输入你想要的快捷按键 (例如: Q): " shortcut
-    echo "alias $shortcut='bash $PWD/quark_manager.sh'" >> ~/.bashrc
-    source ~/.bashrc
-    echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
-    sleep 5
+    while true; do
+        echo -e "${CYAN}设置脚本启动快捷键${NC}"
+        echo -e "${CYAN}──────────────────────────────────────────────${NC}"
+        read -e -p "请输入你想要的快捷按键（输入0返回主菜单）: " shortcut
+        if [ "$shortcut" == "0" ]; then
+            return  # 直接返回主菜单
+        fi
+
+        sed -i '/alias.*quark_manager.sh/d' ~/.bashrc
+
+        echo "alias $shortcut='bash $PWD/quark_manager.sh'" >> ~/.bashrc
+        source ~/.bashrc
+
+        echo -e "${GREEN}快捷键已设置。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${NC}"
+        echo "按 Enter 键返回主菜单..."
+        read
+        return  # 设置完成后返回主菜单
+    done
 }
 
 # 函数: 更新Cookie

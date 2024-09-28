@@ -63,14 +63,26 @@ log_info() {
 
 # 新增函数：设置脚本启动快捷键
 set_shortcut() {
-    sed -i '/alias.*fail2ban-s.sh/d' ~/.bashrc
-    read -p "请输入你想要的快捷按键 (例如: F): " shortcut
-    echo "alias $shortcut='bash $PWD/fail2ban-s.sh'" >> ~/.bashrc
-    source ~/.bashrc
-    echo -e "${GREEN}快捷键已添加。请重新启动终端，或运行 'source ~/.bashrc' 以使修改生效。${PLAIN}"
-    sleep 5
-}
+    while true; do
+        clear
+        read -e -p "请输入你想要的快捷按键（输入0退出）: " shortcut
+        if [ "$shortcut" == "0" ]; then
+            break_end
+            main_menu  # 假设有一个主菜单函数
+        fi
 
+        sed -i '/alias.*fail2ban-s.sh/d' ~/.bashrc
+
+        echo "alias $shortcut='bash $PWD/fail2ban-s.sh'" >> ~/.bashrc
+        sleep 1
+        source ~/.bashrc
+
+        echo -e "${GREEN}快捷键已设置${PLAIN}"
+        send_stats "fail2ban脚本快捷键已设置"
+        break_end
+        main_menu  # 假设有一个主菜单函数
+    done
+}
 # 安装 Fail2ban 函数
 install_fail2ban() {
     log_info "检查 Fail2ban 是否已安装..."
@@ -425,6 +437,7 @@ ufw_management() {
         echo -e "${CYAN}4.${NC} 开启 UFW"
         echo -e "${CYAN}5.${NC} 关闭 UFW"
         echo -e "${CYAN}6.${NC} 查看 UFW 状态"
+        echo -e "${CYAN}7.${NC} 将 fail2ban 拉黑 IP 添加到 UFW"
         echo -e "${CYAN}0.${NC} 返回主菜单"
         echo
         echo -e "${BLUE}================================================${NC}"
@@ -456,6 +469,9 @@ ufw_management() {
             6)
                 sudo ufw status verbose
                 ;;
+            7)
+                add_fail2ban_ips_to_ufw
+                ;;
             0)
                 return
                 ;;
@@ -466,6 +482,40 @@ ufw_management() {
         echo
         read -p "$(echo -e ${YELLOW}"按任意键继续..."${NC})"
     done
+}
+
+add_fail2ban_ips_to_ufw() {
+    echo -e "${YELLOW}正在将 fail2ban 拉黑的 IP 添加到 UFW...${NC}"
+    
+    # 获取所有 fail2ban 拉黑的 IP
+    banned_ips=$(sudo fail2ban-client banned | python3 -c "
+import sys, json
+data = json.loads(sys.stdin.read().replace(\"'\", '\"'))
+for jail in data:
+    for ips in jail.values():
+        for ip in ips:
+            print(ip)
+")
+    
+    if [ -z "$banned_ips" ]; then
+        echo -e "${YELLOW}当前没有被 fail2ban 拉黑的 IP。${NC}"
+        return
+    fi
+    
+    # 遍历每个 IP 并添加到 UFW
+    while read -r ip; do
+        if sudo ufw status | grep -q $ip; then
+            echo -e "${YELLOW}IP $ip 已经在 UFW 黑名单中。${NC}"
+        else
+            if sudo ufw insert 1 deny from $ip to any; then
+                echo -e "${GREEN}已将 IP $ip 添加到 UFW 黑名单。${NC}"
+            else
+                echo -e "${RED}添加 IP $ip 到 UFW 黑名单失败。${NC}"
+            fi
+        fi
+    done <<< "$banned_ips"
+    
+    echo -e "${GREEN}操作完成。${NC}"
 }
 
 # 修改: 手动拦截恶意 IP 函数

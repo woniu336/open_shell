@@ -204,8 +204,8 @@ class LogAnalyzer:
                 # 执行命令
                 try:
                     subprocess.run(
-                        ["sudo", "fail2ban-client", "set", "fail2ban-nginx-cc", "banip", ip],
-                        #["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"],
+                        #["sudo", "fail2ban-client", "set", "fail2ban-nginx-cc", "banip", ip],
+                        ["sudo", "ufw", "insert", "1", "deny", "from", ip, "to", "any"],
                         check=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
@@ -235,10 +235,10 @@ class LogAnalyzer:
             for ip, status_counts in error_ip_data.items()
         }
         
-        # 获取错误次数最多的前10个IP
-        top_10_ips = sorted(ip_total_errors.items(), key=lambda x: x[1], reverse=True)[:10]
+        # 获取错误次数最多的前15个IP
+        top_10_ips = sorted(ip_total_errors.items(), key=lambda x: x[1], reverse=True)[:15]
         
-        self.log("\n## 状态码为4xx或5xx的IP汇总（前10个）\n")
+        self.log("\n## 状态码为4xx或5xx的IP汇总（前15个）\n")
         self.log("| IP地址 | 状态码 | 次数 |")
         self.log("|--------|--------|------|")
         
