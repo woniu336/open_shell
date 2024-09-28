@@ -34,6 +34,9 @@ CRAWLER_IPS = [
     ipaddress.ip_network("157.55.39.0/24"),  # bingbot
     ipaddress.ip_network("52.167.144.0/24"),  # bingbot
     ipaddress.ip_network("207.46.13.0/24"),  # bingbot
+    ipaddress.ip_network("20.15.133.0/24"),  # Bingbot
+    ipaddress.ip_network("40.77.189.0/24"),  # Bingbot
+    ipaddress.ip_network("40.77.202.0/24"),  # Bingbot
     ipaddress.ip_network("72.30.198.0/24"),  # Yahoo! Slurp
     ipaddress.ip_network("209.191.64.0/18"),  # Yahoo!
     ipaddress.ip_network("199.16.156.0/22"),  # Twitter
