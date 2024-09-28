@@ -206,7 +206,7 @@ def format_output(attacks):
     print(f"\n严重风险IP已记录到 {severe_risk_log}")
 
     if severe_attacks:
-        print("\n是否要将所有严重风险IP关进小黑屋？(需配合fail2ban脚本)")
+        print("\n是否要将所有严重风险IP关进小黑屋？")
         choice = input("输入 'y' 确认，回车键取消: ")
         if choice.lower() == 'y':
             for attack in severe_attacks:
