@@ -26,7 +26,6 @@ OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, "log_analysis.txt")
 # 定义白名单文件路径
 WHITELIST_PATH = "/root/logcheck/ip_whitelist.txt"
 
-# 扩展常见爬虫IP列表
 CRAWLER_IPS = [
     ipaddress.ip_network("66.249.64.0/19"),  # Googlebot
     ipaddress.ip_network("66.249.79.0/24"),  # 新添加的Googlebot IP范围
@@ -37,6 +36,8 @@ CRAWLER_IPS = [
     ipaddress.ip_network("20.15.133.0/24"),  # Bingbot
     ipaddress.ip_network("40.77.189.0/24"),  # Bingbot
     ipaddress.ip_network("40.77.202.0/24"),  # Bingbot
+    ipaddress.ip_network("40.77.190.0/24"),  # Bingbot
+    ipaddress.ip_network("40.77.188.0/24"),  # Bingbot 
     ipaddress.ip_network("72.30.198.0/24"),  # Yahoo! Slurp
     ipaddress.ip_network("209.191.64.0/18"),  # Yahoo!
     ipaddress.ip_network("199.16.156.0/22"),  # Twitter
