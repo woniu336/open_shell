@@ -4,7 +4,7 @@
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
+BLUE='\033[0;36m'
 NC='\033[0m' # 无颜色
 
 # Python 脚本路径
@@ -12,24 +12,6 @@ PYTHON_SCRIPT="dns_update.py"
 
 # 服务器备注文件
 SERVER_REMARK_FILE="server_remark.txt"
-
-# 函数：显示菜单
-show_menu() {
-    echo -e "${BLUE}┌─────────────────────────────────────────┐${NC}"
-    echo -e "${BLUE}│     ${YELLOW}Cloudflare DNS 更新脚本菜单${BLUE}        │${NC}"
-    echo -e "${BLUE}├─────────────────────────────────────────┤${NC}"
-    echo -e "${BLUE}│ ${GREEN}1.${NC} 设置 Cloudflare 配置                 ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}2.${NC} 设置钉钉机器人配置                   ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}3.${NC} 运行 DNS 更新脚本                    ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}4.${NC} 查看运行状态                         ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}5.${NC} 停止 DNS 更新脚本                    ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}6.${NC} 安装依赖                             ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}7.${NC} 切换 CDN 状态                        ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}8.${NC} 设置服务器备注                       ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}9.${NC} 设置脚本启动快捷键                   ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}0.${NC} 退出                                 ${BLUE}│${NC}"
-    echo -e "${BLUE}└─────────────────────────────────────────┘${NC}"
-}
 
 # 函数:设置 Cloudflare 配置
 setup_cloudflare() {
@@ -43,7 +25,7 @@ setup_cloudflare() {
 setup_dingtalk() {
     echo -e "${GREEN}正在设置钉钉机器人配置...${NC}"
     read -p "请输入钉钉机器人 Access Token: " access_token
-    read -p "请输入钉钉机器人 Secret: " secret
+    read -p "请输入钉钉机器人 Secret(加签): " secret
 
     # 更新 Python 脚本中的钉钉配置
     sed -i "s/ACCESS_TOKEN = .*/ACCESS_TOKEN = \"$access_token\"/" $PYTHON_SCRIPT
@@ -226,6 +208,25 @@ set_shortcut() {
     done
 }
 
+# 函数：显示菜单
+show_menu() {
+    echo -e "${BLUE}┌─────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│     ${YELLOW}Cloudflare 宕机切换IP脚本${BLUE}        │${NC}"
+    echo -e "${BLUE}│     ${YELLOW}博客:https://woniu336.github.io${BLUE}  │${NC}"
+    echo -e "${BLUE}├─────────────────────────────────────────┤${NC}"
+    echo -e "${BLUE}│ ${GREEN}1.${NC} 安装依赖                             ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}2.${NC} 设置 Cloudflare 配置                 ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}3.${NC} 设置钉钉机器人配置                   ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}4.${NC} 启动 DNS 更新脚本                    ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}5.${NC} 查看运行状态                         ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}6.${NC} 停止 DNS 更新脚本                    ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}7.${NC} 切换 CDN 状态                        ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}8.${NC} 设置服务器备注                       ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}9.${NC} 设置脚本启动快捷键                   ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}0.${NC} 退出                                 ${BLUE}│${NC}"
+    echo -e "${BLUE}└─────────────────────────────────────────┘${NC}"
+}
+
 # 主循环
 while true; do
     clear
@@ -233,12 +234,12 @@ while true; do
     read -p "请选择操作 (0-9): " choice
     echo
     case $choice in
-        1) setup_cloudflare ;;
-        2) setup_dingtalk ;;
-        3) run_dns_update ;;
-        4) check_status ;;
-        5) stop_dns_update ;;
-        6) install_dependencies ;;
+        1) install_dependencies ;;
+        2) setup_cloudflare ;;
+        3) setup_dingtalk ;;
+        4) run_dns_update ;;
+        5) check_status ;;
+        6) stop_dns_update ;;
         7) toggle_cdn_status ;;
         8) set_server_remark ;;
         9) set_shortcut ;;
