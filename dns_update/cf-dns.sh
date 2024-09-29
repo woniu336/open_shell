@@ -74,38 +74,123 @@ stop_dns_update() {
     echo -e "${GREEN}DNS 更新脚本已停止。${NC}"
 }
 
-# 函数：安装依赖
+# 函数：安装依赖和下载必要文件
 install_dependencies() {
     echo -e "${GREEN}正在安装依赖...${NC}"
     apt update
-    apt install python3-pip jq -y
+    apt install python3-pip jq wget -y
     pip3 install requests
     echo -e "${GREEN}依赖安装完成。${NC}"
+
+    echo -e "${GREEN}正在检查并下载必要文件...${NC}"
+    
+    # 下载 dns_update.sh
+    if [ ! -f "dns_update.sh" ]; then
+        wget https://raw.githubusercontent.com/woniu336/open_shell/main/dns_update/dns_update.sh
+        chmod +x dns_update.sh
+        echo -e "${GREEN}dns_update.sh 下载完成。${NC}"
+    else
+        echo -e "${YELLOW}dns_update.sh 已存在,跳过下载。${NC}"
+    fi
+
+    # 下载 dns_update.py
+    if [ ! -f "dns_update.py" ]; then
+        wget https://raw.githubusercontent.com/woniu336/open_shell/main/dns_update/dns_update.py
+        chmod +x dns_update.py
+        echo -e "${GREEN}dns_update.py 下载完成。${NC}"
+    else
+        echo -e "${YELLOW}dns_update.py 已存在,跳过下载。${NC}"
+    fi
+
+    echo -e "${GREEN}所有必要文件检查和下载完成。${NC}"
 }
 
 # 函数：切换 CDN 状态
 toggle_cdn_status() {
-    echo -e "${GREEN}正在检查当前 CDN 状态...${NC}"
-    if grep -q "proxied=True" $PYTHON_SCRIPT; then
-        echo -e "${YELLOW}当前 CDN 状态：开启${NC}"
-        read -p "是否要关闭 CDN？(y/n): " choice
+    echo -e "${GREEN}正在检查当前 IP 和 CDN 状态...${NC}"
+    
+    # 显示当前两个 IP 的 CDN 状态
+    show_cdn_status
+
+    echo -e "${YELLOW}请选择要修改的 IP 的 CDN 状态：${NC}"
+    echo "1) 原始 IP"
+    echo "2) 备用 IP"
+    read -p "请输入选项 (1 或 2): " ip_choice
+
+    case $ip_choice in
+        1)
+            toggle_ip_cdn "original_ip_cdn_enabled" "原始 IP"
+            ;;
+        2)
+            toggle_ip_cdn "backup_ip_cdn_enabled" "备用 IP"
+            ;;
+        *)
+            echo -e "${RED}无效的选项。操作取消。${NC}"
+            return
+            ;;
+    esac
+
+    if [ "$restart_required" = true ]; then
+        restart_dns_update_process
+        show_cdn_status
+    else
+        echo -e "${YELLOW}CDN 状态未改变，无需重启 DNS 更新进程。${NC}"
+    fi
+}
+
+# 函数：显示 CDN 状态
+show_cdn_status() {
+    echo -e "${BLUE}当前 CDN 状态：${NC}"
+    if grep -q "original_ip_cdn_enabled = True" $PYTHON_SCRIPT; then
+        echo -e "${GREEN}原始 IP 的 CDN 状态：已开启${NC}"
+    else
+        echo -e "${YELLOW}原始 IP 的 CDN 状态：已关闭${NC}"
+    fi
+    if grep -q "backup_ip_cdn_enabled = True" $PYTHON_SCRIPT; then
+        echo -e "${GREEN}备用 IP 的 CDN 状态：已开启${NC}"
+    else
+        echo -e "${YELLOW}备用 IP 的 CDN 状态：已关闭${NC}"
+    fi
+}
+
+# 函数：切换指定 IP 的 CDN 状态
+toggle_ip_cdn() {
+    local var_name=$1
+    local ip_type=$2
+    
+    if grep -q "${var_name} = True" $PYTHON_SCRIPT; then
+        read -p "是否要关闭${ip_type}的 CDN？(y/n): " choice
         if [[ $choice == "y" || $choice == "Y" ]]; then
-            sed -i 's/proxied=True/proxied=False/g' $PYTHON_SCRIPT
-            echo -e "${GREEN}CDN 已关闭。${NC}"
+            sed -i "s/${var_name} = True/${var_name} = False/g" $PYTHON_SCRIPT
+            echo -e "${GREEN}${ip_type}的 CDN 已关闭。${NC}"
+            restart_required=true
         else
-            echo -e "${YELLOW}操作已取消，CDN 状态保持不变。${NC}"
+            echo -e "${YELLOW}操作已取消，${ip_type}的 CDN 状态保持不变。${NC}"
         fi
     else
-        echo -e "${YELLOW}当前 CDN 状态：关闭${NC}"
-        read -p "是否要开启 CDN？(y/n): " choice
+        read -p "是否要开启${ip_type}的 CDN？(y/n): " choice
         if [[ $choice == "y" || $choice == "Y" ]]; then
-            sed -i 's/proxied=False/proxied=True/g' $PYTHON_SCRIPT
-            echo -e "${GREEN}CDN 已开启。${NC}"
+            sed -i "s/${var_name} = False/${var_name} = True/g" $PYTHON_SCRIPT
+            echo -e "${GREEN}${ip_type}的 CDN 已开启。${NC}"
+            restart_required=true
         else
-            echo -e "${YELLOW}操作已取消，CDN 状态保持不变。${NC}"
+            echo -e "${YELLOW}操作已取消，${ip_type}的 CDN 状态保持不变。${NC}"
         fi
     fi
-    echo -e "${YELLOW}注意：此更改将在下次运行 DNS 更新脚本时生效。${NC}"
+}
+
+# 函数：重启 DNS 更新进程
+restart_dns_update_process() {
+    echo -e "${GREEN}正在重启 DNS 更新进程...${NC}"
+    if ps -ef | grep '[p]ython3 dns_update.py' > /dev/null; then
+        pkill -f dns_update.py
+        echo -e "${YELLOW}已停止旧的 DNS 更新进程。${NC}"
+    fi
+    nohup python3 dns_update.py > /dev/null 2>&1 &
+    echo -e "${GREEN}DNS 更新进程已重新启动。${NC}"
+    
+    # 等待几秒钟让 Python 脚本启动
+    sleep 2
 }
 
 # 函数：设置服务器备注

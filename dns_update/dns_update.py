@@ -108,29 +108,32 @@ def main():
 
     subdomains = []  # 要更新的子域名列表
 
+    original_ip_cdn_enabled = False  # 原始 IP 的 CDN 状态
+    backup_ip_cdn_enabled = True    # 备用 IP 的 CDN 状态
+
     while True:
         try:
             if not server_down and not check_tcp_port(server_ip, port):
-                message = f"服务器宕机，切换到备用IP {backup_ip}"
+                message = f"服务器宕机，切换到备用IP {backup_ip}..."
                 print(message)
                 send_dingtalk_notification(message)
                 for subdomain in subdomains:
-                    update_dns_record(subdomain, backup_ip, proxied=False)
+                    update_dns_record(subdomain, backup_ip, proxied=backup_ip_cdn_enabled)
                 using_backup_ip = True
                 server_down = True
             elif server_down and check_tcp_port(server_ip, port):
-                message = f"服务器已恢复，切换回原始IP {original_ip}"
+                message = f"服务器已恢复，切换回原始IP {original_ip}..."
                 print(message)
                 send_dingtalk_notification(message)
                 for subdomain in subdomains:
-                    update_dns_record(subdomain, original_ip, proxied=False)
+                    update_dns_record(subdomain, original_ip, proxied=original_ip_cdn_enabled)
                 using_backup_ip = False
                 server_down = False
 
             if using_backup_ip:
-                print("域名正在使用备用IP。")
+                print(f"域名正在使用备用IP。CDN 状态：{'已开启' if backup_ip_cdn_enabled else '已关闭'}")
             else:
-                print("服务器端口正常，5分钟后再次检查...")
+                print(f"域名正在使用原始IP。CDN 状态：{'已开启' if original_ip_cdn_enabled else '已关闭'}")
 
             time.sleep(300)  # 5分钟后再次检查
         except Exception as e:
