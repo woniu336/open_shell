@@ -1,7 +1,23 @@
 import os
 import re
 import subprocess
+import sys
+
+def check_and_install_dependencies():
+    print("正在检查并安装依赖...")
+    try:
+        import crontab
+    except ImportError:
+        print("正在安装 python-crontab...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "python-crontab"], check=True)
+        print("python-crontab 已成功安装")
+
+# 在脚本开头调用此函数
+check_and_install_dependencies()
+
+# 现在导入 crontab，因为我们确保它已经安装
 from crontab import CronTab
+
 import tempfile
 
 BASH_SCRIPT_PATH = "/root/php-malware-scanner.sh"
@@ -321,16 +337,13 @@ def download_script():
         return
     
     try:
-        # 检查并安装依赖
-        subprocess.run(["pip", "install", "python-crontab"], check=True)
-        print("已成功安装依赖: python-crontab")
-        
         # 下载脚本
+        print("正在下载脚本...")
         subprocess.run(["curl", "-sS", "-O", "https://raw.githubusercontent.com/woniu336/open_shell/main/php-malware-scanner.sh"], check=True)
         subprocess.run(["chmod", "+x", "php-malware-scanner.sh"], check=True)
         print("脚本已成功下载并设置执行权限。")
     except subprocess.CalledProcessError as e:
-        print(f"下载或设置脚本时出错: {e}")
+        print(f"下载脚本时出错: {e}")
 
 def set_shortcut():
     while True:
@@ -369,23 +382,22 @@ def print_menu():
     CYAN = '\033[0;36m'
     GREEN = '\033[0;32m'
     BLUE = '\033[0;34m'
-    WHITE = '\033[0;37m'
     NC = '\033[0m'  # No Color
 
     print(f"\n{CYAN}{'=' * 40}{NC}")
     print(f"{GREEN}     PHP 恶意代码扫描器管理系统{NC}")
-    print(f"{WHITE}教程：{NC}https://woniu336.github.io/p/328/")
+    print(f"教程：https://woniu336.github.io/p/328/")
     print(f"{CYAN}{'=' * 40}{NC}")
-    print(f"{BLUE}1.{NC} {WHITE}下载脚本{NC}")
-    print(f"{BLUE}2.{NC} {WHITE}添加网站目录监控{NC}")
-    print(f"{BLUE}3.{NC} {WHITE}删除网站目录监控{NC}")
-    print(f"{BLUE}4.{NC} {WHITE}添加恶意域名{NC}")
-    print(f"{BLUE}5.{NC} {WHITE}更新钉钉通知 Webhook{NC}")
-    print(f"{BLUE}6.{NC} {WHITE}设置定时任务{NC}")
-    print(f"{BLUE}7.{NC} {WHITE}执行扫描{NC}")
-    print(f"{BLUE}8.{NC} {WHITE}管理排除目录{NC}")
-    print(f"{BLUE}9.{NC} {WHITE}设置脚本启动快捷键{NC}")
-    print(f"{BLUE}0.{NC} {WHITE}退出{NC}")
+    print(f"{BLUE}1.{NC} 下载脚本")
+    print(f"{BLUE}2.{NC} 添加网站目录监控")
+    print(f"{BLUE}3.{NC} 删除网站目录监控")
+    print(f"{BLUE}4.{NC} 添加恶意域名")
+    print(f"{BLUE}5.{NC} 更新钉钉通知 Webhook")
+    print(f"{BLUE}6.{NC} 设置定时任务")
+    print(f"{BLUE}7.{NC} 执行扫描")
+    print(f"{BLUE}8.{NC} 管理排除目录")
+    print(f"{BLUE}9.{NC} 设置脚本启动快捷键")
+    print(f"{BLUE}0.{NC} 退出")
     print(f"{CYAN}{'=' * 40}{NC}")
 
 def main_menu():
