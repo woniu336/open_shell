@@ -20,7 +20,7 @@ if [ "$success" != "true" ]; then
 fi
 
 # 解析 DNS 记录信息以获取 DNS 记录 ID 和对应的域名
-echo "解析 DNS 记录信息..."
+echo "DNS 记录信息获取成功！"
 dns_records=$(echo "${response}" | jq -r '.result[] | "\(.name):\(.id)"')
 dns_record_ids=""
 while IFS= read -r line; do
@@ -29,9 +29,7 @@ while IFS= read -r line; do
     dns_record_ids+="\n    '${domain}': '${id}',"
 done <<< "$dns_records"
 dns_record_ids="${dns_record_ids#\\n}"
-
-# 保存 DNS 记录 ID 到临时文件
-echo -e "${dns_record_ids}" > dns_record_ids.txt
+dns_record_ids="${dns_record_ids%,}"  # 移除最后一个逗号
 
 # 获取备用 IP
 read -p "请输入备用 IP: " backup_ip
@@ -48,17 +46,19 @@ subdomains_arr=(${subdomains// / })
 subdomains_str=$(printf "'%s', " "${subdomains_arr[@]}")
 subdomains_str="[${subdomains_str%, }]"
 
-# 替换 Python 脚本中的变量
+# 更新 Python 脚本中的变量
 sed -i "s/api_key = '.*'/api_key = '${api_key}'/" dns_update.py
 sed -i "s/email = '.*'/email = '${email}'/" dns_update.py
 sed -i "s/zone_id = '.*'/zone_id = '${zone_id}'/" dns_update.py
+
+# 删除旧的 dns_record_ids 定义并添加新的
+sed -i '/dns_record_ids = {/,/}/d' dns_update.py
 sed -i "/zone_id = '${zone_id}'/a\ " dns_update.py
-sed -i "/zone_id = '${zone_id}'/a\# 创建一个字典，将子域名映射到对应的 DNS 记录 ID" dns_update.py
 sed -i "/zone_id = '${zone_id}'/a\dns_record_ids = {${dns_record_ids}}" dns_update.py
+
 sed -i "s/server_ip = '.*'/server_ip = '${server_ip}'/" dns_update.py
 sed -i "s/backup_ip = '.*'/backup_ip = '${backup_ip}'/" dns_update.py
 sed -i "s/port = .*/port = ${port}/" dns_update.py
-sed -i "s|'YOUR_PORT'|${port}|" dns_update.py
 sed -i "s|subdomains = \[.*\]|subdomains = ${subdomains_str}|" dns_update.py
 
-echo "成功替换 Python 脚本中的变量。"
+echo "成功更新 Python 脚本中的变量。"

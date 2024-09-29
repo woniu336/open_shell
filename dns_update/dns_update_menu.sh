@@ -26,15 +26,17 @@ show_menu() {
     echo -e "${BLUE}│ ${GREEN}6.${NC} 安装依赖                             ${BLUE}│${NC}"
     echo -e "${BLUE}│ ${GREEN}7.${NC} 切换 CDN 状态                        ${BLUE}│${NC}"
     echo -e "${BLUE}│ ${GREEN}8.${NC} 设置服务器备注                       ${BLUE}│${NC}"
-    echo -e "${BLUE}│ ${GREEN}9.${NC} 退出                                 ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}9.${NC} 设置脚本启动快捷键                   ${BLUE}│${NC}"
+    echo -e "${BLUE}│ ${GREEN}0.${NC} 退出                                 ${BLUE}│${NC}"
     echo -e "${BLUE}└─────────────────────────────────────────┘${NC}"
 }
 
-# 函数：设置 Cloudflare 配置
+# 函数:设置 Cloudflare 配置
 setup_cloudflare() {
     echo -e "${GREEN}正在设置 Cloudflare 配置...${NC}"
     ./dns_update.sh
     echo -e "${GREEN}Cloudflare 配置已完成。${NC}"
+    restart_dns_update_process
 }
 
 # 函数：设置钉钉机器人配置
@@ -48,6 +50,7 @@ setup_dingtalk() {
     sed -i "s/SECRET = .*/SECRET = \"$secret\"/" $PYTHON_SCRIPT
 
     echo -e "${GREEN}钉钉机器人配置已更新到 $PYTHON_SCRIPT${NC}"
+    restart_dns_update_process
 }
 
 # 函数：运行 DNS 更新脚本
@@ -200,13 +203,34 @@ set_server_remark() {
     echo "$remark" > $SERVER_REMARK_FILE
     sed -i "s/SERVER_REMARK = .*/SERVER_REMARK = \"$remark\"/" $PYTHON_SCRIPT
     echo -e "${GREEN}服务器备注已设置为: $remark${NC}"
+    restart_dns_update_process
+}
+
+# 新增函数：设置脚本启动快捷键
+set_shortcut() {
+    while true; do
+        clear
+        read -e -p "请输入你想要的快捷按键（输入0退出）: " shortcut
+        if [ "$shortcut" == "0" ]; then
+            break
+        fi
+
+        sed -i '/alias.*dns_update_menu.sh/d' ~/.bashrc
+
+        echo "alias $shortcut='bash $PWD/dns_update_menu.sh'" >> ~/.bashrc
+        sleep 1
+        source ~/.bashrc
+
+        echo -e "${GREEN}快捷键已设置${NC}"
+        break
+    done
 }
 
 # 主循环
 while true; do
     clear
     show_menu
-    read -p "请选择操作 (1-9): " choice
+    read -p "请选择操作 (0-9): " choice
     echo
     case $choice in
         1) setup_cloudflare ;;
@@ -217,7 +241,8 @@ while true; do
         6) install_dependencies ;;
         7) toggle_cdn_status ;;
         8) set_server_remark ;;
-        9) echo -e "${YELLOW}感谢使用，再见！${NC}"; exit 0 ;;
+        9) set_shortcut ;;
+        0) echo -e "${YELLOW}感谢使用，再见！${NC}"; exit 0 ;;
         *) echo -e "${RED}无效选择，请重新输入。${NC}" ;;
     esac
     echo

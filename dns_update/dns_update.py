@@ -114,7 +114,7 @@ def main():
     while True:
         try:
             if not server_down and not check_tcp_port(server_ip, port):
-                message = f"服务器宕机，切换到备用IP {backup_ip}..."
+                message = f"服务器宕机，切换到备用IP {backup_ip}"
                 print(message)
                 send_dingtalk_notification(message)
                 for subdomain in subdomains:
@@ -122,7 +122,7 @@ def main():
                 using_backup_ip = True
                 server_down = True
             elif server_down and check_tcp_port(server_ip, port):
-                message = f"服务器已恢复，切换回原始IP {original_ip}..."
+                message = f"服务器已恢复，切换回原始IP {original_ip}"
                 print(message)
                 send_dingtalk_notification(message)
                 for subdomain in subdomains:
