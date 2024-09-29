@@ -1,10 +1,56 @@
 import socket
 import time
 import requests
+import hmac
+import hashlib
+import base64
+import urllib.parse
 
+# Cloudflare 配置
 api_key = ''
 email = ''
 zone_id = ''
+
+# 钉钉机器人配置
+ACCESS_TOKEN = "YOUR_ACCESS_TOKEN"
+SECRET = "YOUR_SECRET"
+
+# 服务器备注（将由 Bash 脚本更新）
+SERVER_REMARK = ""
+
+def generate_sign():
+    # 生成钉钉机器人签名
+    timestamp = str(round(time.time() * 1000))
+    secret_enc = SECRET.encode('utf-8')
+    string_to_sign = f'{timestamp}\n{SECRET}'
+    string_to_sign_enc = string_to_sign.encode('utf-8')
+    hmac_code = hmac.new(secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
+    sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
+    return timestamp, sign
+
+def send_dingtalk_notification(message):
+    # 在消息前添加服务器备注
+    if SERVER_REMARK:
+        message = f"[{SERVER_REMARK}] {message}"
+    
+    # 发送钉钉通知
+    timestamp, sign = generate_sign()
+    webhook_url = f"https://oapi.dingtalk.com/robot/send?access_token={ACCESS_TOKEN}&timestamp={timestamp}&sign={sign}"
+    
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        "msgtype": "text",
+        "text": {
+            "content": message
+        },
+        "at": {
+            "isAtAll": False
+        }
+    }
+    
+    response = requests.post(webhook_url, headers=headers, json=data)
+    print(f"钉钉通知发送状态: {response.status_code}")
+    print(f"钉钉通知响应: {response.text}")
 
 def check_tcp_port(server_ip, port):
     try:
@@ -39,12 +85,18 @@ def update_dns_record(subdomain, ip, proxied=False):
         url = f'https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records/{dns_record_id}'
 
         response = requests.put(url, headers=headers, json=data)
-        if response.status_code == 200:
+        response_json = response.json()
+        
+        if response.status_code == 200 and response_json.get('success'):
             print(f"DNS记录更新成功！ 子域名: {subdomain}")
         else:
             print(f"DNS记录更新失败！ 子域名: {subdomain}")
+            print(f"错误信息: {response_json.get('errors')}")
+            print(f"响应内容: {response_json}")
     except KeyError:
         print(f"未找到子域名 {subdomain} 的 DNS 记录 ID")
+    except Exception as e:
+        print(f"更新 DNS 记录时发生错误: {e}")
 
 def main():
     server_ip = ''
@@ -59,26 +111,32 @@ def main():
     while True:
         try:
             if not server_down and not check_tcp_port(server_ip, port):
-                print("服务器宕机，切换到备用IP并开启代理...")
+                message = f"服务器宕机，切换到备用IP {backup_ip}"
+                print(message)
+                send_dingtalk_notification(message)
                 for subdomain in subdomains:
-                    update_dns_record(subdomain, backup_ip, proxied=True)
+                    update_dns_record(subdomain, backup_ip, proxied=False)
                 using_backup_ip = True
                 server_down = True
             elif server_down and check_tcp_port(server_ip, port):
-                print("服务器已恢复，切换回原始IP并关闭代理...")
+                message = f"服务器已恢复，切换回原始IP {original_ip}"
+                print(message)
+                send_dingtalk_notification(message)
                 for subdomain in subdomains:
                     update_dns_record(subdomain, original_ip, proxied=False)
                 using_backup_ip = False
                 server_down = False
 
             if using_backup_ip:
-                print("域名正在使用备用IP，并已开启代理。")
+                print("域名正在使用备用IP。")
             else:
                 print("服务器端口正常，5分钟后再次检查...")
 
             time.sleep(300)  # 5分钟后再次检查
         except Exception as e:
-            print(f"发生未捕获的异常：{e}")
+            error_message = f"发生未捕获的异常：{e}"
+            print(error_message)
+            send_dingtalk_notification(error_message)
 
 if __name__ == "__main__":
     main()
