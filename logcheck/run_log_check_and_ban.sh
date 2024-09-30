@@ -9,6 +9,9 @@ cd /root/logcheck
 # 运行 logcheck.py
 /usr/bin/python3 logcheck.py
 
+# 运行 web_log_monitor.py
+/usr/bin/python3 web_log_monitor.py
+
 # 运行 ban_severe_risk_ips.py
 /usr/bin/python3 ban_severe_risk_ips.py
 

@@ -182,7 +182,7 @@ class LogAnalyzer:
                     self.record_severe_risk_ip(ip)
 
         if banned_ips:
-            self.log("\n## 自动封禁的高频率访问IP\n")
+            self.log("\n## 自动封禁的高频率访问IP（每分钟请求超过70次）\n")
             self.log(f"共封禁 {len(banned_ips)} 个IP地址：")
             for ip in banned_ips:
                 self.log(f"- {ip}")
