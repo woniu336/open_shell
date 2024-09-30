@@ -26,6 +26,7 @@ OUTPUT_PATH = os.path.join(OUTPUT_FOLDER, "log_analysis.txt")
 # 定义白名单文件路径
 WHITELIST_PATH = "/root/logcheck/ip_whitelist.txt"
 
+# 扩展常见爬虫IP列表
 CRAWLER_IPS = [
     ipaddress.ip_network("66.249.64.0/19"),  # Googlebot
     ipaddress.ip_network("66.249.79.0/24"),  # 新添加的Googlebot IP范围
@@ -121,7 +122,7 @@ def get_suspicious_ips(ip_time_pairs, reader, whitelist):
     
     suspicious_ips = []
     for ip, minute_counts in ip_minute_counts.items():
-        if any(count >= 20 for count in minute_counts.values()):
+        if any(count >= 30 for count in minute_counts.values()):
             max_count = max(minute_counts.values())
             continent, _, _ = get_ip_location(ip, reader)
             region = "亚洲" if continent == "Asia" else "北美洲" if continent == "North America" else "未知"
@@ -149,7 +150,7 @@ def write_results_to_file(output_path, asia_ips, north_america_ips, suspicious_i
         for (ip, city), count in get_top_ips(north_america_ips):
             f.write(f"| {ip} | {count} | {city or 'None'} |\n")
         
-        f.write(f"\n## 可疑IP（每分钟访问20次以上）\n\n")
+        f.write(f"\n## 可疑IP（每分钟访问30次以上）\n\n")
         f.write("| IP | 最大每分钟访问次数 | 地区 |\n")
         f.write("|-----|--------------------|---------|\n")
         for ip, max_count, region in suspicious_ips:

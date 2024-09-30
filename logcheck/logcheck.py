@@ -175,7 +175,14 @@ def format_output(attacks):
     
     # 添加生成严重风险IP日志的部分
     severe_risk_log = "/root/logcheck/severe_risk_ips.log"
-    with open(severe_risk_log, 'w') as log_file:
+    existing_ips = set()
+    try:
+        with open(severe_risk_log, 'r') as f:
+            existing_ips = set(line.strip() for line in f)
+    except FileNotFoundError:
+        pass
+
+    with open(severe_risk_log, 'a') as log_file:
         for ip, data in attacks.items():
             if data["attack_types"] and (len(data["statuses"]) > 1 or 200 not in data["statuses"]):
                 attack_info = {
@@ -192,8 +199,10 @@ def format_output(attacks):
                 
                 if data["severity"] == "严重":
                     severe_attacks.append(attack_info)
-                    # 将严重风险IP写入日志
-                    log_file.write(f"{ip}\n")
+                    # 将严重风险IP写入日志，如果不存在
+                    if ip not in existing_ips:
+                        log_file.write(f"{ip}\n")
+                        existing_ips.add(ip)
                 else:
                     minor_attacks.append(attack_info)
     
@@ -205,22 +214,6 @@ def format_output(attacks):
 
     print(f"\n严重风险IP已记录到 {severe_risk_log}")
 
-    if severe_attacks:
-        print("\n是否要将所有严重风险IP关进小黑屋？")
-        choice = input("输入 'y' 确认，回车键取消: ")
-        if choice.lower() == 'y':
-            for attack in severe_attacks:
-                ip = attack['ip']
-                #command = f"sudo fail2ban-client set fail2ban-nginx-cc banip {ip}"
-                command = f"sudo ufw insert 1 deny from {ip} to any"
-                print(f"执行命令: {command}")
-                # 取消下面的注释以实际执行命令
-                import os
-                os.system(command)
-            print("所有严重风险IP已被关进小黑屋。")
-        else:
-            print("操作已取消。")
-            
 def print_attack_table(attacks):
     print("| 恶意IP | 返回状态码 | 攻击开始时间 | 时间跨度 | 攻击方式 | 请求次数 | 请求频率(/秒) | 404状态次数 | 严重程度 |")
     print("|---------|------------|--------------|----------|----------|----------|----------------|-------------|----------|")

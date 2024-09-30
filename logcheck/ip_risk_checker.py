@@ -11,7 +11,7 @@ def extract_suspicious_ips(log_analysis_file):
     with open(log_analysis_file, 'r', encoding='utf-8') as f:
         content = f.read()
         # 使用正则表达式匹配可疑IP表格
-        table_pattern = re.compile(r'## 可疑IP（每分钟访问20次以上）\s*\n\s*\|.*?\|(.*?)(?=\n\n|\Z)', re.DOTALL)
+        table_pattern = re.compile(r'## 可疑IP（每分钟访问30次以上）\s*\n\s*\|.*?\|(.*?)(?=\n\n|\Z)', re.DOTALL)
         table_match = table_pattern.search(content)
         if table_match:
             table_content = table_match.group(1)
