@@ -16,6 +16,10 @@ class GitUI(QWidget):
         super().__init__()
         self.initUI()
         self.check_and_init_git_repo()
+        
+        # 禁用强制删除分支的警告
+        subprocess.run(['git', 'config', '--global', 'advice.forceDeleteBranch', 'false'], 
+                       check=True, capture_output=True, text=True)
 
     def check_and_init_git_repo(self):
         if not os.path.exists('.git'):
@@ -94,6 +98,14 @@ class GitUI(QWidget):
         switch_previous_button = QPushButton('切换到上一个分支')
         switch_previous_button.clicked.connect(self.switch_previous)
         branch_layout.addWidget(switch_previous_button, 2, 0, 1, 3)
+
+        # 添加删除分支功能
+        self.delete_branch_input = QLineEdit()
+        delete_branch_button = QPushButton('删除分支')
+        delete_branch_button.clicked.connect(self.delete_branch)
+        branch_layout.addWidget(QLabel("删除分支:"), 3, 0)
+        branch_layout.addWidget(self.delete_branch_input, 3, 1)
+        branch_layout.addWidget(delete_branch_button, 3, 2)
 
         branch_group.setLayout(branch_layout)
         main_layout.addWidget(branch_group)
@@ -289,6 +301,42 @@ class GitUI(QWidget):
         if reply == QMessageBox.Yes:
             if self.run_git_command(['git', 'commit', '--amend']):
                 self.update_commit_history()
+
+    def delete_branch(self):
+        branch_name = self.delete_branch_input.text()
+        if not branch_name:
+            QMessageBox.warning(self, '错误', '请输入要删除的分支名称')
+            return
+        
+        # 检查是否为当前分支
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current'], text=True).strip()
+        if branch_name == current_branch:
+            QMessageBox.warning(self, '错误', '不能删除当前所在的分支')
+            return
+
+        # 尝试普通删除
+        try:
+            subprocess.run(['git', 'branch', '-d', branch_name], check=True, capture_output=True, text=True)
+            QMessageBox.information(self, '成功', f'分支 "{branch_name}" 已成功删除')
+            self.update_branch_info()
+            self.delete_branch_input.clear()
+        except subprocess.CalledProcessError as e:
+            # 如果普通删除失败，询问用户是否要强制删除
+            if "not fully merged" in e.stderr:
+                reply = QMessageBox.question(self, '未合并的分支',
+                                             f'分支 "{branch_name}" 尚未完全合并。是否要强制删除？\n'
+                                             '警告：这可能会导致未提交的更改丢失。',
+                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    try:
+                        subprocess.run(['git', 'branch', '-D', branch_name], check=True, capture_output=True, text=True)
+                        QMessageBox.information(self, '成功', f'分支 "{branch_name}" 已强制删除')
+                        self.update_branch_info()
+                        self.delete_branch_input.clear()
+                    except subprocess.CalledProcessError as e:
+                        QMessageBox.warning(self, '错误', f'无法删除分支：{e.stderr}')
+            else:
+                QMessageBox.warning(self, '错误', f'无法删除分支：{e.stderr}')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
