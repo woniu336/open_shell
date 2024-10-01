@@ -173,8 +173,7 @@ class GitUI(QWidget):
 
     def run_git_command(self, command):
         try:
-            # 使用 universal_newlines=True 来确保文本模式
-            result = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', universal_newlines=True)
+            result = subprocess.run(command, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
             QMessageBox.information(self, '成功', result.stdout)
             return True
         except subprocess.CalledProcessError as e:
@@ -277,9 +276,12 @@ class GitUI(QWidget):
     def amend_commit(self):
         # 检查是否有提交历史
         try:
-            subprocess.check_output(['git', 'log', '-1'], text=True)
+            subprocess.check_output(['git', 'log', '-1'], text=True, encoding='utf-8', errors='replace')
         except subprocess.CalledProcessError:
             QMessageBox.warning(self, '错误', '没有提交历史，无法修改最后一次提交')
+            return
+        except UnicodeDecodeError:
+            QMessageBox.warning(self, '错误', '无法解码Git日志，可能存在编码问题')
             return
 
         reply = QMessageBox.question(self, '确认', '这将修改最后一次提交。确定要继续吗？',
