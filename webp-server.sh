@@ -28,7 +28,6 @@ create_directories() {
 # 创建docker-compose.yml的函数
 create_docker_compose() {
     cat > docker-compose.yml <<EOL
-version: '3'
 services:
   webp:
     image: webpsh/webp-server-go
@@ -99,6 +98,21 @@ create_config() {
   "MAX_CACHE_SIZE": 0
 }
 EOL
+
+    # 检查是否存在运行中的容器
+    if docker ps --format '{{.Ports}}' | grep -q "3333"; then
+        echo "检测到运行中的 3333 端口容器，正在重启..."
+        # 动态获取服务名称
+        local service_name=$(docker compose ps --services | grep -i webp)
+        if [ -n "$service_name" ]; then
+            docker compose restart $service_name
+            echo "容器已重启。"
+        else
+            echo "未找到 WebP 相关的服务，但检测到 3333 端口被占用。请检查是否有其他服务正在使用该端口。"
+        fi
+    else
+        echo "没有检测到运行中的 3333 端口容器。配置将在启动容器时生效。"
+    fi
 }
 
 # 启动Docker容器的函数
@@ -114,8 +128,23 @@ main() {
     check_docker_compose
     create_directories
     create_docker_compose
-    create_config
+    
+    local first_install=true
+    
+    while true; do
+        create_config
+        if $first_install; then
+            break
+        fi
+        read -p "是否要重新配置？(yes/y/no/n): " reconfigure
+        reconfigure=$(echo "$reconfigure" | tr '[:upper:]' '[:lower:]')
+        if [[ "$reconfigure" != "yes" && "$reconfigure" != "y" ]]; then
+            break
+        fi
+    done
+    
     start_container
+    first_install=false
     
     echo "WebP服务器设置成功完成！"
     echo "记得为3333端口设置反向代理。"
