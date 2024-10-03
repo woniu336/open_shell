@@ -476,7 +476,7 @@ ufw_management() {
                 log_info "UFW 已关闭"
                 ;;
             6)
-                sudo ufw status verbose
+                sudo ufw status numbered
                 ;;
             7)
                 add_fail2ban_ips_to_ufw
