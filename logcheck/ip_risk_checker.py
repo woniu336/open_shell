@@ -35,7 +35,7 @@ def view_blocked_ips():
     os.system("sudo ufw status | grep DENY")
 
 def view_ufw_status():
-    os.system("sudo ufw status")
+    os.system("sudo ufw status numbered")
 
 def add_to_whitelist(ip):
     # 读取现有白名单
