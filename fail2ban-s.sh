@@ -4,7 +4,7 @@
 DINGTALK_WEBHOOK=""
 
 # 通知频率(默认为600秒)
-NOTIFICATION_INTERVAL=600
+NOTIFICATION_INTERVAL=7200
 
 # 设置钉钉 Webhook 函数 (如果还未更新)
 set_dingtalk_webhook() {
@@ -569,6 +569,54 @@ manual_ban_ip() {
     fi
 }
 
+modify_ssh_port() {
+    local config_file="/etc/fail2ban/jail.d/sshd.local"
+    
+    # 检查配置文件是否存在
+    if [ ! -f "$config_file" ]; then
+        log_error "Fail2ban 配置文件 $config_file 不存在"
+        return 1
+    fi
+    
+    # 获取系统当前的 SSH 端口
+    current_system_port=$(ss -tlnp | grep sshd | awk '{print $4}' | cut -d':' -f2)
+    
+    # 获取 Fail2ban 配置中的 SSH 端口
+    current_fail2ban_port=$(grep "^port =" "$config_file" | awk '{print $3}')
+    
+    echo -e "${YELLOW}系统当前的 SSH 端口: $current_system_port${NC}"
+    echo -e "${YELLOW}Fail2ban 配置中的 SSH 端口: $current_fail2ban_port${NC}"
+    
+    # 检查是否需要更新
+    if [ "$current_system_port" != "$current_fail2ban_port" ]; then
+        echo -e "${CYAN}检测到 Fail2ban 配置与系统实际 SSH 端口不一致${NC}"
+        read -p "$(echo -e ${YELLOW}"是否更新 Fail2ban 配置以匹配系统 SSH 端口? (y/n): "${NC})" update_choice
+        
+        if [[ $update_choice =~ ^[Yy]$ ]]; then
+            # 更新配置文件
+            sed -i "s/^port = .*/port = $current_system_port/" "$config_file"
+            
+            if [ $? -eq 0 ]; then
+                log_info "Fail2ban 配置中的 SSH 端口已更新为 $current_system_port"
+                
+                # 重启 Fail2ban 服务
+                systemctl restart fail2ban
+                if [ $? -eq 0 ]; then
+                    log_info "Fail2ban 服务已重启,新配置已生效"
+                else
+                    log_error "Fail2ban 服务重启失败,请手动重启以使新配置生效"
+                fi
+            else
+                log_error "更新 Fail2ban 配置中的 SSH 端口失败"
+            fi
+        else
+            log_info "保持当前配置不变"
+        fi
+    else
+        echo -e "${GREEN}Fail2ban 配置中的 SSH 端口与系统当前端口一致,无需更改${NC}"
+    fi
+}
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -590,21 +638,22 @@ main_menu() {
         echo -e "${CYAN}1.${NC} 重装 Fail2ban"
         echo -e "${CYAN}2.${NC} 开启 SSH 防暴力破解"
         echo -e "${CYAN}3.${NC} 关闭 SSH 防暴力破解"
-        echo -e "${CYAN}4.${NC} 模拟 SSH 登录失败"
-        echo -e "${CYAN}5.${NC} 开启网站保护"
-        echo -e "${CYAN}6.${NC} 关闭网站保护"
-        echo -e "${CYAN}7.${NC} 查看所有拦截记录⭐"
-        echo -e "${CYAN}8.${NC} 查看日志实时监控"
-        echo -e "${CYAN}9.${NC} 配置拦截参数"
-        echo -e "${CYAN}10.${NC} 卸载防御程序"
-        echo -e "${CYAN}11.${NC} 解除被 ban 的 IP"
-        echo -e "${CYAN}12.${NC} 修改监控日志路径⭐"
-        echo -e "${CYAN}13.${NC} 钉钉通知设置"
-        echo -e "${CYAN}14.${NC} 启动钉钉通知监控"
-        echo -e "${CYAN}15.${NC} 停止钉钉通知监控"
-        echo -e "${CYAN}16.${NC} UFW 防火墙管理"
-        echo -e "${CYAN}17.${NC} 丢进小黑屋"
-        echo -e "${CYAN}18.${NC} 设置脚本启动快捷键⭐"
+        echo -e "${CYAN}4.${NC} 更新 SSH 端口配置⭐"
+        echo -e "${CYAN}5.${NC} 模拟 SSH 登录失败"
+        echo -e "${CYAN}6.${NC} 开启网站保护"
+        echo -e "${CYAN}7.${NC} 关闭网站保护"
+        echo -e "${CYAN}8.${NC} 查看所有拦截记录⭐"
+        echo -e "${CYAN}9.${NC} 查看日志实时监控"
+        echo -e "${CYAN}10.${NC} 配置拦截参数"
+        echo -e "${CYAN}11.${NC} 卸载防御程序"
+        echo -e "${CYAN}12.${NC} 解除被 ban 的 IP"
+        echo -e "${CYAN}13.${NC} 修改监控日志路径⭐"
+        echo -e "${CYAN}14.${NC} 钉钉通知设置"
+        echo -e "${CYAN}15.${NC} 启动钉钉通知监控"
+        echo -e "${CYAN}16.${NC} 停止钉钉通知监控"
+        echo -e "${CYAN}17.${NC} UFW 防火墙管理"
+        echo -e "${CYAN}18.${NC} 丢进小黑屋"
+        echo -e "${CYAN}19.${NC} 设置脚本启动快捷键⭐"
         echo -e "${RED}0.${NC} 退出"
         echo -e "${CYAN}================================================${NC}"
         echo
@@ -624,31 +673,34 @@ main_menu() {
                 log_info "SSH防暴力破解已关闭"
                 ;;
             4)
+                modify_ssh_port
+                ;;
+            5)
                 check_ssh_port
                 test_ssh_fail2ban
                 ;;
-            5)
+            6)
                 sed -i 's/false/true/g' /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "网站保护已开启"
                 ;;
-            6)
+            7)
                 sed -i 's/true/false/g' /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "网站保护已关闭"
                 ;;
-            7)
+            8)
                 view_website_bans
                 ;;
-            8)
+            9)
                 tail -f /var/log/fail2ban.log
                 ;;
-            9)
+            10)
                 nano /etc/fail2ban/jail.d/nginx.local
                 systemctl restart fail2ban
                 log_info "配置已更新，fail2ban 服务已重启"
                 ;;
-            10)
+            11)
                 read -p "$(echo -e ${RED}"确定要卸载防御程序吗？此操作将完全移除 Fail2ban (y/n): "${NC})" confirm
                 if [ "$confirm" = "y" ]; then
                     uninstall_fail2ban
@@ -656,18 +708,18 @@ main_menu() {
                     log_info "取消卸载"
                 fi
                 ;;
-            11)
+            12)
                 read -p "请输入被ban的IP地址: " banned_ip
                 sudo fail2ban-client unban $banned_ip
                 log_info "IP $banned_ip 已解除封禁"
                 ;;
-            12)
+            13)
                 modify_log_path
                 ;;
-            13)
+            14)
                 dingtalk_submenu
                 ;;
-            14)
+            15)
                 if [ -z "$DINGTALK_WEBHOOK" ]; then
                     log_error "请先设置钉钉 Webhook"
                 elif [ -f /var/run/fail2ban_monitor.pid ]; then
@@ -679,7 +731,7 @@ main_menu() {
                     log_info "监控进程已在后台启动（PID: $(cat /var/run/fail2ban_monitor.pid)）"
                 fi
                 ;;
-            15)
+            16)
                 if [ -f /var/run/fail2ban_monitor.pid ]; then
                     kill $(cat /var/run/fail2ban_monitor.pid)
                     rm /var/run/fail2ban_monitor.pid
@@ -688,13 +740,13 @@ main_menu() {
                     log_info "没有正在运行的监控进程"
                 fi
                 ;;
-            16)
+            17)
                 ufw_management
                 ;;
-            17)
+            18)
                 manual_ban_ip
                 ;;
-            18)
+            19)
                 set_shortcut
                 ;;
             0)
