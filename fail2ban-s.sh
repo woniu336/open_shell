@@ -496,15 +496,16 @@ ufw_management() {
 add_fail2ban_ips_to_ufw() {
     echo -e "${YELLOW}正在将 fail2ban 拉黑的 IP 添加到 UFW...${NC}"
     
-    # 获取所有 fail2ban 拉黑的 IP
-    banned_ips=$(sudo fail2ban-client banned | python3 -c "
-import sys, json
-data = json.loads(sys.stdin.read().replace(\"'\", '\"'))
-for jail in data:
-    for ips in jail.values():
-        for ip in ips:
-            print(ip)
-")
+    # 获取所有 jail
+    jails=$(sudo fail2ban-client status | grep "Jail list:" | sed -E 's/^[^:]+:[ \t]+//' | sed 's/,//g')
+    
+    banned_ips=""
+    for jail in $jails; do
+        jail_banned_ips=$(sudo fail2ban-client status $jail | grep "Banned IP list:" | sed -E 's/^[^:]+:[ \t]+//')
+        banned_ips+=" $jail_banned_ips"
+    done
+    
+    banned_ips=$(echo $banned_ips | tr ' ' '\n' | sort | uniq)
     
     if [ -z "$banned_ips" ]; then
         echo -e "${YELLOW}当前没有被 fail2ban 拉黑的 IP。${NC}"
@@ -512,21 +513,22 @@ for jail in data:
     fi
     
     # 遍历每个 IP 并添加到 UFW
-    while read -r ip; do
-        if sudo ufw status | grep -q $ip; then
-            echo -e "${YELLOW}IP $ip 已经在 UFW 黑名单中。${NC}"
-        else
-            if sudo ufw insert 1 deny from $ip to any; then
-                echo -e "${GREEN}已将 IP $ip 添加到 UFW 黑名单。${NC}"
+    echo "$banned_ips" | while read -r ip; do
+        if [ -n "$ip" ]; then
+            if sudo ufw status | grep -q $ip; then
+                echo -e "${YELLOW}IP $ip 已经在 UFW 黑名单中。${NC}"
             else
-                echo -e "${RED}添加 IP $ip 到 UFW 黑名单失败。${NC}"
+                if sudo ufw insert 1 deny from $ip to any; then
+                    echo -e "${GREEN}已将 IP $ip 添加到 UFW 黑名单。${NC}"
+                else
+                    echo -e "${RED}添加 IP $ip 到 UFW 黑名单失败。${NC}"
+                fi
             fi
         fi
-    done <<< "$banned_ips"
+    done
     
     echo -e "${GREEN}操作完成。${NC}"
 }
-
 # 修改: 手动拦截恶意 IP 函数
 manual_ban_ip() {
     echo -e "${YELLOW}手动拦截恶意 IP${NC}"
