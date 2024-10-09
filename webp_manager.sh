@@ -95,7 +95,7 @@ process_images() {
         if [[ "$filename" =~ \.(png|gif)$ ]]; then
             convert_cmd="magick '$file' -define webp:lossless=true -define webp:method=6 '${dir}/${webp_filename}'"
         else
-            convert_cmd="magick '$file' -quality 85 -define webp:method=6 -define webp:image-hint=photo '${dir}/${webp_filename}'"
+            convert_cmd="magick '$file' -quality 70 -define webp:method=6 -define webp:image-hint=photo '${dir}/${webp_filename}'"
         fi
 
         if eval $convert_cmd; then
