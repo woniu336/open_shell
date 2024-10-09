@@ -443,10 +443,8 @@ ufw_management() {
         echo -e "${CYAN}1.${NC} 屏蔽 IP"
         echo -e "${CYAN}2.${NC} 解除 IP 屏蔽"
         echo -e "${CYAN}3.${NC} 查看已屏蔽的 IP"
-        echo -e "${CYAN}4.${NC} 开启 UFW"
-        echo -e "${CYAN}5.${NC} 关闭 UFW"
-        echo -e "${CYAN}6.${NC} 查看 UFW 状态"
-        echo -e "${CYAN}7.${NC} 将 fail2ban 拉黑 IP 添加到 UFW"
+        echo -e "${CYAN}4.${NC} 查看 UFW 状态"
+        echo -e "${CYAN}5.${NC} 将 fail2ban 拉黑 IP 添加到 UFW"
         echo -e "${CYAN}0.${NC} 返回主菜单"
         echo
         echo -e "${BLUE}================================================${NC}"
@@ -468,17 +466,9 @@ ufw_management() {
                 sudo ufw status | grep DENY
                 ;;
             4)
-                sudo ufw enable
-                log_info "UFW 已开启"
-                ;;
-            5)
-                sudo ufw disable
-                log_info "UFW 已关闭"
-                ;;
-            6)
                 sudo ufw status numbered
                 ;;
-            7)
+            5)
                 add_fail2ban_ips_to_ufw
                 ;;
             0)
