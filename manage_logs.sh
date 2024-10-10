@@ -199,8 +199,8 @@ set_cron_job() {
     fi
     
     # 设置定时任务
-    if (crontab -l ; echo "18 2 * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -; then
-        echo "定时任务已设置。每天凌晨 2:18 执行。"
+    if (crontab -l ; echo "0 10,14,17 * * * /root/logcheck/run_log_check_and_ban.sh >> /root/logcheck/cron_run.log 2>&1") | crontab -; then
+        echo "定时任务已设置。每天的 10:00、14:00 和 17:00 执行"
         echo "任务将执行 run_log_check_and_ban.sh 脚本"
         echo "风险IP将保存在 /root/logcheck/severe_risk_ips.log"
     else

@@ -571,7 +571,7 @@ modify_ssh_port() {
     fi
     
     # 获取系统当前的 SSH 端口
-    current_system_port=$(ss -tlnp | grep sshd | awk '{print $4}' | cut -d':' -f2)
+    current_system_port=$(ss -tlnp | grep sshd | awk '{print $4}' | cut -d':' -f2 | sort -n | tail -n 1)
     
     # 获取 Fail2ban 配置中的 SSH 端口
     current_fail2ban_port=$(grep "^port =" "$config_file" | awk '{print $3}')
