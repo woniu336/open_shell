@@ -1,1 +1,9 @@
+
+=========安装依赖=============
+
 pip install pandas openpyxl requests markdown
+
+
+==========定时任务============
+
+(crontab -l ; echo "8 5 * * * cd /root && python3 quark_url.py >/dev/null 2>&1") | crontab -
