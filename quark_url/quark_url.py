@@ -1,13 +1,14 @@
 import pandas as pd
 import requests
 import time
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 def check_link(row):
     filename, url = row['文件名'], row['链接']
     
-    check_url = f'https://123.com/check_link.php?url={quote(url)}'
+    check_url = f'https://123.org/check_link/index.php?url={quote(url)}'
     try:
         response = requests.get(check_url, timeout=10)
         if response.status_code == 200:
@@ -42,9 +43,12 @@ def main():
     end_time = time.time()
     duration = end_time - start_time
     
+    current_date = datetime.now().strftime("%Y年%m月%d日 %H:%M")
+    
     content = f"""
     <div class="container">
         <h1 class="title">网盘资源监控 📊</h1>
+        <div class="monitor-date">监控日期：{current_date}</div>
 
         <div class="stats">
             <div class="stat-item">
@@ -76,12 +80,10 @@ def main():
     """
 
     for filename, url, status in invalid_links:
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc
         content += f'''
             <tr>
                 <td>{filename}</td>
-                <td><a href="{url}" target="_blank">{domain}</a></td>
+                <td><a href="{url}" target="_blank">{url}</a></td>
                 <td>{status}</td>
             </tr>
         '''
@@ -97,14 +99,12 @@ def main():
     for filename, url, status in results:
         status_class = 'valid' if status == '有效' else 'invalid'
         status_icon = '😊' if status == '有效' else '😞'
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc
         content += f'''
         <div class="link-item {status_class}">
             <div class="link-icon">{status_icon}</div>
             <div class="link-details">
                 <div class="link-filename">{filename}</div>
-                <div class="link-url"><a href="{url}" target="_blank">{domain}</a></div>
+                <div class="link-url"><a href="{url}" target="_blank">{url}</a></div>
             </div>
         </div>
         '''
@@ -154,7 +154,13 @@ def main():
                 text-align: center;
                 font-size: 28px;
                 color: #2c3e50;
-                margin-bottom: 30px;
+                margin-bottom: 10px;
+            }}
+            .monitor-date {{
+                text-align: center;
+                font-size: 16px;
+                color: #7f8c8d;
+                margin-bottom: 20px;
             }}
             .stats {{
                 display: flex;
@@ -232,6 +238,7 @@ def main():
             .link-url a {{
                 color: #3498db;
                 text-decoration: none;
+                word-break: break-all;
             }}
             .link-url a:hover {{
                 text-decoration: underline;
@@ -275,10 +282,10 @@ def main():
     </html>
     """
     
-    with open('link_check_results.html', 'w', encoding='utf-8') as f:
+    with open('index.html', 'w', encoding='utf-8') as f:
         f.write(html_doc)
     
-    print(f"检查完成，结果已保存到 link_check_results.html")
+    print(f"检查完成，结果已保存到 index.html")
     print(f"检测用时: {duration:.2f} 秒")
 
 if __name__ == "__main__":

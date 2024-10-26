@@ -1,5 +1,5 @@
 <?php
-require_once '/www/wwwroot/123.com/LinkChecker.php';
+require_once '/www/wwwroot/123.org/check_link/LinkChecker.php';
 use eking\netdisk\LinkChecker;
 
 header('Content-Type: application/json');
