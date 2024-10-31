@@ -39,7 +39,7 @@ services:
       - ./metadata:/opt/metadata
       - ./config.json:/etc/config.json
     ports:
-      - 127.0.0.1:3333:3333
+      - "3333:3333"
 EOL
 }
 
