@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 彩色输出定义
-GREEN='\033[0;32m'
+# 将原来的 GREEN 相关颜色改为科技蓝
+TECH_BLUE='\033[38;5;33m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -189,124 +189,115 @@ remove_asn_block() {
 
 # 显示当前规则
 show_rules() {
-    echo -e "${GREEN}===== 当前 ASN 拦截规则 =====${NC}"
+    echo -e "${TECH_BLUE}┌─────────────── ASN 拦截规则概览 ───────────────┐${NC}"
     echo
 
-    echo -e "${YELLOW}IPSet 规则列表:${NC}"
+    # ASN IP段统计
     if ipset list -n | grep -q "blocked-asn-"; then
+        echo -e "${TECH_BLUE}● ASN IP段统计${NC}"
+        echo "| ASN编号 | IP段总数 | /24网段数 | /23网段数 | /22网段数 | 其他网段数 |"
+        echo "|----------|-----------|------------|------------|------------|------------|"
+        
         for set in $(ipset list -n | grep "blocked-asn-"); do
-            echo "----------------------------------------"
-            echo "ASN: AS${set#blocked-asn-}"
-
-            # 获取该 ASN 的统计信息
-            local total_ips=$(ipset list "$set" | grep -c "/")
-            local ip_ranges=$(ipset list "$set" | grep -E "([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}")
-
-            # 统计不同掩码的 IP 段数量
-            echo "IP 段统计:"
-            echo "$ip_ranges" | awk -F'/' '{count[$2]++} END {
-                for (mask in count) {
-                    printf "  /%s 的网段: %d 个\n", mask, count[mask]
-                }
-            }' | sort -n -k2 -t"/"
-
-            echo "总计: $total_ips 个 IP 段"
-
-            # 显示前5个 IP 段作为示例
-            echo "示例 IP 段 (前5个):"
-            echo "$ip_ranges" | head -n 5 | sed 's/^/  /'
-
-            # 如果有更多 IP 段，显示省略信息
-            if [ "$total_ips" -gt 5 ]; then
-                echo "  ... 等共 $total_ips 个 IP 段"
-            fi
+            asn="${set#blocked-asn-}"
+            total_ips=$(ipset list "$set" | grep -c "/")
+            
+            ip_ranges=$(ipset list "$set" | grep -E "([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}")
+            count_24=$(echo "$ip_ranges" | grep -c "/24")
+            count_23=$(echo "$ip_ranges" | grep -c "/23")
+            count_22=$(echo "$ip_ranges" | grep -c "/22")
+            count_others=$((total_ips - count_24 - count_23 - count_22))
+            
+            printf "| AS%-6s | %9d | %10d | %10d | %10d | %10d |\n" \
+                "$asn" "$total_ips" "$count_24" "$count_23" "$count_22" "$count_others"
         done
     else
         echo -e "${YELLOW}当前没有 ASN 拦截规则${NC}"
     fi
 
     echo
-    echo -e "${YELLOW}IPTables 规则:${NC}"
+    # IPTables规则
+    echo -e "${TECH_BLUE}● IPTables 规则${NC}"
+    echo "| 规则类型 | 动作 | 协议 | 来源地址 | 目标地址 | ASN |"
+    echo "|----------|------|--------|-----------|-----------|-----|"
     if iptables -L INPUT -n | grep -q "match-set blocked-asn-"; then
-        iptables -L INPUT -n | grep "match-set blocked-asn-" | sed 's/^/  /'
+        iptables -L INPUT -n | grep "match-set blocked-asn-" | \
+        while read -r line; do
+            action=$(echo "$line" | awk '{print $1}')
+            proto=$(echo "$line" | awk '{print $2}')
+            src=$(echo "$line" | awk '{print $4}')
+            dst=$(echo "$line" | awk '{print $5}')
+            asn=$(echo "$line" | grep -o "blocked-asn-[0-9]\+" | sed 's/blocked-asn-/AS/')
+            printf "| IPTables | %s | %s | %s | %s | %s |\n" "$action" "$proto" "$src" "$dst" "$asn"
+        done
     else
-        echo "  没有相关 iptables 规则"
+        echo "| IPTables | 无规则 | - | - | - | - |"
     fi
 
     echo
-    echo -e "${YELLOW}UFW 规则 (/etc/ufw/before.rules):${NC}"
+    # UFW规则
+    echo -e "${TECH_BLUE}● UFW 规则${NC}"
+    echo "| 规则类型 | 链 | ASN | 动作 |"
+    echo "|----------|-----|-----|------|"
     if grep -q "blocked-asn-" /etc/ufw/before.rules; then
-        grep "blocked-asn-" /etc/ufw/before.rules | sed 's/^/  /'
+        grep "blocked-asn-" /etc/ufw/before.rules | \
+        while read -r line; do
+            chain=$(echo "$line" | awk '{print $2}')
+            asn=$(echo "$line" | grep -o "blocked-asn-[0-9]\+" | sed 's/blocked-asn-/AS/')
+            action=$(echo "$line" | awk '{print $NF}')
+            printf "| UFW | %s | %s | %s |\n" "$chain" "$asn" "$action"
+        done
     else
-        echo "  没有相关 UFW 规则"
+        echo "| UFW | 无规则 | - | - |"
     fi
+
+    echo -e "\n${TECH_BLUE}└──────────────────────────────────────────────┘${NC}"
 }
 
-# 显示使用帮助
-show_help() {
-    local script_name=$(basename "$0")
-    echo -e "${GREEN}ASN 拦截器使用说明${NC}"
+# 查看拦截记录函数
+show_block_stats() {
+    echo -e "${TECH_BLUE}===== ASN 拦截统计 =====${NC}"
     echo
-    echo "安装脚本:"
-    echo "  chmod +x $script_name"
-    echo
-    echo "可用命令:"
-    echo "  添加 ASN 拦截:"
-    echo "    sudo ./$script_name --add AS12345"
-    echo
-    echo "  删除 ASN 拦截:"
-    echo "    sudo ./$script_name --remove AS12345"
-    echo
-    echo "  查看当前规则:"
-    echo "    sudo ./$script_name --list"
-    echo
-    echo "  重新加载所有规则:"
-    echo "    sudo ./$script_name --reload"
-    echo
-    echo "  安装为系统服务:"
-    echo "    sudo ./$script_name --install"
-    echo
-    echo "  显示帮助信息:"
-    echo "    sudo ./$script_name --help"
-    echo
-    echo "服务管理命令:"
-    echo "  启动服务:"
-    echo "    sudo systemctl start asn-blocker"
-    echo
-    echo "  停止服务:"
-    echo "    sudo systemctl stop asn-blocker"
-    echo
-    echo "  查看服务状态:"
-    echo "    sudo systemctl status asn-blocker"
-    echo
-    echo "  启用开机自启:"
-    echo "    sudo systemctl enable asn-blocker"
-    echo
-    echo "  禁用开机自启:"
-    echo "    sudo systemctl disable asn-blocker"
+    echo "| ASN编号 | 数据包数量 | 流量大小 |"
+    echo "|---------|------------|----------|"
+    
+    iptables -L INPUT -v -n | grep "blocked-asn" | \
+    awk '{
+        match($0,/blocked-asn-([0-9]+)/,a); 
+        packets=$1;
+        bytes=$2;
+        # 转换字节到合适单位
+        if(bytes < 1024) unit="B";
+        else if(bytes < 1048576) {bytes=bytes/1024; unit="KB";}
+        else if(bytes < 1073741824) {bytes=bytes/1048576; unit="MB";}
+        else {bytes=bytes/1073741824; unit="GB";}
+        printf "| AS%-6s | %10s | %6.1f%s |\n", a[1], packets, bytes, unit
+    }'
 }
 
 # 显示交互式菜单
 show_menu() {
     clear
-    echo -e "${GREEN}===================================${NC}"
-    echo -e "${GREEN}        ASN 拦截器管理菜单        ${NC}"
-    echo -e "${GREEN}===================================${NC}"
-    echo "1. 添加 ASN 拦截"
-    echo "2. 删除 ASN 拦截"
-    echo "3. 查看当前规则"
-    echo "4. 重新加载所有规则"
-    echo "5. 安装系统服务"
-    echo "-----------------服务管理----------------"
-    echo "6. 启动服务"
-    echo "7. 停止服务"
-    echo "8. 查看服务状态"
-    echo "9. 启用开机自启"
-    echo "10. 禁用开机自启"
-    echo "-----------------其他选项----------------"
-    echo "11. 显示帮助信息"
-    echo "0. 退出程序"
-    echo -e "${GREEN}===================================${NC}"
+    echo -e "${TECH_BLUE}┌────────────────────────────────────┐${NC}"
+    echo -e "${TECH_BLUE}│          ASN 拦截器管理系统       │${NC}"
+    echo -e "${TECH_BLUE}├────────────────────────────────────┤${NC}"
+    echo -e "${TECH_BLUE}│${NC} 1. 添加 ASN 拦截                    ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 2. 删除 ASN 拦截                    ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 3. 查看当前规则                     ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 4. 查看拦截记录                     ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 5. 重新加载所有规则                 ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}├────────────────────────────────────┤${NC}"
+    echo -e "${TECH_BLUE}│${NC}            服务管理                 ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}├────────────────────────────────────┤${NC}"
+    echo -e "${TECH_BLUE}│${NC} 6. 安装系统服务                     ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 7. 启动服务                         ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 8. 停止服务                         ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 9. 查看服务状态                     ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 10. 启用开机自启                    ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}│${NC} 11. 禁用开机自启                    ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}├────────────────────────────────────┤${NC}"
+    echo -e "${TECH_BLUE}│${NC} 0. 退出程序                         ${TECH_BLUE}│${NC}"
+    echo -e "${TECH_BLUE}└────────────────────────────────────┘${NC}"
     echo -ne "请输入选项编号: "
 }
 
@@ -353,6 +344,9 @@ interactive_menu() {
                 show_rules
                 ;;
             4)
+                show_block_stats
+                ;;
+            5)
                 echo -e "${BLUE}正在重新加载所有规则...${NC}"
                 for set in $(ipset list -n | grep "blocked-asn-"); do
                     asn="AS${set#blocked-asn-}"
@@ -360,32 +354,29 @@ interactive_menu() {
                     setup_iptables "$asn"
                 done
                 ufw reload
-                echo -e "${GREEN}规则重新加载完成${NC}"
-                ;;
-            5)
-                create_systemd_service
+                echo -e "${TECH_BLUE}规则重新加载完成${NC}"
                 ;;
             6)
+                create_systemd_service
+                ;;
+            7)
                 systemctl start asn-blocker
                 echo -e "${GREEN}服务已启动${NC}"
                 ;;
-            7)
+            8)
                 systemctl stop asn-blocker
                 echo -e "${GREEN}服务已停止${NC}"
                 ;;
-            8)
+            9)
                 systemctl status asn-blocker
                 ;;
-            9)
+            10)
                 systemctl enable asn-blocker
                 echo -e "${GREEN}已启用开机自启${NC}"
                 ;;
-            10)
+            11)
                 systemctl disable asn-blocker
                 echo -e "${GREEN}已禁用开机自启${NC}"
-                ;;
-            11)
-                show_help
                 ;;
             0)
                 echo -e "${GREEN}退出程序${NC}"
