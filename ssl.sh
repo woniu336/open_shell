@@ -153,30 +153,60 @@ while true; do
             echo "acme.sh已更新."
             ;;
         2)
-            # 安装证书
-            # 提示用户输入域名列表
-            read -p "输入要安装证书的域名 (多个以空格分隔): " domain_list
+            # 安装证书子菜单
+            echo "请选择您的面板类型："
+            echo "1. 宝塔面板用户"
+            echo "2. 其他面板用户(或无面板)"
+            read -p "请输入选择 (1-2): " panel_choice
 
-            # 将域名列表转换为带有-d选项的字符串
-            domains_with_d=""
-            for domain in $domain_list; do
-                domains_with_d+=" -d $domain"
-            done
+            case $panel_choice in
+                1)
+                    # 宝塔面板用户
+                    read -p "请输入域名: " domain
+                    # 设置默认路径
+                    key_path="/www/server/panel/vhost/cert/${domain}/privkey.pem"
+                    fullchain_path="/www/server/panel/vhost/cert/${domain}/fullchain.pem"
+                    
+                    # 创建证书目录
+                    sudo mkdir -p "/www/server/panel/vhost/cert/${domain}"
+                    
+                    # 安装证书
+                    ~/.acme.sh/acme.sh --install-cert -d ${domain} \
+                    --key-file       $key_path \
+                    --fullchain-file $fullchain_path \
+                    --reloadcmd "service nginx force-reload"
+                    
+                    echo "证书已安装到宝塔面板默认路径"
+                    ;;
+                2)
+                    # 其他面板用户
+                    # 提示用户输入域名列表
+                    read -p "输入要安装证书的域名 (多个以空格分隔): " domain_list
 
+                    # 将域名列表转换为带有-d选项的字符串
+                    domains_with_d=""
+                    for domain in $domain_list; do
+                        domains_with_d+=" -d $domain"
+                    done
 
-            # 重启nginx
-            sudo killall nginx
-            sudo service nginx start
-			sudo nginx
+                    # 重启nginx
+                    sudo killall nginx
+                    sudo service nginx start
+                    sudo nginx
 
-            read -p "请输入key路径: " key_path
-            read -p "请输入fullchain路径: " fullchain_path
+                    read -p "请输入key路径: " key_path
+                    read -p "请输入fullchain路径: " fullchain_path
 
-            # 安装证书
-            ~/.acme.sh/acme.sh --install-cert $domains_with_d \
-            --key-file $key_path \
-            --fullchain-file $fullchain_path \
-            --reloadcmd "service nginx force-reload"
+                    # 安装证书
+                    ~/.acme.sh/acme.sh --install-cert $domains_with_d \
+                    --key-file $key_path \
+                    --fullchain-file $fullchain_path \
+                    --reloadcmd "service nginx force-reload"
+                    ;;
+                *)
+                    echo "无效的选择"
+                    ;;
+            esac
             ;;
         3)
             # 强制更新证书
