@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 如果命令以非零状态退出，立即退出脚本
-set -e
+# set -e  # 移除此行以防止脚本在检测到未安装时退出
 
 # 定义配置文件路径
 CONFIG_FILE="/opt/docker_data/WebP/config.json"
@@ -11,16 +11,18 @@ DOCKER_COMPOSE_FILE="/opt/docker_data/WebP/docker-compose.yml"
 check_docker() {
     if ! command -v docker &> /dev/null; then
         echo "Docker未安装。请先安装Docker。"
-        exit 1
+        return 1
     fi
+    return 0
 }
 
 # 检查Docker Compose是否已安装的函数
 check_docker_compose() {
     if ! command -v docker compose &> /dev/null; then
         echo "Docker Compose未安装。请先安装Docker Compose。"
-        exit 1
+        return 1
     fi
+    return 0
 }
 
 # 检查jq是否已安装的函数
@@ -29,8 +31,9 @@ check_jq() {
         echo "jq未安装。请先安装jq。"
         echo "Debian/Ubuntu: sudo apt-get install jq"
         echo "CentOS/RHEL: sudo yum install jq"
-        exit 1
+        return 1
     fi
+    return 0
 }
 
 # 检查容器是否已安装并运行
@@ -105,21 +108,21 @@ EOL
 
 # 显示当前IMG_MAP的函数
 list_img_map() {
-    echo "当前的IMG_MAP映射如下："
+    echo -e "\033[37m当前的IMG_MAP映射如下：\033[0m"
     if [ -f "$CONFIG_FILE" ]; then
         if [ -s "$CONFIG_FILE" ]; then
-            echo "------------------------"
+            echo -e "\033[34m╔════════════════════════════════════╗\033[0m"
             if jq -r '.IMG_MAP | to_entries[] | "\(.key) -> \(.value)"' "$CONFIG_FILE" 2>/dev/null; then
-                echo "------------------------"
+                echo -e "\033[34m╚════════════════════════════════════╝\033[0m"
             else
-                echo "暂无映射配置"
-                echo "------------------------"
+                echo -e "\033[37m暂无映射配置\033[0m"
+                echo -e "\033[34m╚════════════════════════════════════╝\033[0m"
             fi
         else
-            echo "配置文件为空"
+            echo -e "\033[37m配置文件为空\033[0m"
         fi
     else
-        echo "配置文件不存在"
+        echo -e "\033[37m配置文件不存在\033[0m"
     fi
 }
 
@@ -200,6 +203,10 @@ remove_img_map() {
                 if jq --arg path "$path" 'del(.IMG_MAP[$path])' "$CONFIG_FILE" > /tmp/config_tmp.json; then
                     mv /tmp/config_tmp.json "$CONFIG_FILE"
                     echo "已删除映射: $selected_mapping"
+                    echo "正在重启容器以应用更改..."
+                    cd /opt/docker_data/WebP
+                    docker compose restart
+                    echo "容器已重启，映射变更已生效。"
                 else
                     echo "删除映射时出错。请检查config.json是否有效。"
                     rm -f /tmp/config_tmp.json
@@ -220,12 +227,14 @@ remove_img_map() {
 manage_address_mapping() {
     while true; do
         clear
-        echo "===== 地址映射管理菜单 ====="
-        echo "1. 添加新的映射"
-        echo "2. 删除现有的映射"
-        echo "3. 查看当前映射"
-        echo "0. 返回主菜单"
-        echo "=============================="
+        echo -e "\033[34m╔════════════════════════════════════╗"
+        echo -e "║\033[37m        地址映射管理菜单           \033[34m║"
+        echo -e "╠════════════════════════════════════╣"
+        echo -e "║\033[33m 1.\033[37m 添加新的映射                   \033[34m║"
+        echo -e "║\033[33m 2.\033[37m 删除现有的映射                 \033[34m║"
+        echo -e "║\033[33m 3.\033[37m 查看当前映射                   \033[34m║"
+        echo -e "║\033[33m 0.\033[37m 返回主菜单                     \033[34m║"
+        echo -e "╚════════════════════════════════════╝\033[0m"
         read -p "请输入您的选择 [0-3]: " sub_choice
         case $sub_choice in
             1)
@@ -292,21 +301,30 @@ install_webp_server() {
 # 显示菜单的函数
 show_menu() {
     clear
-    echo "===================================="
-    echo "        WebP 服务器管理脚本菜单       "
-    echo "===================================="
-    echo "1. 安装并启动WebP服务器"
-    echo "2. 添加或更新地址映射"
-    echo "3. 启动WebP容器"
-    echo "0. 退出"
-    echo "===================================="
+    echo -e "\033[34m╔════════════════════════════════════╗"
+    echo -e "║\033[37m        优雅的图床代理工具         \033[34m║"
+    echo -e "╠════════════════════════════════════╣"
+    echo -e "║\033[33m 1.\033[37m 安装并启动WebP服务器           \033[34m║"
+    echo -e "║\033[33m 2.\033[37m 添加或更新地址映射             \033[34m║"
+    echo -e "║\033[33m 3.\033[37m 启动WebP容器                   \033[34m║"
+    echo -e "║\033[33m 0.\033[37m 退出                           \033[34m║"
+    echo -e "╚════════════════════════════════════╝\033[0m"
 }
 
 # 主执行函数
 main() {
-    check_docker
-    check_docker_compose
-    check_jq
+    local docker_status=0
+    local docker_compose_status=0
+    local jq_status=0
+
+    check_docker || docker_status=1
+    check_docker_compose || docker_compose_status=1
+    check_jq || jq_status=1
+
+    if [ $docker_status -ne 0 ] || [ $docker_compose_status -ne 0 ] || [ $jq_status -ne 0 ]; then
+        echo "依赖项未满足，请安装缺少的依赖项后重试。"
+        exit 1
+    fi
 
     while true; do
         show_menu
