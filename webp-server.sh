@@ -3,6 +3,10 @@
 # 如果命令以非零状态退出，立即退出脚本
 set -e
 
+# 定义配置文件路径
+CONFIG_FILE="/opt/docker_data/WebP/config.json"
+DOCKER_COMPOSE_FILE="/opt/docker_data/WebP/docker-compose.yml"
+
 # 检查Docker是否已安装的函数
 check_docker() {
     if ! command -v docker &> /dev/null; then
@@ -19,15 +23,41 @@ check_docker_compose() {
     fi
 }
 
+# 检查jq是否已安装的函数
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        echo "jq未安装。请先安装jq。"
+        echo "Debian/Ubuntu: sudo apt-get install jq"
+        echo "CentOS/RHEL: sudo yum install jq"
+        exit 1
+    fi
+}
+
+# 检查容器是否已安装并运行
+check_container() {
+    if docker ps -a --format '{{.Names}}' | grep -q "webp-"; then
+        if docker ps --format '{{.Names}}' | grep -q "webp-"; then
+            echo "WebP容器已安装且正在运行。"
+            return 0
+        else
+            echo "WebP容器已安装但未运行。"
+            return 1
+        fi
+    else
+        echo "WebP容器未安装。"
+        return 2
+    fi
+}
+
 # 创建必要目录的函数
 create_directories() {
     mkdir -p /opt/docker_data/WebP/exhaust /opt/docker_data/WebP/metadata
-    cd /opt/docker_data/WebP
+    echo "已创建必要的目录。"
 }
 
 # 创建docker-compose.yml的函数
 create_docker_compose() {
-    cat > docker-compose.yml <<EOL
+    cat > "$DOCKER_COMPOSE_FILE" <<EOL
 services:
   webp:
     image: webpsh/webp-server-go
@@ -41,51 +71,20 @@ services:
     ports:
       - "3333:3333"
 EOL
+    echo "已创建docker-compose.yml文件。"
 }
 
-# 交互式配置IMG_MAP的函数
-configure_img_map() {
-    local img_map=""
-    local continue_adding="yes"
-    while true; do
-        read -p "输入路径（例如，/image 注意带斜杠）: " path
-        read -p "输入要代理的图片地址（例如，https://image.example.com）: " address
-        
-        if [ -n "$img_map" ]; then
-            img_map="$img_map,"
-        fi
-        img_map="$img_map\"$path\": \"$address\""
-        
-        while true; do
-            read -p "是否要添加另一个路径和地址？(yes/y/no/n): " continue_adding
-            continue_adding=$(echo "$continue_adding" | tr '[:upper:]' '[:lower:]')
-            if [[ "$continue_adding" == "yes" || "$continue_adding" == "y" || "$continue_adding" == "no" || "$continue_adding" == "n" ]]; then
-                break
-            else
-                echo "无效输入，请输入 yes、y、no 或 n。"
-            fi
-        done
-        
-        if [[ "$continue_adding" == "no" || "$continue_adding" == "n" ]]; then
-            break
-        fi
-    done
-    echo "{$img_map}"
-}
-
-# 创建config.json的函数
-create_config() {
-    echo "让我们配置IMG_MAP："
-    local img_map=$(configure_img_map)
-
-    cat > config.json <<EOL
+# 初始化config.json的函数
+initialize_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        cat > "$CONFIG_FILE" <<EOL
 {
   "HOST": "0.0.0.0",
   "PORT": "3333",
   "QUALITY": "80",
   "IMG_PATH": "",
   "EXHAUST_PATH": "./exhaust",
-  "IMG_MAP": $img_map,
+  "IMG_MAP": {},
   "ALLOWED_TYPES": ["jpg", "png", "jpeg", "bmp", "gif", "svg", "heic", "nef", "webp"],
   "CONVERT_TYPES": ["avif"],
   "STRIP_METADATA": true,
@@ -98,56 +97,244 @@ create_config() {
   "MAX_CACHE_SIZE": 0
 }
 EOL
+        echo "已创建初始config.json文件。"
+    else
+        echo "config.json已存在，跳过创建。"
+    fi
+}
 
-    # 检查是否存在运行中的容器
-    if docker ps --format '{{.Ports}}' | grep -q "3333"; then
-        echo "检测到运行中的 3333 端口容器，正在重启..."
-        # 动态获取服务名称
-        local service_name=$(docker compose ps --services | grep -i webp)
-        if [ -n "$service_name" ]; then
-            docker compose restart $service_name
-            echo "容器已重启。"
+# 显示当前IMG_MAP的函数
+list_img_map() {
+    echo "当前的IMG_MAP映射如下："
+    if [ -f "$CONFIG_FILE" ]; then
+        if [ -s "$CONFIG_FILE" ]; then
+            echo "------------------------"
+            if jq -r '.IMG_MAP | to_entries[] | "\(.key) -> \(.value)"' "$CONFIG_FILE" 2>/dev/null; then
+                echo "------------------------"
+            else
+                echo "暂无映射配置"
+                echo "------------------------"
+            fi
         else
-            echo "未找到 WebP 相关的服务，但检测到 3333 端口被占用。请检查是否有其他服务正在使用该端口。"
+            echo "配置文件为空"
         fi
     else
-        echo "没有检测到运行中的 3333 端口容器。配置将在启动容器时生效。"
+        echo "配置文件不存在"
     fi
+}
+
+# 添加新的IMG_MAP映射的函数
+add_img_map() {
+    local need_restart=false
+    while true; do
+        read -p "输入路径（例如，/image 注意带斜杠）: " path
+        read -p "输入要代理的图片地址（例如，https://image.example.com）: " address
+
+        # 检查路径是否以斜杠开头
+        if [[ "$path" != /* ]]; then
+            echo "路径必须以斜杠（/）开头。"
+            continue
+        fi
+
+        # 检查地址是否以http(s)开头
+        if [[ "$address" != http://* && "$address" != https://* ]]; then
+            echo "地址必须以http://或https://开头。"
+            continue
+        fi
+
+        # 使用jq添加或更新映射
+        if jq --arg path "$path" --arg address "$address" '.IMG_MAP[$path] = $address' "$CONFIG_FILE" > /tmp/config_tmp.json; then
+            mv /tmp/config_tmp.json "$CONFIG_FILE"
+            echo "映射已添加/更新。"
+            need_restart=true
+        else
+            echo "更新映射时出错。请检查config.json是否有效。"
+            rm -f /tmp/config_tmp.json
+            return
+        fi
+
+        read -p "是否要添加另一个映射？(yes/y/no/n): " continue_adding
+        continue_adding=$(echo "$continue_adding" | tr '[:upper:]' '[:lower:]')
+        if [[ "$continue_adding" != "yes" && "$continue_adding" != "y" ]]; then
+            break
+        fi
+    done
+
+    if [ "$need_restart" = true ]; then
+        echo "正在重启容器以应用新的映射..."
+        cd /opt/docker_data/WebP
+        docker compose restart
+        echo "容器已重启，新的映射已生效。"
+    fi
+}
+
+# 删除IMG_MAP映射的函数
+remove_img_map() {
+    echo "当前的IMG_MAP映射如下："
+    # 使用数组存储映射
+    local mappings=()
+    # 使用while循环读取每行映射
+    while IFS= read -r line; do
+        mappings+=("$line")
+    done < <(jq -r '.IMG_MAP | to_entries[] | "\(.key) -> \(.value)"' "$CONFIG_FILE" 2>/dev/null)
+
+    if [ ${#mappings[@]} -eq 0 ]; then
+        echo "暂无映射配置可删除"
+        return
+    fi
+
+    # 显示映射列表
+    for i in "${!mappings[@]}"; do
+        echo "$((i+1)). ${mappings[$i]}"
+    done
+
+    while true; do
+        echo "0. 返回上级菜单"
+        read -p "请输入要删除的映射编号 [0-${#mappings[@]}]: " del_choice
+        if [[ "$del_choice" =~ ^[0-9]+$ ]]; then
+            if [ "$del_choice" -gt 0 ] && [ "$del_choice" -le "${#mappings[@]}" ]; then
+                local selected_mapping=${mappings[$((del_choice - 1))]}
+                local path=$(echo "$selected_mapping" | cut -d' ' -f1)
+                
+                # 使用jq删除映射
+                if jq --arg path "$path" 'del(.IMG_MAP[$path])' "$CONFIG_FILE" > /tmp/config_tmp.json; then
+                    mv /tmp/config_tmp.json "$CONFIG_FILE"
+                    echo "已删除映射: $selected_mapping"
+                else
+                    echo "删除映射时出错。请检查config.json是否有效。"
+                    rm -f /tmp/config_tmp.json
+                fi
+                break
+            elif [ "$del_choice" -eq 0 ]; then
+                break
+            else
+                echo "无效选择，请输入0到${#mappings[@]}之间的数字。"
+            fi
+        else
+            echo "无效输入，请输入数字。"
+        fi
+    done
+}
+
+# 管理地址映射的函数
+manage_address_mapping() {
+    while true; do
+        clear
+        echo "===== 地址映射管理菜单 ====="
+        echo "1. 添加新的映射"
+        echo "2. 删除现有的映射"
+        echo "3. 查看当前映射"
+        echo "0. 返回主菜单"
+        echo "=============================="
+        read -p "请输入您的选择 [0-3]: " sub_choice
+        case $sub_choice in
+            1)
+                add_img_map
+                ;;
+            2)
+                remove_img_map
+                ;;
+            3)
+                list_img_map
+                ;;
+            0)
+                break
+                ;;
+            *)
+                echo "无效选择，请输入0-3之间的数字。"
+                ;;
+        esac
+        echo "按回车键继续..."
+        read
+    done
+}
+
+# 创建config.json并配置
+create_config() {
+    echo "正在初始化配置文件..."
+    initialize_config
+    echo "配置文件初始化完成。"
 }
 
 # 启动Docker容器的函数
 start_container() {
-    docker compose up -d
+    cd /opt/docker_data/WebP
+    if docker compose up -d; then
+        echo "Docker容器已启动。"
+    else
+        echo "启动Docker容器时出错。请检查Docker Compose配置。"
+    fi
+}
+
+# 安装并启动WebP服务器的函数
+install_webp_server() {
+    local container_status
+    check_container
+    container_status=$?
+    
+    if [ $container_status -eq 0 ]; then
+        echo "WebP服务器已安装并正在运行，无需重新安装。"
+        return
+    elif [ $container_status -eq 1 ]; then
+        echo "检测到WebP服务器已安装但未运行，正在启动..."
+        start_container
+        return
+    fi
+    
+    create_directories
+    create_docker_compose
+    create_config
+    start_container
+    echo "WebP服务器已安装并启动。"
+    echo "建议为3333端口设置反向代理。"
+}
+
+# 显示菜单的函数
+show_menu() {
+    clear
+    echo "===================================="
+    echo "        WebP 服务器管理脚本菜单       "
+    echo "===================================="
+    echo "1. 安装并启动WebP服务器"
+    echo "2. 添加或更新地址映射"
+    echo "3. 启动WebP容器"
+    echo "0. 退出"
+    echo "===================================="
 }
 
 # 主执行函数
 main() {
-    echo "开始WebP服务器设置..."
-    
     check_docker
     check_docker_compose
-    create_directories
-    create_docker_compose
-    
-    local first_install=true
-    
+    check_jq
+
     while true; do
-        create_config
-        if $first_install; then
-            break
-        fi
-        read -p "是否要重新配置？(yes/y/no/n): " reconfigure
-        reconfigure=$(echo "$reconfigure" | tr '[:upper:]' '[:lower:]')
-        if [[ "$reconfigure" != "yes" && "$reconfigure" != "y" ]]; then
-            break
-        fi
+        show_menu
+        read -p "请输入您的选择 [0-3]: " choice
+        case $choice in
+            1)
+                echo "开始安装并启动WebP服务器..."
+                install_webp_server
+                ;;
+            2)
+                echo "进入地址映射管理..."
+                manage_address_mapping
+                ;;
+            3)
+                echo "正在启动WebP容器..."
+                start_container
+                ;;
+            0)
+                echo "退出脚本。"
+                exit 0
+                ;;
+            *)
+                echo "无效选择，请输入0-3之间的数字。"
+                ;;
+        esac
+        echo "按回车键继续..."
+        read
     done
-    
-    start_container
-    first_install=false
-    
-    echo "WebP服务器设置成功完成！"
-    echo "记得为3333端口设置反向代理。"
 }
 
 # 运行主函数
