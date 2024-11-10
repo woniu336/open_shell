@@ -5,9 +5,6 @@
 
 # 备份当前规则
 echo "Backing up current rules..."
-# 备份当前内存中的规则
-iptables-save > "iptables_backup_$(date +%Y%m%d_%H%M%S).rules"
-ip6tables-save > "ip6tables_backup_$(date +%Y%m%d_%H%M%S).rules"
 
 # 备份已保存的规则文件
 if [ -f "/etc/iptables/rules.v4" ]; then
