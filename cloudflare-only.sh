@@ -27,7 +27,7 @@ iptables -I INPUT -p tcp -m multiport --dports 80,443 -j DROP
 # 对 Cloudflare CDN IPv4 地址开放 HTTP/S 入站访问
 for i in `curl -s https://www.cloudflare.com/ips-v4`; do 
     echo "Adding Cloudflare IPv4: $i"
-    iptables -I INPUT -s $i -p tcp -m multiport --dports 80,443 -j ACCEPT
+    iptables -I INPUT -s $i -p tcp -m multiport --dport 80,443 -j ACCEPT
 done
 
 # 禁止来自 IPv6 的所有 HTTP/S 访问请求
@@ -37,7 +37,7 @@ ip6tables -I INPUT -p tcp -m multiport --dports 80,443 -j DROP
 # 对 Cloudflare CDN IPv6 地址开放 HTTP/S 入站访问
 for i in `curl -s https://www.cloudflare.com/ips-v6`; do 
     echo "Adding Cloudflare IPv6: $i"
-    ip6tables -I INPUT -s $i -p tcp -m multiport --dports 80,443 -j ACCEPT
+    ip6tables -I INPUT -s $i -p tcp -m multiport --dport 80,443 -j ACCEPT
 done
 
 # 保存 iptables 配置
