@@ -159,7 +159,7 @@ delete_forward_rule() {
         echo -e "${RED}没有可删除的规则${NC}"
         sleep 1
         return
-    fi
+    fi  # 这里应该是 fi 而不是 }
 
     echo -e "${YELLOW}请选择要删除的规则编号：${NC}"
     awk '{printf NR ". %s -> %s:%s\n", $1, $2, $3}' "$FORWARD_RULES_FILE"
@@ -169,45 +169,53 @@ delete_forward_rule() {
         echo -e "${RED}无效的输入${NC}"
         sleep 1
         return
-    fi
+    fi  # 这里应该是 fi 而不是 }
 
     local rule
     rule=$(sed -n "${rule_num}p" "$FORWARD_RULES_FILE")
     if [ -n "$rule" ]; then
         read -r src_port target_ip target_port <<< "$rule"
+        
+        echo -e "${YELLOW}正在清除所有与 ${target_ip} 相关的规则...${NC}"
+        
+        # 清除 PREROUTING 链规则
+        while iptables -t nat -L PREROUTING -n --line-numbers | grep -q "${target_ip}"; do
+            line_num=$(iptables -t nat -L PREROUTING -n --line-numbers | grep "${target_ip}" | head -n1 | awk '{print $1}')
+            iptables -t nat -D PREROUTING $line_num 2>/dev/null
+        done
 
-        # 删除iptables规则
-        iptables -t nat -D PREROUTING -p tcp --dport "$src_port" -j DNAT --to-destination "${target_ip}:${target_port}" 2>/dev/null
-        iptables -t nat -D POSTROUTING -p tcp -d "${target_ip}" --dport "${target_port}" -j MASQUERADE 2>/dev/null
-        iptables -D FORWARD -p tcp -d "${target_ip}" --dport "${target_port}" -j ACCEPT 2>/dev/null
-        iptables -D FORWARD -p tcp -s "${target_ip}" --sport "${target_port}" -j ACCEPT 2>/dev/null
+        # 清除 OUTPUT 链规则
+        while iptables -t nat -L OUTPUT -n --line-numbers | grep -q "${target_ip}"; do
+            line_num=$(iptables -t nat -L OUTPUT -n --line-numbers | grep "${target_ip}" | head -n1 | awk '{print $1}')
+            iptables -t nat -D OUTPUT $line_num 2>/dev/null
+        done
 
-        # 从配置文件中删除
-        sed -i "${rule_num}d" "$FORWARD_RULES_FILE"
+        # 清除 POSTROUTING 链规则
+        while iptables -t nat -L POSTROUTING -n --line-numbers | grep -q "${target_ip}"; do
+            line_num=$(iptables -t nat -L POSTROUTING -n --line-numbers | grep "${target_ip}" | head -n1 | awk '{print $1}')
+            iptables -t nat -D POSTROUTING $line_num 2>/dev/null
+        done
 
-        echo -e "${GREEN}规则已删除${NC}"
+        # 清除 FORWARD 链规则
+        while iptables -L FORWARD -n --line-numbers | grep -q "${target_ip}"; do
+            line_num=$(iptables -L FORWARD -n --line-numbers | grep "${target_ip}" | head -n1 | awk '{print $1}')
+            iptables -D FORWARD $line_num 2>/dev/null
+        done
 
-        # 删除与目标IP相关的80端口规则
-        grep " $target_ip 80$" "$FORWARD_RULES_FILE" > /dev/null
-        if [ $? -eq 0 ]; then
-            echo -e "${YELLOW}检测到与目标IP相关的80端口规则，正在删除...${NC}"
-            # 获取所有包含目标IP和80端口的规则编号
-            grep -n " $target_ip 80$" "$FORWARD_RULES_FILE" | while IFS=: read -r line_num line_content; do
-                src_p=$(echo "$line_content" | awk '{print $1}')
-                tgt_ip=$(echo "$line_content" | awk '{print $2}')
-                tgt_p=$(echo "$line_content" | awk '{print $3}')
+        # 从配置文件中删除所有相关规则
+        sed -i "/${target_ip}/d" "$FORWARD_RULES_FILE"
 
-                # 删除iptables规则
-                iptables -t nat -D PREROUTING -p tcp --dport "$src_p" -j DNAT --to-destination "${tgt_ip}:${tgt_p}" 2>/dev/null
-                iptables -t nat -D POSTROUTING -p tcp -d "${tgt_ip}" --dport "${tgt_p}" -j MASQUERADE 2>/dev/null
-                iptables -D FORWARD -p tcp -d "${tgt_ip}" --dport "${tgt_p}" -j ACCEPT 2>/dev/null
-                iptables -D FORWARD -p tcp -s "${tgt_ip}" --sport "${tgt_p}" -j ACCEPT 2>/dev/null
-
-                # 从配置文件中删除
-                sed -i "${line_num}d" "$FORWARD_RULES_FILE"
-
-                echo -e "${GREEN}关联的80端口规则已删除${NC}"
-            done
+        echo -e "${GREEN}已清除所有与 ${target_ip} 相关的规则${NC}"
+        
+        # 保存更改
+        if command -v netfilter-persistent &> /dev/null; then
+            echo -e "${YELLOW}正在保存规则更改...${NC}"
+            netfilter-persistent save
+            netfilter-persistent reload
+            echo -e "${GREEN}规则已保存并重新加载${NC}"
+        else
+            echo -e "${YELLOW}请注意：系统未安装 netfilter-persistent，规则可能需要手动保存${NC}"
+            echo -e "${YELLOW}建议安装：apt-get install iptables-persistent${NC}"
         fi
     else
         echo -e "${RED}无效的规则编号${NC}"
@@ -416,6 +424,7 @@ check_forward_status() {
     echo -e "${CYAN}└──────────────────┴──────────────────────────────────────────────┘${NC}"
     echo ""
 
+    # 显示当前转发规则
     echo -e "${CYAN}┌─────────────────────────────────────────────────────────────────┐${NC}"
     echo -e "${CYAN}│                        当前转发规则                             │${NC}"
     echo -e "${CYAN}├────────────┬───────────────────────┬────────────────────────────┤${NC}"
@@ -431,65 +440,91 @@ check_forward_status() {
     echo -e "${CYAN}└────────────┴───────────────────────┴────────────────────────────┘${NC}"
     echo ""
 
+    # 显示 NAT 规则统计
     echo -e "${CYAN}┌─────────────────────────────────────────────────────────────────┐${NC}"
     echo -e "${CYAN}│                         NAT规则统计                             │${NC}"
     echo -e "${CYAN}├────────┬──────────┬──────────┬─────────────────────────────────┤${NC}"
-    echo -e "${CYAN}│  类型  │  包计数  │ 字节计数 │           规则详情             │${NC}"
+    echo -e "${CYAN}│  链名  │  包计数  │ 字节计数 │           规则详情             │${NC}"
     echo -e "${CYAN}├────────┼──────────┼──────────┼─────────────────────────────────┤${NC}"
+
+    # 遍历所有目标IP
     if [ -f "$FORWARD_RULES_FILE" ]; then
-        while read -r src_port target_ip target_port; do
-            # DNAT规则
-            dnat_info=$(iptables -t nat -L PREROUTING -n -v | grep "${target_ip}:${target_port}")
-            if [ -n "$dnat_info" ]; then
-                packets=$(echo "$dnat_info" | awk '{print $2}')
-                bytes=$(echo "$dnat_info" | awk '{print $3}')
-                printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
-                    "DNAT" "$packets" "$bytes" "$src_port -> ${target_ip}:${target_port}"
-            fi
-            
-            # SNAT规则 - 修改这部分以正确处理多行输出
-            snat_info=$(iptables -t nat -L POSTROUTING -n -v | grep "${target_ip}" | grep "to:" | head -n 1)
-            if [ -n "$snat_info" ]; then
-                packets=$(echo "$snat_info" | awk '{print $2}')
-                bytes=$(echo "$snat_info" | awk '{print $3}')
-                to_addr=$(echo "$snat_info" | grep -o 'to:[^ ]*' | cut -d: -f2)
-                printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
-                    "SNAT" "$packets" "$bytes" "${target_ip} -> ${to_addr}"
-            fi
-        done < "$FORWARD_RULES_FILE"
-    else
-        echo -e "${CYAN}│${NC} 暂无NAT规则                                                   ${CYAN}│${NC}"
+        target_ips=($(awk '{print $2}' "$FORWARD_RULES_FILE" | sort -u))
+        for target_ip in "${target_ips[@]}"; do
+            # 检查 PREROUTING 链
+            while read -r line; do
+                if [[ -n "$line" ]]; then
+                    pkts=$(echo "$line" | awk '{print $1}')
+                    bytes=$(echo "$line" | awk '{print $2}')
+                    dport=$(echo "$line" | grep -o 'dpt:[0-9]*' | cut -d: -f2)
+                    to_port=$(echo "$line" | grep -o 'to:[^ ]*' | cut -d: -f3)
+                    printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                        "PRE" "$pkts" "$bytes" "$dport -> ${target_ip}:${to_port}"
+                fi
+            done < <(iptables -t nat -L PREROUTING -n -v | grep "$target_ip")
+
+            # 检查 OUTPUT 链
+            while read -r line; do
+                if [[ -n "$line" ]]; then
+                    pkts=$(echo "$line" | awk '{print $1}')
+                    bytes=$(echo "$line" | awk '{print $2}')
+                    dport=$(echo "$line" | grep -o 'dpt:[0-9]*' | cut -d: -f2)
+                    printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                        "OUT" "$pkts" "$bytes" "本地 -> ${target_ip}:${dport}"
+                fi
+            done < <(iptables -t nat -L OUTPUT -n -v | grep "$target_ip")
+
+            # 检查 POSTROUTING 链
+            while read -r line; do
+                if [[ -n "$line" ]]; then
+                    pkts=$(echo "$line" | awk '{print $1}')
+                    bytes=$(echo "$line" | awk '{print $2}')
+                    if [[ "$line" =~ "to:" ]]; then
+                        to_addr=$(echo "$line" | grep -o 'to:[^ ]*' | cut -d: -f2)
+                        printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                            "POST" "$pkts" "$bytes" "${target_ip} -> ${to_addr}"
+                    else
+                        dport=$(echo "$line" | grep -o 'dpt:[0-9]*' | cut -d: -f2)
+                        printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                            "POST" "$pkts" "$bytes" "${target_ip}:${dport} MASQ"
+                    fi
+                fi
+            done < <(iptables -t nat -L POSTROUTING -n -v | grep "$target_ip")
+        done
     fi
     echo -e "${CYAN}└────────┴──────────┴──────────┴─────────────────────────────────┘${NC}"
     echo ""
 
+    # 显示 FORWARD 链规则统计
     echo -e "${CYAN}┌─────────────────────────────────────────────────────────────────┐${NC}"
     echo -e "${CYAN}│                      FORWARD链规则统计                          │${NC}"
     echo -e "${CYAN}├────────┬──────────┬──────────┬─────────────────────────────────┤${NC}"
     echo -e "${CYAN}│  方向  │  包计数  │ 字节计数 │           规则详情             │${NC}"
     echo -e "${CYAN}├────────┼──────────┼──────────┼─────────────────────────────────┤${NC}"
     if [ -f "$FORWARD_RULES_FILE" ]; then
-        while read -r src_port target_ip target_port; do
+        for target_ip in "${target_ips[@]}"; do
             # 入站规则
-            in_info=$(iptables -L FORWARD -n -v | grep "${target_ip}" | grep "dport")
-            if [ -n "$in_info" ]; then
-                packets=$(echo "$in_info" | awk '{print $2}')
-                bytes=$(echo "$in_info" | awk '{print $3}')
-                printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
-                    "入站" "$packets" "$bytes" "目标:${target_ip} 端口:80,443"
-            fi
-            
+            while read -r line; do
+                if [[ -n "$line" ]]; then
+                    pkts=$(echo "$line" | awk '{print $1}')
+                    bytes=$(echo "$line" | awk '{print $2}')
+                    dport=$(echo "$line" | grep -o 'dpt:[0-9]*' | cut -d: -f2)
+                    printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                        "入站" "$pkts" "$bytes" "目标:${target_ip} 端口:${dport}"
+                fi
+            done < <(iptables -L FORWARD -n -v | grep "$target_ip" | grep "dpt")
+
             # 出站规则
-            out_info=$(iptables -L FORWARD -n -v | grep "${target_ip}" | grep "sport")
-            if [ -n "$out_info" ]; then
-                packets=$(echo "$out_info" | awk '{print $2}')
-                bytes=$(echo "$out_info" | awk '{print $3}')
-                printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
-                    "出站" "$packets" "$bytes" "源:${target_ip} 端口:80,443"
-            fi
-        done < "$FORWARD_RULES_FILE"
-    else
-        echo -e "${CYAN}│${NC} 暂无FORWARD规则                                              ${CYAN}│${NC}"
+            while read -r line; do
+                if [[ -n "$line" ]]; then
+                    pkts=$(echo "$line" | awk '{print $1}')
+                    bytes=$(echo "$line" | awk '{print $2}')
+                    sport=$(echo "$line" | grep -o 'spt:[0-9]*' | cut -d: -f2)
+                    printf "${CYAN}│${NC} %-6s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-8s ${CYAN}│${NC} %-31s ${CYAN}│${NC}\n" \
+                        "出站" "$pkts" "$bytes" "源:${target_ip} 端口:${sport}"
+                fi
+            done < <(iptables -L FORWARD -n -v | grep "$target_ip" | grep "spt")
+        done
     fi
     echo -e "${CYAN}└────────┴──────────┴──────────┴─────────────────────────────────┘${NC}"
 }
