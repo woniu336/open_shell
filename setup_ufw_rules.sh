@@ -6,7 +6,6 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
-
 # 检查UFW是否已安装
 if ! command -v ufw &> /dev/null; then
     echo "UFW未安装，正在安装..."
@@ -20,11 +19,6 @@ if ! command -v ufw &> /dev/null; then
 else
     echo "UFW已安装，继续执行配置..."
 fi
-
-# 备份现有UFW规则
-BACKUP_FILE="ufw_backup_$(date +%F_%T).txt"
-sudo ufw status numbered > "$BACKUP_FILE"
-echo "已备份当前UFW规则到 $BACKUP_FILE"
 
 # 自动获取SSH端口
 SSH_PORTS=$(grep -E "^Port" /etc/ssh/sshd_config | awk '{print $2}')
@@ -60,42 +54,6 @@ for (( idx=${#CENSYS_IPV4[@]}-1 ; idx>=0 ; idx-- )) ; do
   CIDR=${CENSYS_IPV4[idx]}
   sudo ufw insert 1 deny from "$CIDR" to any
   echo "已插入规则: deny from $CIDR at position 1"
-done
-
-# 屏蔽单独的风险IP地址
-RISK_IPS=(
-  "94.154.33.153"
-  "185.220.101.29"
-  "138.197.191.87"
-  "152.42.217.201"
-  "149.88.106.138"
-  "179.43.191.19"
-  "146.190.111.4"
-  "185.220.101.190"
-  "192.42.116.178"
-)
-
-# 按逆序插入RISK IP DENY规则
-for (( idx=${#RISK_IPS[@]}-1 ; idx>=0 ; idx-- )) ; do
-  IP=${RISK_IPS[idx]}
-  sudo ufw insert 1 deny from "$IP" to any
-  echo "已插入规则: deny from $IP at position 1"
-done
-
-# 屏蔽IP范围
-IP_RANGES=(
-  "20.171.206.0/24"
-  "52.230.152.0/24"
-  "52.233.106.0/24"
-  "152.32.128.0/17"
-  "103.218.243.0/24"
-)
-
-# 按逆序插入IP范围DENY规则
-for (( idx=${#IP_RANGES[@]}-1 ; idx>=0 ; idx-- )) ; do
-  RANGE=${IP_RANGES[idx]}
-  sudo ufw insert 1 deny from "$RANGE" to any
-  echo "已插入规则: deny from $RANGE at position 1"
 done
 
 # 确定IPv6规则的插入位置
