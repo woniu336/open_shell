@@ -6,6 +6,21 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
+
+# 检查UFW是否已安装
+if ! command -v ufw &> /dev/null; then
+    echo "UFW未安装，正在安装..."
+    apt update
+    apt install -y ufw
+    if [ $? -ne 0 ]; then
+        echo "UFW安装失败，请检查系统环境后重试。"
+        exit 1
+    fi
+    echo "UFW安装成功。"
+else
+    echo "UFW已安装，继续执行配置..."
+fi
+
 # 备份现有UFW规则
 BACKUP_FILE="ufw_backup_$(date +%F_%T).txt"
 sudo ufw status numbered > "$BACKUP_FILE"
