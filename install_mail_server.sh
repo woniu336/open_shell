@@ -109,12 +109,7 @@ initial_check() {
     else
         echo -e "${RED}未安装${NC}"
     fi
-    
-    echo -e "\n\033[1;36m服务说明\033[0m"
-    echo -e "\033[38;5;81m────────────────────────\033[0m"
-    echo -e "✦ poste.io 是一个开源的邮件服务器解决方案"
-    echo -e "✦ 博客：\033[4;36mhttps://woniu336.github.io\033[0m"
-    
+        
     echo -e "\n\033[1;36m端口检测\033[0m"
     echo -e "\033[38;5;81m────────────────────────\033[0m"
     local port=25
