@@ -203,7 +203,7 @@ show_dns_info() {
     echo "CNAME       smtp            ${domain}"
     echo "MX          @               ${domain}"
     echo "TXT         @               v=spf1 mx ~all"
-    echo "TXT         _dmarc          v=DMARC1; p=none; rua=mailto:mail@${root_domain}"
+    echo "TXT         _dmarc          v=DMARC1; p=none; rua=mailto:admin@${root_domain}"
     echo "------------------------"
 }
 
