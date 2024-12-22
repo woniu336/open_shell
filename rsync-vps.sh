@@ -477,7 +477,7 @@ EOF
 
 # 添加数据库权限检查函数
 check_mysql_privileges() {
-    echo -e "${kjlan}提示：可在终端新开一个窗口配置数据库权限${bai}"
+    echo -e "${kjlan}提示：分别在AB服务器设置同步用户${bai}"
     echo "------------------------"
     echo "1) 登录到 MySQL："
     echo -e "   ${zi}mysql -u root -p${bai}"
@@ -492,11 +492,21 @@ check_mysql_privileges() {
     
     # 验证权限
     echo -e "${huang}正在验证数据库权限...${bai}"
-    if mysql -u$DB_USER -p$DB_PASSWORD -e "SHOW GRANTS;" 2>/dev/null | grep -q "ALL PRIVILEGES ON .* TO"; then
-        echo -e "${lv}数据库权限配置正确！${bai}"
+    if mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD -e "SELECT 1;" >/dev/null 2>&1; then
+        GRANTS=$(mysql -h127.0.0.1 -u$DB_USER -p$DB_PASSWORD -e "SHOW GRANTS FOR CURRENT_USER();" 2>/dev/null)
+        if echo "$GRANTS" | grep -q "ALL PRIVILEGES ON \*\.\* TO"; then
+            echo -e "${lv}数据库权限配置正确！${bai}"
+        else
+            echo -e "${hong}警告：数据库权限不足${bai}"
+            echo -e "${huang}请按照上述步骤配置数据库权限${bai}"
+            read -n 1 -s -p "按任意键继续..."
+            return_to_main_menu
+        fi
     else
-        echo -e "${hong}警告：数据库权限可能配置不正确${bai}"
+        echo -e "${hong}警告：无法连接到数据库，请检查用户名和密码是否正确${bai}"
         echo -e "${huang}请按照上述步骤配置数据库权限${bai}"
+        read -n 1 -s -p "按任意键继续..."
+        return_to_main_menu
     fi
     
     read -n 1 -s -p "按任意键继续..."
