@@ -485,14 +485,14 @@ check_mysql_privileges() {
     echo "2) 执行以下命令授予必要权限："
     echo -e "   ${zi}CREATE USER 'tongbu'@'127.0.0.1' IDENTIFIED BY '123456';${bai}"
     echo -e "   ${zi}GRANT ALL PRIVILEGES ON *.* TO 'tongbu'@'127.0.0.1';${bai}"
-	echo -e "   ${zi}FLUSH PRIVILEGES;${bai}"
+    echo -e "   ${zi}FLUSH PRIVILEGES;${bai}"
     echo ""
     echo "3) 输入 exit 退出 MySQL"
     echo "------------------------"
     
     # 验证权限
     echo -e "${huang}正在验证数据库权限...${bai}"
-    if mysql -u$DB_USER -p$DB_PASSWORD -e "SHOW GRANTS;" 2>/dev/null | grep -q "ALL PRIVILEGES ON \*\.\* TO"; then
+    if mysql -u$DB_USER -p$DB_PASSWORD -e "SHOW GRANTS;" 2>/dev/null | grep -q "ALL PRIVILEGES ON .* TO"; then
         echo -e "${lv}数据库权限配置正确！${bai}"
     else
         echo -e "${hong}警告：数据库权限可能配置不正确${bai}"
