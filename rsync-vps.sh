@@ -28,7 +28,7 @@ source config.sh
 clear
 greenline "————————————————————————————————————————————————————"
 echo '
-环境:  (Ubuntu/debian)
+环境:  (debian/Ubuntu)
 脚本作用:主机之间同步目录和数据库'
 echo -e "博客：${kjlan}https://blog.taoshuge.eu.org${bai}"
 greenline "————————————————————————————————————————————————————"
