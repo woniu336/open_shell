@@ -1,0 +1,60 @@
+<div class="layui-form-item upload_mode mode_btjson" {if condition="$config['upload']['mode'] neq 'Btjson'"}style="display:none;" {/if}>
+    <label class="layui-form-label">图床服务：</label>
+    <div class="layui-input-block">
+        <a href="javascript:;" class="layui-btn layui-btn-primary">图床服务配置</a>
+    </div>
+</div>
+<div class="layui-form-item upload_mode mode_Btjson" {if condition="$config['upload']['mode'] neq 'Btjson'"}style="display:none;" {/if}>
+    <div class="layui-form-item">
+        <label class="layui-form-label">域名：</label>
+        <div class="layui-input-block w500">
+            <input type="text" name="upload[api][btjson][domain]" placeholder="请输入完整域名，如：https://your.domain" value="{$config['upload']['api']['btjson']['domain']}" class="layui-input">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">认证码：</label>
+        <div class="layui-input-block w500">
+            <input type="text" name="upload[api][btjson][auth_code]" placeholder="请输入认证码" value="{$config['upload']['api']['btjson']['auth_code']}" class="layui-input">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">服务端压缩：</label>
+        <div class="layui-input-block">
+            <input type="checkbox" name="upload[api][btjson][server_compress]" value="1" {if condition="$config['upload']['api']['btjson']['server_compress']"}checked{/if} lay-skin="switch" lay-text="开启|关闭">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">上传渠道：</label>
+        <div class="layui-input-block">
+            <select name="upload[api][btjson][upload_channel]">
+                <option value="telegram" {if condition="$config['upload']['api']['btjson']['upload_channel'] eq 'telegram'"}selected{/if}>Telegram</option>
+                <option value="cfr2" {if condition="$config['upload']['api']['btjson']['upload_channel'] eq 'cfr2'"}selected{/if}>Cloudflare R2</option>
+            </select>
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">自动重试：</label>
+        <div class="layui-input-block">
+            <input type="checkbox" name="upload[api][btjson][auto_retry]" value="1" {if condition="$config['upload']['api']['btjson']['auto_retry']"}checked{/if} lay-skin="switch" lay-text="开启|关闭">
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">文件命名：</label>
+        <div class="layui-input-block">
+            <select name="upload[api][btjson][upload_name_type]">
+                <option value="default" {if condition="$config['upload']['api']['btjson']['upload_name_type'] eq 'default'"}selected{/if}>默认命名</option>
+                <option value="index" {if condition="$config['upload']['api']['btjson']['upload_name_type'] eq 'index'"}selected{/if}>仅前缀</option>
+                <option value="origin" {if condition="$config['upload']['api']['btjson']['upload_name_type'] eq 'origin'"}selected{/if}>仅原名</option>
+            </select>
+        </div>
+    </div>
+    <div class="layui-form-item">
+        <label class="layui-form-label">返回格式：</label>
+        <div class="layui-input-block">
+            <select name="upload[api][btjson][return_format]">
+                <option value="default" {if condition="$config['upload']['api']['btjson']['return_format'] eq 'default'"}selected{/if}>默认格式</option>
+                <option value="full" {if condition="$config['upload']['api']['btjson']['return_format'] eq 'full'"}selected{/if}>完整链接</option>
+            </select>
+        </div>
+    </div>
+</div>
