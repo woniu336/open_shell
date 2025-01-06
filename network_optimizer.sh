@@ -213,6 +213,48 @@ EOF
     echo -e "${GREEN}系统服务创建并启用完成${NC}"
 }
 
+# 删除配置函数
+remove_configuration() {
+    echo -e "${YELLOW}正在删除网络优化配置...${NC}"
+    
+    # 1. 停止并删除系统服务
+    echo -e "${YELLOW}停止并删除系统服务...${NC}"
+    systemctl stop tcp_traffic_control.service 2>/dev/null
+    systemctl disable tcp_traffic_control.service 2>/dev/null
+    rm -f /etc/systemd/system/tcp_traffic_control.service
+    systemctl daemon-reload
+    
+    # 2. 删除流量控制配置
+    echo -e "${YELLOW}删除流量控制配置...${NC}"
+    INTERFACE=$(ip -o link show | grep 'link/ether' | awk -F': ' '{print $2}' | head -n 1)
+    tc qdisc del dev $INTERFACE root 2>/dev/null
+    
+    # 3. 删除创建的文件和目录
+    echo -e "${YELLOW}删除配置文件和目录...${NC}"
+    rm -rf $TARGET_DIR
+    rm -f $SYSCTL_CONF
+    
+    # 4. 恢复备份的配置文件（如果存在）
+    echo -e "${YELLOW}恢复配置文件备份...${NC}"
+    local config_files=(
+        "/etc/sysctl.conf"
+        "/etc/sysctl.d/99-sysctl.conf"
+        "/etc/sysctl.d/99-network-tuning.conf"
+    )
+    
+    for conf in "${config_files[@]}"; do
+        if [ -f "${conf}.bak" ]; then
+            mv "${conf}.bak" "$conf"
+            echo "已恢复 $conf 的备份"
+        fi
+    done
+    
+    # 重新加载系统参数
+    sysctl --system >/dev/null
+    
+    echo -e "${GREEN}所有网络优化配置已成功删除并恢复原始设置${NC}"
+}
+
 # 显示菜单
 show_menu() {
     clear
@@ -223,6 +265,7 @@ show_menu() {
     echo "4. 创建并启用系统服务"
     echo "5. 查看当前配置"
     echo "6. 完整安装（执行所有步骤）"
+    echo "7. 删除所有配置"
     echo "0. 退出"
 }
 
@@ -242,7 +285,7 @@ main() {
     check_root
     while true; do
         show_menu
-        read -p "请选择操作 [0-6]: " choice
+        read -p "请选择操作 [0-7]: " choice
         case $choice in
             1) setup_sysctl ;;
             2) create_tc_script ;;
@@ -254,6 +297,14 @@ main() {
                 create_tc_script
                 $TARGET_DIR/$SCRIPT_NAME -y
                 create_service
+                ;;
+            7)
+                read -p "确定要删除所有配置吗？这将恢复系统默认设置 [y/N]: " confirm
+                if [[ $confirm =~ ^[Yy]$ ]]; then
+                    remove_configuration
+                else
+                    echo -e "${YELLOW}取消删除操作${NC}"
+                fi
                 ;;
             0) exit 0 ;;
             *) echo -e "${RED}无效的选择${NC}" ;;
