@@ -22,8 +22,6 @@ check_root() {
 
 # 配置系统参数
 setup_sysctl() {
-    echo -e "${YELLOW}正在配置系统网络参数...${NC}"
-    
     # 检查现有配置文件
     local config_files=(
         "/etc/sysctl.conf"
@@ -31,20 +29,15 @@ setup_sysctl() {
         "/etc/sysctl.d/99-network-tuning.conf"
     )
     
-    echo -e "${YELLOW}检查现有配置...${NC}"
+    # 静默创建备份
     for conf in "${config_files[@]}"; do
         if [ -f "$conf" ]; then
-            echo -e "发现配置文件: $conf"
-            echo -e "创建备份: ${conf}.bak"
-            cp "$conf" "${conf}.bak"
+            cp "$conf" "${conf}.bak" 2>/dev/null
         fi
     done
     
-    # 询问用户选择配置方式
-    echo -e "\n${YELLOW}请选择配置方式：${NC}"
-    echo "1. 使用 /etc/sysctl.conf (传统方式)"
-    echo "2. 使用 /etc/sysctl.d/99-network-tuning.conf (推荐)"
-    read -p "请选择 [1-2]: " config_choice
+    # 使用推荐的配置方式（sysctl.d）
+    CONFIG_FILE="/etc/sysctl.d/99-network-tuning.conf"
     
     # 定义要设置的参数
     local params=(
@@ -54,92 +47,48 @@ setup_sysctl() {
         "net.ipv4.tcp_wmem=4096 16384 67108864"
     )
     
-    case $config_choice in
-        1)
-            CONFIG_FILE="/etc/sysctl.conf"
-            # 清理其他可能的配置
-            rm -f /etc/sysctl.d/99-network-tuning.conf
-            
-            # 更新 sysctl.conf
+    # 处理 sysctl.conf
+    if [ -f "/etc/sysctl.conf" ]; then
+        for param in "${params[@]}"; do
+            param_name=$(echo "$param" | cut -d= -f1)
+            sed -i "/^${param_name}=/d" /etc/sysctl.conf 2>/dev/null
+        done
+    fi
+    
+    # 处理其他配置文件
+    for conf in /etc/sysctl.d/*.conf; do
+        if [ "$conf" != "$CONFIG_FILE" ]; then
             for param in "${params[@]}"; do
                 param_name=$(echo "$param" | cut -d= -f1)
-                # 删除原有的配置行
-                sed -i "/^${param_name}=/d" $CONFIG_FILE
-                # 添加新的配置
-                echo "$param" >> $CONFIG_FILE
+                sed -i "/^${param_name}=/d" "$conf" 2>/dev/null
             done
-            ;;
-        2)
-            CONFIG_FILE="/etc/sysctl.d/99-network-tuning.conf"
-            
-            # 处理 sysctl.conf
-            if [ -f "/etc/sysctl.conf" ]; then
-                echo -e "${YELLOW}正在处理 /etc/sysctl.conf...${NC}"
-                for param in "${params[@]}"; do
-                    param_name=$(echo "$param" | cut -d= -f1)
-                    # 完全删除原有的配置行
-                    sed -i "/^${param_name}=/d" /etc/sysctl.conf
-                done
-            fi
-            
-            # 处理其他可能的配置文件
-            for conf in /etc/sysctl.d/*.conf; do
-                if [ "$conf" != "$CONFIG_FILE" ]; then
-                    echo -e "${YELLOW}正在处理 $conf...${NC}"
-                    for param in "${params[@]}"; do
-                        param_name=$(echo "$param" | cut -d= -f1)
-                        sed -i "/^${param_name}=/d" "$conf"
-                    done
-                fi
-            done
-            
-            # 创建新的配置文件
-            echo -e "${YELLOW}创建新配置到 $CONFIG_FILE${NC}"
-            > "$CONFIG_FILE"  # 清空文件
-            for param in "${params[@]}"; do
-                echo "$param" >> "$CONFIG_FILE"
-            done
-            ;;
-        *)
-            echo -e "${RED}无效的选择${NC}"
-            exit 1
-            ;;
-    esac
+        fi
+    done
     
-    # 应用配置
-    echo -e "${YELLOW}应用新配置...${NC}"
-    sysctl --system
+    # 创建新的配置文件
+    > "$CONFIG_FILE"  # 清空文件
+    for param in "${params[@]}"; do
+        echo "$param" >> "$CONFIG_FILE"
+    done
+    
+    # 静默应用配置
+    sysctl --system >/dev/null 2>&1
     
     # 强制应用特定参数
-    echo -e "${YELLOW}强制应用关键参数...${NC}"
     for param in "${params[@]}"; do
-        sysctl -w "$param"
-    done
-    
-    # 验证配置
-    echo -e "\n${YELLOW}验证最终生效的配置：${NC}"
-    for param in "${params[@]}"; do
-        param_name=$(echo "$param" | cut -d= -f1)
-        sysctl "$param_name"
-    done
-    
-    echo -e "${GREEN}系统参数配置完成${NC}"
-    
-    # 显示所有相关配置文件的内容
-    echo -e "\n${YELLOW}当前配置文件内容：${NC}"
-    for conf in "${config_files[@]}"; do
-        if [ -f "$conf" ]; then
-            echo -e "\n${GREEN}=== $conf 内容 ===${NC}"
-            grep -E "^net.core.default_qdisc|^net.ipv4.tcp_congestion_control|^net.ipv4.tcp_rmem|^net.ipv4.tcp_wmem" "$conf" || echo "无相关配置"
-        fi
+        sysctl -w "$param" >/dev/null 2>&1
     done
 }
 
 # 创建流量控制脚本
 create_tc_script() {
-    echo -e "${YELLOW}正在创建流量控制脚本...${NC}"
-    mkdir -p $TARGET_DIR
-    touch $CONFIG_FILE
+    # 如果脚本已存在且内容正确，则跳过
+    if [ -f "$TARGET_DIR/$SCRIPT_NAME" ]; then
+        return
+    fi
+
+    mkdir -p $TARGET_DIR 2>/dev/null
+    touch $CONFIG_FILE 2>/dev/null
 
     cat > $TARGET_DIR/$SCRIPT_NAME << 'EOF'
 #!/bin/bash
@@ -187,13 +136,17 @@ tc class show dev $INTERFACE
 tc -s filter show dev $INTERFACE
 EOF
 
-    chmod +x $TARGET_DIR/$SCRIPT_NAME
-    echo -e "${GREEN}流量控制脚本创建完成${NC}"
+    chmod +x $TARGET_DIR/$SCRIPT_NAME 2>/dev/null
 }
 
 # 创建系统服务
 create_service() {
-    echo -e "${YELLOW}正在创建系统服务...${NC}"
+    # 如果服务已存在且内容正确，则跳过
+    if [ -f "/etc/systemd/system/tcp_traffic_control.service" ]; then
+        systemctl is-enabled tcp_traffic_control.service >/dev/null 2>&1 || systemctl enable tcp_traffic_control.service >/dev/null 2>&1
+        return
+    fi
+
     cat > /etc/systemd/system/tcp_traffic_control.service << EOF
 [Unit]
 Description=TCP Traffic Control Setup
@@ -208,9 +161,8 @@ RemainAfterExit=true
 WantedBy=multi-user.target
 EOF
 
-    systemctl daemon-reload
-    systemctl enable tcp_traffic_control.service
-    echo -e "${GREEN}系统服务创建并启用完成${NC}"
+    systemctl daemon-reload >/dev/null 2>&1
+    systemctl enable tcp_traffic_control.service >/dev/null 2>&1
 }
 
 # 删除配置函数
@@ -259,13 +211,9 @@ remove_configuration() {
 show_menu() {
     clear
     echo -e "${YELLOW}=== 网络优化配置工具 ===${NC}"
-    echo "1. 配置系统网络参数"
-    echo "2. 创建流量控制脚本"
-    echo "3. 设置带宽限制"
-    echo "4. 创建并启用系统服务"
-    echo "5. 查看当前配置"
-    echo "6. 完整安装（执行所有步骤）"
-    echo "7. 恢复原始设置"
+    echo "1. 设置带宽限制"
+    echo "2. 查看当前配置"
+    echo "3. 恢复原始设置"
     echo "0. 退出"
 }
 
@@ -283,22 +231,19 @@ show_current_config() {
 # 主程序
 main() {
     check_root
+    
+    # 首次运行时静默安装必要组件
+    setup_sysctl
+    create_tc_script
+    create_service
+    
     while true; do
         show_menu
-        read -p "请选择操作 [0-7]: " choice
+        read -p "请选择操作 [1-3]: " choice
         case $choice in
-            1) setup_sysctl ;;
-            2) create_tc_script ;;
-            3) $TARGET_DIR/$SCRIPT_NAME -y ;;
-            4) create_service ;;
-            5) show_current_config ;;
-            6)
-                setup_sysctl
-                create_tc_script
-                $TARGET_DIR/$SCRIPT_NAME -y
-                create_service
-                ;;
-            7)
+            1) $TARGET_DIR/$SCRIPT_NAME -y ;;
+            2) show_current_config ;;
+            3)
                 read -p "确定要删除所有配置吗？这将恢复系统默认设置 [y/N]: " confirm
                 if [[ $confirm =~ ^[Yy]$ ]]; then
                     remove_configuration
