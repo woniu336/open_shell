@@ -79,13 +79,61 @@ path = "/data/speedtest-ex/db/speedtest.db"
 
 [frontend]
 chartlist = 100
+
+[auth]
+enable = false
+username = "admin"
+password = "password"
+secret = "please_change_this_secret_key"
 EOF
 
     # 启动服务
     docker-compose up -d
     
+    # 获取IPv4地址
+    SERVER_IP=$(curl -s4 ip.sb || curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com)
+    
     echo -e "${GREEN}SpeedTest-EX 安装完成！${NC}"
-    echo -e "访问地址: http://$(curl -s ip.sb):8989"
+    echo -e "访问地址: http://${SERVER_IP}:8989"
+    
+    # 添加交互式鉴权配置
+    echo -e "\n${YELLOW}安全配置${NC}"
+    echo -e "建议配置鉴权功能以保护服务器资源"
+    echo -e "${YELLOW}是否现在配置鉴权？[y/n]${NC}"
+    read -r configure_auth
+    
+    if [[ "$configure_auth" =~ ^[Yy]$ ]] || [[ -z "$configure_auth" ]]; then
+        # 设置启用鉴权
+        sed -i 's/enable = false/enable = true/' "$CONFIG_DIR/config.toml"
+        
+        # 设置用户名
+        echo -e "\n${YELLOW}请设置管理员用户名 (默认: admin):${NC}"
+        read -r new_username
+        if [ ! -z "$new_username" ]; then
+            sed -i "s|username = \"admin\"|username = \"$new_username\"|" "$CONFIG_DIR/config.toml"
+        fi
+        
+        # 设置密码
+        echo -e "\n${YELLOW}请设置管理员密码 (默认: password):${NC}"
+        read -r new_password
+        if [ ! -z "$new_password" ]; then
+            sed -i "s|password = \"password\"|password = \"$new_password\"|" "$CONFIG_DIR/config.toml"
+        fi
+        
+        # 生成随机密钥
+        random_secret=$(openssl rand -base64 32)
+        sed -i "s|secret = \"please_change_this_secret_key\"|secret = \"$random_secret\"|" "$CONFIG_DIR/config.toml"
+        
+        echo -e "\n${YELLOW}正在重启服务以应用新配置...${NC}"
+        docker-compose restart
+        
+        echo -e "\n${GREEN}鉴权配置完成！${NC}"
+        echo -e "用户名: ${new_username:-admin}"
+        echo -e "密码: ${new_password:-password}"
+        echo -e "密钥已自动生成"
+    else
+        echo -e "\n${YELLOW}您选择了不配置鉴权，您可以之后使用选项 2 来修改配置${NC}"
+    fi
 }
 
 # 修改配置文件
@@ -97,6 +145,13 @@ modify_config() {
 
     echo -e "${YELLOW}当前配置文件内容：${NC}"
     cat "$CONFIG_DIR/config.toml"
+    
+    echo -e "\n${YELLOW}配置说明：${NC}"
+    echo -e "1. [auth] 部分用于配置鉴权功能："
+    echo -e "   - enable: 是否启用鉴权"
+    echo -e "   - username: 登录用户名"
+    echo -e "   - password: 登录密码"
+    echo -e "   - secret: 用于加密session的密钥，建议使用随机字符串"
     
     echo -e "\n${YELLOW}是否要修改配置文件？[y/N]${NC}"
     read -r response
@@ -132,7 +187,11 @@ uninstall_speedtest() {
     
     # 停止并删除容器
     cd "$INSTALL_DIR" || exit
-    docker-compose down
+    docker-compose down --rmi all
+    
+    # 清理相关的Docker镜像
+    echo -e "${YELLOW}正在清理Docker镜像...${NC}"
+    docker image rm wjqserver/speedtest-ex:latest >/dev/null 2>&1 || true
     
     # 询问是否删除数据
     echo -e "\n${YELLOW}是否删除所有数据（包括配置文件和测速记录）？[y/N]${NC}"
