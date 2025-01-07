@@ -80,7 +80,7 @@ setup_sysctl() {
     done
 }
 
-# 创建流量控制脚本
+# 创建带宽控制脚本
 create_tc_script() {
     # 如果脚本已存在且内容正确，则跳过
     if [ -f "$TARGET_DIR/$SCRIPT_NAME" ]; then
@@ -122,7 +122,7 @@ if [ -z "$INTERFACE" ] || [ -z "$BANDWIDTH" ]; then
     exit 1
 fi
 
-# 配置流量控制
+# 配置带宽控制
 tc qdisc del dev $INTERFACE root 2>/dev/null || true
 tc qdisc add dev $INTERFACE root handle 1:0 htb default 10
 tc class add dev $INTERFACE parent 1:0 classid 1:1 htb rate ${BANDWIDTH}mbit ceil ${BANDWIDTH}mbit
@@ -176,8 +176,8 @@ remove_configuration() {
     rm -f /etc/systemd/system/tcp_traffic_control.service
     systemctl daemon-reload
     
-    # 2. 删除流量控制配置
-    echo -e "${YELLOW}删除流量控制配置...${NC}"
+    # 2. 删除带宽控制配置
+    echo -e "${YELLOW}删除带宽控制配置...${NC}"
     INTERFACE=$(ip -o link show | grep 'link/ether' | awk -F': ' '{print $2}' | head -n 1)
     tc qdisc del dev $INTERFACE root 2>/dev/null
     
@@ -222,7 +222,7 @@ show_current_config() {
     echo -e "${YELLOW}当前系统参数配置：${NC}"
     sysctl -a | grep -E "net.core.default_qdisc|net.ipv4.tcp_congestion_control|net.ipv4.tcp_rmem|net.ipv4.tcp_wmem"
     
-    echo -e "\n${YELLOW}当前流量控制配置：${NC}"
+    echo -e "\n${YELLOW}当前带宽控制配置：${NC}"
     INTERFACE=$(ip -o link show | grep 'link/ether' | awk -F': ' '{print $2}' | head -n 1)
     tc qdisc show dev $INTERFACE
     tc class show dev $INTERFACE
