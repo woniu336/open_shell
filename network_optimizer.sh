@@ -7,7 +7,6 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 配置文件路径
-SYSCTL_CONF="/etc/sysctl.d/99-network-tuning.conf"
 TARGET_DIR="/app/tcp"
 SCRIPT_NAME="setup_traffic_control.sh"
 CONFIG_FILE="/app/tcp/bandwidth.conf"
@@ -22,62 +21,22 @@ check_root() {
 
 # 配置系统参数
 setup_sysctl() {
-    # 检查现有配置文件
-    local config_files=(
-        "/etc/sysctl.conf"
-        "/etc/sysctl.d/99-sysctl.conf"
-        "/etc/sysctl.d/99-network-tuning.conf"
-    )
-    
-    # 静默创建备份
-    for conf in "${config_files[@]}"; do
-        if [ -f "$conf" ]; then
-            cp "$conf" "${conf}.bak" 2>/dev/null
-        fi
-    done
-    
-    # 使用推荐的配置方式（sysctl.d）
-    CONFIG_FILE="/etc/sysctl.d/99-network-tuning.conf"
-    
-    # 定义要设置的参数
-    local params=(
-        "net.core.default_qdisc=fq"
-        "net.ipv4.tcp_congestion_control=bbr"
-        "net.ipv4.tcp_rmem=4096 87380 67108864"
-        "net.ipv4.tcp_wmem=4096 16384 67108864"
-    )
-    
-    # 处理 sysctl.conf
-    if [ -f "/etc/sysctl.conf" ]; then
-        for param in "${params[@]}"; do
-            param_name=$(echo "$param" | cut -d= -f1)
-            sed -i "/^${param_name}=/d" /etc/sysctl.conf 2>/dev/null
-        done
+    # 只在第一次运行时备份原始配置文件
+    if [ -f "/etc/sysctl.conf" ] && [ ! -f "/etc/sysctl.conf.bak" ]; then
+        cp /etc/sysctl.conf /etc/sysctl.conf.bak
     fi
-    
-    # 处理其他配置文件
-    for conf in /etc/sysctl.d/*.conf; do
-        if [ "$conf" != "$CONFIG_FILE" ]; then
-            for param in "${params[@]}"; do
-                param_name=$(echo "$param" | cut -d= -f1)
-                sed -i "/^${param_name}=/d" "$conf" 2>/dev/null
-            done
-        fi
-    done
-    
-    # 创建新的配置文件
-    > "$CONFIG_FILE"  # 清空文件
-    for param in "${params[@]}"; do
-        echo "$param" >> "$CONFIG_FILE"
-    done
-    
-    # 静默应用配置
-    sysctl --system >/dev/null 2>&1
-    
-    # 强制应用特定参数
-    for param in "${params[@]}"; do
-        sysctl -w "$param" >/dev/null 2>&1
-    done
+
+    # 定义 TCP 缓冲区参数
+    TCP_WMEM="4096 16384 67108864"
+    TCP_RMEM="4096 87380 67108864"
+
+    # 更新配置文件
+    sed -i '/^net.ipv4.tcp_[wr]mem/d' /etc/sysctl.conf
+    echo "net.ipv4.tcp_wmem = $TCP_WMEM" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_rmem = $TCP_RMEM" >> /etc/sysctl.conf
+
+    # 应用更改
+    sysctl -p
 }
 
 # 创建带宽控制脚本
@@ -184,25 +143,22 @@ remove_configuration() {
     # 3. 删除创建的文件和目录
     echo -e "${YELLOW}删除配置文件和目录...${NC}"
     rm -rf $TARGET_DIR
-    rm -f $SYSCTL_CONF
     
-    # 4. 恢复备份的配置文件（如果存在）
+    # 4. 恢复备份的配置文件（如果存在）并应用原始配置
     echo -e "${YELLOW}恢复配置文件备份...${NC}"
-    local config_files=(
-        "/etc/sysctl.conf"
-        "/etc/sysctl.d/99-sysctl.conf"
-        "/etc/sysctl.d/99-network-tuning.conf"
-    )
-    
-    for conf in "${config_files[@]}"; do
-        if [ -f "${conf}.bak" ]; then
-            mv "${conf}.bak" "$conf"
-            echo "已恢复 $conf 的备份"
-        fi
-    done
-    
-    # 重新加载系统参数
-    sysctl --system >/dev/null
+    if [ -f "/etc/sysctl.conf.bak" ]; then
+        # 直接恢复原始配置文件
+        cp /etc/sysctl.conf.bak /etc/sysctl.conf
+        echo "已恢复 /etc/sysctl.conf 的备份"
+        
+        # 重新加载系统参数以应用原始配置
+        sysctl --system >/dev/null
+        
+        # 删除备份文件
+        rm -f /etc/sysctl.conf.bak
+    else
+        echo -e "${YELLOW}未找到配置文件备份，无法恢复原始设置${NC}"
+    fi
     
     echo -e "${GREEN}所有网络优化配置已成功删除并恢复原始设置${NC}"
 }
