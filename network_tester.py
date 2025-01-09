@@ -74,24 +74,25 @@ def install_package(package_name, pip=False):
                 # 检测Linux发行版
                 if os.path.exists("/etc/debian_version"):  # Debian/Ubuntu
                     show_progress("Updating package list...")
-                    # 重定向所有输出到 /dev/null
                     with open(os.devnull, 'w') as devnull:
                         subprocess.check_call(
                             ["apt-get", "update", "-qq"],
                             stdout=devnull,
                             stderr=devnull
                         )
-                    sys.stdout.write('\r' + ' ' * 70 + '\r')  # 清除进度显示
+                    sys.stdout.write('\r' + ' ' * 70 + '\r')
                     
                     show_progress(f"Installing {package_name}...")
+                    env = os.environ.copy()
+                    env["DEBIAN_FRONTEND"] = "noninteractive"
                     with open(os.devnull, 'w') as devnull:
                         subprocess.check_call(
-                            ["DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y", "-qq", package_name],
+                            ["apt-get", "install", "-y", "-qq", package_name],
                             stdout=devnull,
                             stderr=devnull,
-                            env=dict(os.environ, DEBIAN_FRONTEND="noninteractive")
+                            env=env
                         )
-                    sys.stdout.write('\r' + ' ' * 70 + '\r')  # 清除进度显示
+                    sys.stdout.write('\r' + ' ' * 70 + '\r')
                     print(f"✓ Installed {package_name}")
                     
                 elif os.path.exists("/etc/redhat-release"):  # CentOS/RHEL
@@ -127,7 +128,25 @@ def check_and_install_requirements():
         try:
             import pip
         except ImportError:
-            if not install_package("python3-pip"):
+            # 修改这里的安装命令
+            env = os.environ.copy()
+            env["DEBIAN_FRONTEND"] = "noninteractive"
+            try:
+                with open(os.devnull, 'w') as devnull:
+                    subprocess.check_call(
+                        ["apt-get", "update", "-qq"],
+                        stdout=devnull,
+                        stderr=devnull,
+                        env=env
+                    )
+                    subprocess.check_call(
+                        ["apt-get", "install", "-y", "-qq", "python3-pip"],
+                        stdout=devnull,
+                        stderr=devnull,
+                        env=env
+                    )
+            except subprocess.CalledProcessError:
+                print("✗ Failed to install python3-pip")
                 sys.exit(1)
 
         try:
@@ -405,7 +424,7 @@ class NetworkTester:
             return False
 
     def is_high_jitter(self, jitter_str):
-        """判断抖��是否过高"""
+        """判断抖动是否过高"""
         try:
             value = float(jitter_str.replace('ms', ''))
             return value > 10
