@@ -2,7 +2,25 @@
 
 # 定义本地和远程目录
 LOCAL_DIR="/home/backup/"
-REMOTE_DIR="r2:web/backup"
+REMOTE_DIR="r2:web/amh-backup"
+
+# 执行 AMH 备份命令
+echo "开始执行 AMH 备份..."
+amh amdata backup n y y n n n n
+
+# 等待备份命令完成
+echo "等待备份完成..."
+sleep 60  # 给系统一些时间来完成备份操作
+
+# 检查最新的备份文件是否已生成
+latest_backup=$(find "$LOCAL_DIR" -type f -name "*.tar.gz.amh" -mmin -5)
+while [ -z "$latest_backup" ]; do
+    echo "正在等待备份文件生成..."
+    sleep 5
+    latest_backup=$(find "$LOCAL_DIR" -type f -name "*.tar.gz.amh" -mmin -5)
+done
+
+echo "AMH 备份已完成，开始同步到远程存储..."
 
 # 同步新文件，跳过已存在的文件
 echo "开始同步新文件..."
