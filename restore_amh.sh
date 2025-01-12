@@ -2,7 +2,7 @@
 
 # 定义本地和远程目录
 LOCAL_DIR="/home/backup/"
-REMOTE_DIR="r2:web/amh-backup"
+REMOTE_DIR="r2:存储桶名/目录"
 
 echo "开始查找最新的备份文件..."
 
