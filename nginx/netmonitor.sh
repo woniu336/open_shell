@@ -90,23 +90,50 @@ if [ "$choice" != "2" ]; then
     echo "创建配置文件..."
     read -p "请输入设备名称：" device_name
 
-
-    # 获取所有网卡名称
-    network_interfaces=($(ls /sys/class/net | grep -v lo))
-    default_interface=${network_interfaces[0]}
-
-    # 使用第一个非lo的网卡作为默认名称并询问是否需要修改
-    read -p "检测到默认网卡名称为 $default_interface，是否需要修改？（y/n）" modify_interface
-    if [ "$modify_interface" == "y" ]; then
-        read -p "请输入监控网卡名称：" network_interface
-    else
-        network_interface=$default_interface
+    # 获取所有网卡名称，排除虚拟网卡
+    echo -e "\033[33m正在检测网卡...\033[0m"
+    network_interfaces=($(ip -o link show | awk -F': ' '{print $2}' | grep -v -E 'lo|docker|veth|br-|tun|tap'))
+    
+    if [ ${#network_interfaces[@]} -eq 0 ]; then
+        echo -e "\033[31m未检测到有效的物理网卡！\033[0m"
+        exit 1
     fi
 
-    # 检查网卡名称是否存在
-    if [ ! -d "/sys/class/net/$network_interface" ]; then
-        echo "网卡 $network_interface 不存在，退出安装"
-        exit 1
+    # 找到实际的物理网卡（通常是第一个状态为UP的非虚拟网卡）
+    default_interface=""
+    for interface in "${network_interfaces[@]}"; do
+        if ip link show "$interface" | grep -q "state UP"; then
+            default_interface="$interface"
+            break
+        fi
+    done
+
+    # 如果没有找到UP状态的网卡，使用第一个可用的网卡
+    if [ -z "$default_interface" ]; then
+        default_interface="${network_interfaces[0]}"
+    fi
+
+    echo -e "\033[33m检测到物理网卡：\033[0m"
+    for interface in "${network_interfaces[@]}"; do
+        if [ "$interface" = "$default_interface" ]; then
+            echo -e "\033[32m* $interface \033[0m(推荐)"
+        else
+            echo "  $interface"
+        fi
+    done
+
+    read -p "是否使用推荐的网卡 $default_interface？(y/n): " use_default
+    if [ "$use_default" != "y" ]; then
+        echo "请从以上列表选择网卡名称："
+        read -p "输入网卡名称: " network_interface
+        if [[ " ${network_interfaces[@]} " =~ " ${network_interface} " ]]; then
+            network_interface="$network_interface"
+        else
+            echo -e "\033[31m无效的网卡名称！\033[0m"
+            exit 1
+        fi
+    else
+        network_interface="$default_interface"
     fi
 
     read -p "请输入流量重置日期（1-31）：" start_day
