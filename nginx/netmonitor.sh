@@ -204,8 +204,8 @@ After=network.target
 [Service]
 WorkingDirectory=/opt/NetMonitor
 ExecStart=/opt/NetMonitor/netmonitor -c /opt/NetMonitor/config.json
-StandardOutput=file:/opt/NetMonitor/output.log
-StandardError=file:/opt/NetMonitor/error.log
+StandardOutput=append:/opt/NetMonitor/output.log
+StandardError=append:/opt/NetMonitor/error.log
 Restart=always
 RestartSec=5
 
