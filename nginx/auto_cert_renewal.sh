@@ -40,24 +40,18 @@ for cert_dir in $certs_directory*; do
 
         systemctl stop nginx
 
-        iptables -P INPUT ACCEPT
-        iptables -P FORWARD ACCEPT
-        iptables -P OUTPUT ACCEPT
-        iptables -F
-
-        ip6tables -P INPUT ACCEPT
-        ip6tables -P FORWARD ACCEPT
-        ip6tables -P OUTPUT ACCEPT
-        ip6tables -F
-
+        # 申请证书
         docker run --rm -p 80:80 -v /etc/letsencrypt/:/etc/letsencrypt certbot/certbot certonly --standalone -d $yuming --email your@email.com --agree-tos --no-eff-email --force-renewal --key-type ecdsa  
 
+        # 复制证书到 Nginx 目录
         cp /etc/letsencrypt/live/$yuming/fullchain.pem /etc/nginx/certs/${yuming}_cert.pem > /dev/null 2>&1
         cp /etc/letsencrypt/live/$yuming/privkey.pem /etc/nginx/certs/${yuming}_key.pem > /dev/null 2>&1
 
+        # 更新会话票据密钥
         openssl rand -out /etc/nginx/certs/ticket12.key 48
         openssl rand -out /etc/nginx/certs/ticket13.key 80
 
+        # 重启 Nginx
         systemctl start nginx
 
         echo "证书已成功续签。"
