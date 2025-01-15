@@ -69,10 +69,9 @@ if [ "$choice" != "2" ]; then
     chmod 666 /opt/NetMonitor/error.log /opt/NetMonitor/output.log
 fi
 
-# 通过github api从https://github.com/nodeseeker/netMonitor/releases获取最新的版本号，下载地址
+# 下载netmonitor程序
 cd /opt/NetMonitor
-echo "获取最新版本号..."
-version=$(curl -s https://api.github.com/repos/nodeseeker/netMonitor/releases/latest | grep "tag_name" | cut -d\" -f4)
+echo "下载netmonitor程序..."
 arch=$(uname -m)
 case $arch in
     x86_64) arch="amd64" ;;
@@ -80,9 +79,7 @@ case $arch in
     *) echo "不支持 $arch CPU架构"; exit 1 ;;
 esac
 
-download_url="https://github.com/nodeseeker/netMonitor/releases/download/$version/netmonitor-linux-$arch"
-echo "下载地址：$download_url"
-wget -O netmonitor $download_url
+wget -O netmonitor https://github.com/nodeseeker/netMonitor/releases/download/v1.0.0/netmonitor-linux-$arch
 chmod +x netmonitor
 
 if [ "$choice" != "2" ]; then
