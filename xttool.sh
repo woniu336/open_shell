@@ -381,14 +381,394 @@ modify_ssh_port() {
     read -n 1 -s -r -p "按任意键继续..."
 }
 
+# 系统信息查询函数
+check_system_info() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}             系统信息查询              ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    # CPU信息
+    echo -e "${YELLOW}CPU信息：${NC}"
+    echo -e "物理CPU数：$(grep "physical id" /proc/cpuinfo | sort -u | wc -l)"
+    echo -e "CPU核心数：$(grep "processor" /proc/cpuinfo | wc -l)"
+    echo -e "CPU型号：$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | sed 's/^[ \t]*//')"
+    echo ""
+    
+    # 内存信息
+    echo -e "${YELLOW}内存信息：${NC}"
+    free -h | grep -E 'Mem|内存' | awk '{printf "总内存: %s\n已用: %s\n可用: %s\n", $2, $3, $7}'
+    echo ""
+    
+    # 磁盘信息
+    echo -e "${YELLOW}磁盘使用情况：${NC}"
+    df -h | grep -E '^/dev/' | awk '{printf "%-12s 总容量:%-8s 已用:%-8s 可用:%-8s 使用率:%s\n", $1, $2, $3, $4, $5}'
+    echo ""
+    
+    # 系统信息
+    echo -e "${YELLOW}系统信息：${NC}"
+    if [ -f /etc/os-release ]; then
+        source /etc/os-release
+        echo -e "系统版本：$PRETTY_NAME"
+    fi
+    echo -e "内核版本：$(uname -r)"
+    echo -e "系统架构：$(uname -m)"
+    echo ""
+    
+    # 运行时间
+    echo -e "${YELLOW}系统运行时间：${NC}"
+    uptime | sed 's/.*up \([^,]*\),.*/\1/'
+    echo ""
+    
+    # 网络信息
+    echo -e "${YELLOW}网络信息：${NC}"
+    echo "网卡信息："
+    ip -o link show | awk -F': ' '{print $2}' | while read -r interface; do
+        if [ "$interface" != "lo" ]; then
+            ip_addr=$(ip -4 addr show $interface 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+            if [ ! -z "$ip_addr" ]; then
+                echo "  $interface: $ip_addr"
+            fi
+        fi
+    done
+    echo ""
+    
+    # 系统负载
+    echo -e "${YELLOW}系统负载：${NC}"
+    load_avg=$(cat /proc/loadavg | awk '{print $1, $2, $3}')
+    echo -e "1分钟: $(echo $load_avg | cut -d' ' -f1)"
+    echo -e "5分钟: $(echo $load_avg | cut -d' ' -f2)"
+    echo -e "15分钟: $(echo $load_avg | cut -d' ' -f3)"
+    echo ""
+    
+    read -n 1 -s -r -p "按任意键继续..."
+}
+
+# 开启BBR加速
+enable_bbr() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}             开启 BBR 加速              ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}正在配置BBR...${NC}"
+    
+    # 创建临时文件
+    local tmp_conf=$(mktemp)
+    
+    # 如果存在原有配置，先复制
+    if [ -f "/etc/sysctl.conf" ]; then
+        grep -v "net.core.default_qdisc\|net.ipv4.tcp_congestion_control" /etc/sysctl.conf > "$tmp_conf"
+    fi
+    
+    # 添加BBR参数
+    cat >> "$tmp_conf" << EOF
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+EOF
+
+    # 更新系统配置
+    mv "$tmp_conf" /etc/sysctl.conf
+    sudo sysctl -p
+    
+    echo -e "\n${GREEN}BBR配置完成！${NC}"
+    read -n 1 -s -r -p "按任意键继续..."
+}
+
+# UFW屏蔽Censys
+setup_ufw_rules() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}             UFW 防火墙配置              ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    if [ ! -f "setup_ufw_rules.sh" ]; then
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/setup_ufw_rules.sh
+        chmod +x setup_ufw_rules.sh
+    fi
+    ./setup_ufw_rules.sh
+}
+
+# ASN黑名单
+setup_asn_blocker() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}             ASN 黑名单配置              ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}可选择屏蔽的ASN：${NC}"
+    echo "• AS398722 (Censys)"
+    echo "• AS14061 (DigitalOcean)"
+    echo "• AS135377 (UCLOUD)"
+    echo ""
+    echo -e "${YELLOW}说明：这些 ASN 通常用于扫描和探测服务器。${NC}"
+    echo -e "${YELLOW}屏蔽后可以有效减少服务器被扫描的风险。${NC}"
+    echo ""
+    read -p "是否继续配置ASN黑名单？[y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}操作已取消${NC}"
+        read -n 1 -s -r -p "按任意键继续..."
+        return
+    fi
+    
+    # 安装依赖
+    if ! command -v gawk &>/dev/null; then
+        echo -e "${YELLOW}正在安装 gawk...${NC}"
+        sudo apt update && sudo apt install -y gawk
+    fi
+    
+    if [ ! -f "asn-blocker.sh" ]; then
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/asn-blocker.sh
+        chmod +x asn-blocker.sh
+    fi
+    
+    ./asn-blocker.sh
+}
+
+# Docker工具子菜单
+manage_docker_tools() {
+    while true; do
+        clear_screen
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             Docker 工具管理              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+        echo -e "${YELLOW}可用选项：${NC}"
+        echo -e "${GREEN}1.${NC} SpeedTest-EX 测速"
+        echo -e "${GREEN}2.${NC} Uptime Kuma 监控"
+        echo -e "${GREEN}3.${NC} Portainer 中文版"
+        echo -e "${GREEN}0.${NC} 返回主菜单"
+        echo ""
+        echo -e "${BLUE}=================================================${NC}"
+        
+        read -p "请输入选项 [0-3]: " docker_choice
+        
+        case $docker_choice in
+            1)
+                if [ ! -f "speedtest-ex.sh" ]; then
+                    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/speedtest-ex.sh
+                    chmod +x speedtest-ex.sh
+                fi
+                ./speedtest-ex.sh
+                ;;
+            2)
+                echo -e "${YELLOW}正在安装 Uptime Kuma...${NC}"
+                docker run -d --restart=always -p 3001:3001 -v uptime-kuma:/app/data --name uptime-kuma louislam/uptime-kuma:1.18.5
+                echo -e "${GREEN}安装完成！请访问 http://服务器IP:3001${NC}"
+                read -n 1 -s -r -p "按任意键继续..."
+                ;;
+            3)
+                echo -e "${YELLOW}正在安装 Portainer 中文版...${NC}"
+                docker run -d --restart=always --name="portainer" -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data 6053537/portainer-ce
+                echo -e "${GREEN}安装完成！请访问 http://服务器IP:9000${NC}"
+                read -n 1 -s -r -p "按任意键继续..."
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选项！${NC}"
+                read -n 1 -s -r -p "按任意键继续..."
+                ;;
+        esac
+    done
+}
+
+# 设置DNS
+set_dns() {
+    # 尝试解除文件锁定
+    chattr -i /etc/resolv.conf 2>/dev/null || true
+    
+    rm -f /etc/resolv.conf
+    touch /etc/resolv.conf
+
+    if [ -n "$ipv4_address" ]; then
+        echo "nameserver $dns1_ipv4" >> /etc/resolv.conf
+        echo "nameserver $dns2_ipv4" >> /etc/resolv.conf
+    fi
+
+    if [ -n "$ipv6_address" ]; then
+        echo "nameserver $dns1_ipv6" >> /etc/resolv.conf
+        echo "nameserver $dns2_ipv6" >> /etc/resolv.conf
+    fi
+}
+
+# DNS优化函数
+optimize_dns() {
+    clear_screen
+    while true; do
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             DNS 优化配置              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+        echo -e "${YELLOW}当前DNS配置：${NC}"
+        echo "------------------------"
+        cat /etc/resolv.conf
+        echo "------------------------"
+        echo ""
+        echo -e "1. ${GREEN}国外DNS优化${NC}"
+        echo "   • 主DNS: 8.8.8.8 (Google)"
+        echo "   • 备DNS: 8.8.4.4 (Google)"
+        echo ""
+        echo -e "2. ${GREEN}国内DNS优化${NC}"
+        echo "   • 主DNS: 223.5.5.5 (阿里云)"
+        echo "   • 备DNS: 119.29.29.29 (腾讯云)"
+        echo ""
+        echo -e "3. ${GREEN}手动编辑DNS配置${NC}"
+        echo ""
+        echo -e "0. ${GREEN}返回主菜单${NC}"
+        echo "------------------------"
+        
+        read -p "请输入选项 [0-3]: " dns_choice
+        
+        case "$dns_choice" in
+            1)
+                # 尝试解除文件锁定
+                chattr -i /etc/resolv.conf 2>/dev/null || true
+                
+                # 设置国外DNS
+                echo "nameserver 8.8.8.8" > /etc/resolv.conf
+                echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+                
+                echo -e "\n${GREEN}已设置为国外DNS${NC}"
+                ;;
+            2)
+                # 尝试解除文件锁定
+                chattr -i /etc/resolv.conf 2>/dev/null || true
+                
+                # 设置国内DNS
+                echo "nameserver 223.5.5.5" > /etc/resolv.conf
+                echo "nameserver 119.29.29.29" >> /etc/resolv.conf
+                
+                echo -e "\n${GREEN}已设置为国内DNS${NC}"
+                ;;
+            3)
+                if ! command -v nano &>/dev/null; then
+                    echo -e "${YELLOW}正在安装nano编辑器...${NC}"
+                    apt update && apt install -y nano
+                fi
+                nano /etc/resolv.conf
+                echo -e "\n${GREEN}DNS配置已更新${NC}"
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选项！${NC}"
+                ;;
+        esac
+        
+        echo -e "\n${YELLOW}当前DNS配置：${NC}"
+        echo "------------------------"
+        cat /etc/resolv.conf
+        echo "------------------------"
+        echo ""
+        read -n 1 -s -r -p "按任意键继续..."
+        clear_screen
+    done
+}
+
+# ServerStatus探针安装
+setup_serverstatus() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}         Rust ServerStatus探针安装        ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}说明：ServerStatus是一个开源的探针程序，用于监控服务器状态。${NC}"
+    echo -e "${YELLOW}功能：CPU、内存、硬盘、网络等实时监控。${NC}"
+    echo ""
+    read -p "是否继续安装ServerStatus探针？[y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}操作已取消${NC}"
+        read -n 1 -s -r -p "按任意键继续..."
+        return
+    fi
+    
+    echo -e "\n${YELLOW}正在下载安装脚本...${NC}"
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/setup_serverstatus.sh
+    chmod +x setup_serverstatus.sh
+    ./setup_serverstatus.sh
+}
+
+# Hysteria 2安装
+setup_hysteria() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}         Hysteria 2 安装配置        ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}说明：Hysteria 2是一个强大的网络工具。${NC}"
+    echo -e "${YELLOW}特点：${NC}"
+    echo "• 高性能、低延迟"
+    echo "• 抗干扰能力强"
+    echo "• 支持多平台"
+    echo ""
+    read -p "是否继续安装Hysteria 2？[y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}操作已取消${NC}"
+        read -n 1 -s -r -p "按任意键继续..."
+        return
+    fi
+    
+    echo -e "\n${YELLOW}正在下载安装脚本...${NC}"
+    wget -N --no-check-certificate https://raw.githubusercontent.com/flame1ce/hysteria2-install/main/hysteria2-install-main/hy2/hysteria.sh
+    bash hysteria.sh
+}
+
+# 3x-ui面板安装
+setup_3xui() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}         3x-ui 面板安装配置        ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}说明：3x-ui 是一个支持多协议的 Web 面板。${NC}"
+    echo -e "${YELLOW}特点：${NC}"
+    echo "• 支持多用户多协议管理"
+    echo "• 支持流量统计和限制"
+    echo "• 支持定时任务和备份"
+    echo "• 支持自定义模板"
+    echo ""
+    read -p "是否继续安装3x-ui面板？[y/N]: " confirm
+    
+    if [[ ! $confirm =~ ^[Yy]$ ]]; then
+        echo -e "${YELLOW}操作已取消${NC}"
+        read -n 1 -s -r -p "按任意键继续..."
+        return
+    fi
+    
+    echo -e "\n${YELLOW}正在安装3x-ui面板...${NC}"
+    bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+}
+
 # 显示主菜单
 show_menu() {
     echo -e "${YELLOW}请选择要执行的操作：${NC}"
     echo ""
-    echo -e "${GREEN}1.${NC} 定时任务管理"
-    echo -e "${GREEN}2.${NC} 时区设置"
+    echo -e "${GREEN}1.${NC} 系统信息查询"
+    echo -e "${GREEN}2.${NC} 修改SSH端口"
     echo -e "${GREEN}3.${NC} SSH密钥管理"
-    echo -e "${GREEN}4.${NC} 修改SSH端口"
+    echo -e "${GREEN}4.${NC} 定时任务管理"
+    echo -e "${GREEN}5.${NC} 时区设置"
+    echo -e "${GREEN}6.${NC} 开启BBR加速"
+    echo -e "${GREEN}7.${NC} UFW防火墙配置"
+    echo -e "${GREEN}8.${NC} ASN黑名单配置"
+    echo -e "${GREEN}9.${NC} Docker工具管理"
+    echo -e "${GREEN}10.${NC} DNS优化配置"
+    echo -e "${GREEN}11.${NC} ServerStatus探针"
+    echo -e "${GREEN}12.${NC} Hysteria 2搭建"
+    echo -e "${GREEN}13.${NC} 3x-ui面板"
     echo -e "${GREEN}0.${NC} 退出脚本"
     echo ""
     echo -e "${BLUE}=================================================${NC}"
@@ -400,20 +780,73 @@ while true; do
     show_banner
     show_menu
     
-    read -p "请输入选项 [0-4]: " choice
+    read -p "请输入选项 [0-13]: " choice
     
     case $choice in
         1)
-            manage_cron_jobs
+            check_system_info
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
             ;;
         2)
-            set_timezone
+            modify_ssh_port
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
             ;;
         3)
             generate_ssh_key
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
             ;;
         4)
-            modify_ssh_port
+            manage_cron_jobs
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        5)
+            set_timezone
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        6)
+            enable_bbr
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        7)
+            setup_ufw_rules
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        8)
+            setup_asn_blocker
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        9)
+            manage_docker_tools
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        10)
+            optimize_dns
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        11)
+            setup_serverstatus
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        12)
+            setup_hysteria
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        13)
+            setup_3xui
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
             ;;
         0)
             clear_screen
