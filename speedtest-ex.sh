@@ -23,18 +23,47 @@ install_docker() {
     if ! command -v docker &> /dev/null; then
         echo -e "${YELLOW}正在安装 Docker...${NC}"
         curl -fsSL https://get.docker.com | sh
-        
+        systemctl enable docker
+        systemctl start docker
+        echo -e "${GREEN}Docker 安装完成${NC}"
+    fi
+
+    if ! command -v docker-compose &> /dev/null; then
         echo -e "${YELLOW}正在安装 Docker Compose...${NC}"
         curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
         
-        echo -e "${GREEN}Docker 和 Docker Compose 安装完成${NC}"
+        # 等待安装完成并验证
+        for i in {1..5}; do
+            if command -v docker-compose &> /dev/null; then
+                echo -e "${GREEN}Docker Compose 安装完成${NC}"
+                break
+            fi
+            if [ $i -eq 5 ]; then
+                echo -e "${RED}Docker Compose 安装失败，请手动安装后重试${NC}"
+                exit 1
+            fi
+            echo -e "${YELLOW}等待 Docker Compose 安装完成...${NC}"
+            sleep 2
+        done
+    fi
+
+    # 验证Docker服务状态
+    if ! systemctl is-active docker >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在启动 Docker 服务...${NC}"
+        systemctl start docker
     fi
 }
 
 # 安装 SpeedTest-EX
 install_speedtest() {
     echo -e "${YELLOW}开始安装 SpeedTest-EX...${NC}"
+    
+    # 验证Docker和Docker Compose是否可用
+    if ! command -v docker &> /dev/null || ! command -v docker-compose &> /dev/null; then
+        echo -e "${RED}Docker 或 Docker Compose 未正确安装，请检查安装状态${NC}"
+        return 1
+    fi
     
     # 创建必要的目录
     mkdir -p $INSTALL_DIR
