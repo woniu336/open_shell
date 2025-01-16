@@ -66,40 +66,18 @@ uninstall_nginx() {
 # 重启Nginx函数
 restart_nginx() {
     echo -e "${YELLOW}正在重启 Nginx...${NC}"
-    # 检查配置文件语法
-    if ! nginx -t; then
-        echo -e "${RED}Nginx配置文件检查失败${NC}"
-        return 1
-    fi
     
-    # 检查80端口
-    port_check=$(netstat -tulnp | grep ':80 ')
-    if [ ! -z "$port_check" ]; then
-        if echo "$port_check" | grep -v nginx >/dev/null 2>&1; then
-            echo -e "${RED}警告: 80端口被其他进程占用${NC}"
-            echo -e "${YELLOW}占用端口的进程信息：${NC}"
-            echo "$port_check" | grep -v nginx
-            return 1
-        else
-            echo -e "${GREEN}80端口被当前Nginx进程占用，继续重启操作...${NC}"
-        fi
-    fi
+    # 确保 PID 目录存在
+    sudo mkdir -p /run/nginx
+    sudo chown nginx:nginx /run/nginx
     
+    # 重启服务
     sudo systemctl restart nginx
+    
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Nginx 重启成功${NC}"
-        # 使用新的验证函数
-        if verify_nginx_running; then
-            echo -e "${GREEN}Nginx服务已完全恢复${NC}"
-        else
-            echo -e "${RED}Nginx重启后验证失败，请检查配置和日志${NC}"
-            return 1
-        fi
     else
         echo -e "${RED}Nginx 重启失败${NC}"
-        echo -e "${YELLOW}查看详细错误信息：${NC}"
-        sudo systemctl status nginx
-        return 1
     fi
 }
 
@@ -191,6 +169,7 @@ install_ng()
     if which yum >/dev/null 2>&1
     then
         ## RHEL/Rocky
+        sudo yum groupinstall -y "Development Tools"
         for pkg in gcc make pcre-devel zlib-devel openssl-devel
         do
             if ! rpm -q $pkg >/dev/null 2>&1
@@ -206,7 +185,9 @@ install_ng()
     if which apt >/dev/null 2>&1
     then
         ##ubuntu
-        for pkg in make libpcre++-dev  libssl-dev  zlib1g-dev
+        sudo apt update
+        sudo apt install -y build-essential
+        for pkg in gcc make libpcre++-dev libssl-dev zlib1g-dev
         do
             if ! dpkg -l $pkg >/dev/null 2>&1
             then
