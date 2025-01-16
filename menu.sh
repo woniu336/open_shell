@@ -31,6 +31,7 @@ show_menu() {
     echo -e "${GREEN}5.${NC} Docker管理"
     echo -e "${GREEN}6.${NC} 快捷键设置"
     echo -e "${GREEN}7.${NC} 系统工具集 ${YELLOW}★${NC}"
+    echo -e "${GREEN}8.${NC} AMH面板管理"
     echo -e "${GREEN}0.${NC} 退出脚本"
     echo ""
     echo -e "${BLUE}=================================================${NC}"
@@ -787,13 +788,262 @@ system_tools() {
     ./xttool.sh
 }
 
+# AMH面板管理函数
+amh_panel_management() {
+    while true; do
+        clear_screen
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             AMH面板管理菜单              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+        echo -e "${GREEN}1.${NC} 安装AMH面板"
+        echo -e "${GREEN}2.${NC} 编译Nginx模块"
+        echo -e "${GREEN}3.${NC} 配置环境变量"
+        echo -e "${GREEN}4.${NC} 查询Nginx模块"
+        echo -e "${GREEN}5.${NC} 配置Nginx设置"
+        echo -e "${GREEN}6.${NC} 禁止IP访问"
+        echo -e "${GREEN}7.${NC} 卸载AMH面板"
+        echo -e "${GREEN}8.${NC} 清理数据库日志"
+        echo -e "${GREEN}9.${NC} 站点备份和还原"
+        echo -e "${GREEN}0.${NC} 返回主菜单"
+        echo ""
+        echo -e "${BLUE}=================================================${NC}"
+
+        read -p "请输入选项 [0-9]: " amh_choice
+        case $amh_choice in
+            1)
+                echo -e "${YELLOW}开始安装AMH面板...${NC}"
+                wget https://dl.amh.sh/amh.sh && bash amh.sh nginx-generic-1.24,mysql-generic-5.7,php-generic-7.4
+                ;;
+            2)
+                echo -e "${YELLOW}开始编译Nginx模块...${NC}"
+                wget http://nginx.org/download/nginx-1.24.0.tar.gz
+                tar -zxvf nginx-1.24.0.tar.gz
+                cd nginx-1.24.0
+                ./configure --prefix=/usr/local/nginx-generic-1.24 --with-http_ssl_module --with-http_v2_module --with-http_realip_module --with-http_gzip_static_module
+                make && sudo make install
+                amh nginx reload
+                echo -e "${GREEN}Nginx模块编译完成！${NC}"
+                ;;
+            3)
+                echo -e "${YELLOW}配置PATH环境变量...${NC}"
+                if ! grep -q "export PATH=\$PATH:/usr/local/nginx-generic-1.24/sbin" ~/.bashrc; then
+                    echo 'export PATH=$PATH:/usr/local/nginx-generic-1.24/sbin' >> ~/.bashrc
+                    source ~/.bashrc
+                    echo -e "${GREEN}环境变量配置完成！${NC}"
+                else
+                    echo -e "${YELLOW}环境变量已经配置过了${NC}"
+                fi
+                ;;
+            4)
+                echo -e "${YELLOW}查询Nginx模块状态...${NC}"
+                echo -e "\n检查realip模块:"
+                nginx -V 2>&1 | grep -i --color=auto "http_realip_module"
+                echo -e "\n检查gzip_static模块:"
+                nginx -V 2>&1 | grep -o http_gzip_static_module
+                ;;
+            5)
+                echo -e "${YELLOW}配置Nginx设置...${NC}"
+                # 检查cf.conf是否存在
+                if [ -f "/usr/local/nginx-generic-1.24/conf/cf.conf" ]; then
+                    echo -e "${YELLOW}检测到cf.conf已存在，将进行替换...${NC}"
+                    rm -f /usr/local/nginx-generic-1.24/conf/cf.conf
+                fi
+                
+                # 创建cf.conf
+                cat > /usr/local/nginx-generic-1.24/conf/cf.conf << 'EOF'
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 104.16.0.0/13;
+set_real_ip_from 104.24.0.0/14;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 131.0.72.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 2400:cb00::/32;
+set_real_ip_from 2606:4700::/32;
+set_real_ip_from 2803:f800::/32;
+set_real_ip_from 2405:b500::/32;
+set_real_ip_from 2405:8100::/32;
+set_real_ip_from 2a06:98c0::/29;
+set_real_ip_from 2c0f:f248::/32;
+real_ip_header CF-Connecting-IP;
+real_ip_recursive on;
+EOF
+                echo -e "${GREEN}cf.conf配置完成！${NC}"
+                echo -e "${YELLOW}请手动修改nginx.conf文件...${NC}"
+                read -n 1 -s -r -p "按任意键打开nginx.conf进行编辑..."
+                nano /usr/local/nginx-generic-1.24/conf/nginx.conf
+                
+                amh nginx reload
+                amh nginx restart
+                echo -e "${GREEN}Nginx配置已更新！${NC}"
+                ;;
+            6)
+                echo -e "${YELLOW}配置禁止IP访问...${NC}"
+                curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/create_default_config.sh && chmod +x create_default_config.sh && ./create_default_config.sh
+                ;;
+            7)
+                echo -e "${YELLOW}开始卸载AMH面板...${NC}"
+                read -p "确定要卸载AMH面板吗？(y/n): " confirm
+                if [ "$confirm" = "y" ]; then
+                    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/uamh.sh && chmod +x uamh.sh && ./uamh.sh
+                else
+                    echo -e "${YELLOW}已取消卸载操作${NC}"
+                fi
+                ;;
+            8)
+                echo -e "${YELLOW}配置数据库日志清理...${NC}"
+                # 获取用户输入的目录
+                read -e -p "请输入脚本存放目录(例如/root/test): " script_dir
+                if [ -z "$script_dir" ]; then
+                    echo -e "${RED}目录不能为空！${NC}"
+                    continue
+                fi
+                
+                # 创建目录并设置为可执行目录
+                mkdir -p "$script_dir"
+                amh amcrontab set_sh "$script_dir"
+                
+                # 下载清理脚本
+                cd "$script_dir"
+                wget -O clean_mysql_logs.sh https://raw.githubusercontent.com/woniu336/open_shell/main/clean_mysql_logs.sh
+                chmod +x clean_mysql_logs.sh
+                
+                echo -e "${GREEN}脚本下载完成！${NC}"
+                echo -e "${YELLOW}请前往AMH面板后台添加以下命令：${NC}"
+                echo -e "${GREEN}amh amcrontab run_sh $script_dir/clean_mysql_logs.sh${NC}"
+                echo -e "${YELLOW}提示：在AMH面板 -> 计划任务 中添加上述命令${NC}"
+                ;;
+            9)
+                while true; do
+                    clear_screen
+                    echo -e "${BLUE}=================================================${NC}"
+                    echo -e "${GREEN}             站点备份和还原              ${NC}"
+                    echo -e "${BLUE}=================================================${NC}"
+                    echo ""
+                    echo -e "${GREEN}1.${NC} 安装配置 rclone"
+                    echo -e "${GREEN}2.${NC} 下载备份脚本"
+                    echo -e "${GREEN}3.${NC} 修改备份配置"
+                    echo -e "${GREEN}4.${NC} 执行备份"
+                    echo -e "${GREEN}5.${NC} 执行还原"
+                    echo -e "${GREEN}0.${NC} 返回上级菜单"
+                    echo ""
+                    echo -e "${BLUE}=================================================${NC}"
+                    
+                    read -p "请输入选项 [0-5]: " backup_choice
+                    case $backup_choice in
+                        1)
+                            echo -e "${YELLOW}开始安装 rclone...${NC}"
+                            sudo -v ; curl https://rclone.org/install.sh | sudo bash
+                            
+                            echo -e "${YELLOW}创建 rclone 配置目录...${NC}"
+                            mkdir -p /home/www/.config/rclone/
+                            touch /home/www/.config/rclone/rclone.conf
+                            
+                            echo -e "${YELLOW}请编辑 rclone 配置文件，填入你的 r2 密钥信息...${NC}"
+                            echo -e "${GREEN}配置文件模板：${NC}"
+                            echo -e "[r2]
+type = s3
+provider = Cloudflare
+access_key_id = xxxx
+secret_access_key = xxxx
+region = auto
+endpoint = https://xxxxxx.r2.cloudflarestorage.com"
+                            
+                            read -n 1 -s -r -p "按任意键开始编辑配置文件..."
+                            nano /home/www/.config/rclone/rclone.conf
+                            ;;
+                        2)
+                            echo -e "${YELLOW}设置可执行目录...${NC}"
+                            read -e -p "请输入脚本存放目录(例如/root/test): " script_dir
+                            if [ -z "$script_dir" ]; then
+                                echo -e "${RED}目录不能为空！${NC}"
+                                continue
+                            fi
+                            
+                            mkdir -p "$script_dir"
+                            amh amcrontab set_sh "$script_dir"
+                            
+                            echo -e "${YELLOW}下载备份脚本...${NC}"
+                            cd "$script_dir"
+                            wget -O backup_amh.sh https://raw.githubusercontent.com/woniu336/open_shell/main/backup_amh.sh
+                            wget -O restore_amh.sh https://raw.githubusercontent.com/woniu336/open_shell/main/restore_amh.sh
+                            chmod +x backup_amh.sh
+                            chmod +x restore_amh.sh
+                            echo -e "${GREEN}脚本下载完成！${NC}"
+                            ;;
+                        3)
+                            echo -e "${YELLOW}修改备份配置...${NC}"
+                            if [ -f "backup_amh.sh" ]; then
+                                nano backup_amh.sh
+                                echo -e "${GREEN}备份脚本配置已更新！${NC}"
+                            else
+                                echo -e "${RED}未找到备份脚本，请先下载脚本！${NC}"
+                            fi
+                            
+                            if [ -f "restore_amh.sh" ]; then
+                                nano restore_amh.sh
+                                echo -e "${GREEN}还原脚本配置已更新！${NC}"
+                            else
+                                echo -e "${RED}未找到还原脚本，请先下载脚本！${NC}"
+                            fi
+                            ;;
+                        4)
+                            echo -e "${YELLOW}执行备份命令...${NC}"
+                            if [ -f "backup_amh.sh" ]; then
+                                echo -e "${GREEN}请在AMH面板后台添加以下命令：${NC}"
+                                echo -e "${GREEN}amh amcrontab run_sh $(pwd)/backup_amh.sh${NC}"
+                                echo -e "${YELLOW}提示：在AMH面板 -> 计划任务 中添加上述命令${NC}"
+                            else
+                                echo -e "${RED}未找到备份脚本，请先下载并配置脚本！${NC}"
+                            fi
+                            ;;
+                        5)
+                            echo -e "${YELLOW}执行还原命令...${NC}"
+                            if [ -f "restore_amh.sh" ]; then
+                                echo -e "${GREEN}请在AMH面板后台添加以下命令：${NC}"
+                                echo -e "${GREEN}amh amcrontab run_sh $(pwd)/restore_amh.sh${NC}"
+                                echo -e "${YELLOW}提示：在AMH面板 -> 计划任务 中添加上述命令${NC}"
+                            else
+                                echo -e "${RED}未找到还原脚本，请先下载并配置脚本！${NC}"
+                            fi
+                            ;;
+                        0)
+                            break
+                            ;;
+                        *)
+                            echo -e "${RED}无效的选项，请重新选择${NC}"
+                            ;;
+                    esac
+                    read -n 1 -s -r -p "按任意键继续..."
+                done
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选项，请重新选择${NC}"
+                ;;
+        esac
+        read -n 1 -s -r -p "按任意键继续..."
+    done
+}
+
 # 主程序循环
 while true; do
     clear_screen
     show_banner
     show_menu
     
-    read -p "请输入选项 [0-7]: " choice
+    read -p "请输入选项 [0-8]: " choice
     
     case $choice in
         1)
@@ -816,6 +1066,9 @@ while true; do
             ;;
         7)
             system_tools
+            ;;
+        8)
+            amh_panel_management
             ;;
         0)
             clear_screen
