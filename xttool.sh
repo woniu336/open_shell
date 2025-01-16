@@ -389,60 +389,11 @@ check_system_info() {
     echo -e "${BLUE}=================================================${NC}"
     echo ""
     
-    # CPU信息
-    echo -e "${YELLOW}CPU信息：${NC}"
-    echo -e "物理CPU数：$(grep "physical id" /proc/cpuinfo | sort -u | wc -l)"
-    echo -e "CPU核心数：$(grep "processor" /proc/cpuinfo | wc -l)"
-    echo -e "CPU型号：$(grep "model name" /proc/cpuinfo | head -n1 | cut -d':' -f2 | sed 's/^[ \t]*//')"
-    echo ""
-    
-    # 内存信息
-    echo -e "${YELLOW}内存信息：${NC}"
-    free -h | grep -E 'Mem|内存' | awk '{printf "总内存: %s\n已用: %s\n可用: %s\n", $2, $3, $7}'
-    echo ""
-    
-    # 磁盘信息
-    echo -e "${YELLOW}磁盘使用情况：${NC}"
-    df -h | grep -E '^/dev/' | awk '{printf "%-12s 总容量:%-8s 已用:%-8s 可用:%-8s 使用率:%s\n", $1, $2, $3, $4, $5}'
-    echo ""
-    
-    # 系统信息
-    echo -e "${YELLOW}系统信息：${NC}"
-    if [ -f /etc/os-release ]; then
-        source /etc/os-release
-        echo -e "系统版本：$PRETTY_NAME"
+    if [ ! -f "info.sh" ]; then
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/info.sh
+        chmod +x info.sh
     fi
-    echo -e "内核版本：$(uname -r)"
-    echo -e "系统架构：$(uname -m)"
-    echo ""
-    
-    # 运行时间
-    echo -e "${YELLOW}系统运行时间：${NC}"
-    uptime | sed 's/.*up \([^,]*\),.*/\1/'
-    echo ""
-    
-    # 网络信息
-    echo -e "${YELLOW}网络信息：${NC}"
-    echo "网卡信息："
-    ip -o link show | awk -F': ' '{print $2}' | while read -r interface; do
-        if [ "$interface" != "lo" ]; then
-            ip_addr=$(ip -4 addr show $interface 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
-            if [ ! -z "$ip_addr" ]; then
-                echo "  $interface: $ip_addr"
-            fi
-        fi
-    done
-    echo ""
-    
-    # 系统负载
-    echo -e "${YELLOW}系统负载：${NC}"
-    load_avg=$(cat /proc/loadavg | awk '{print $1, $2, $3}')
-    echo -e "1分钟: $(echo $load_avg | cut -d' ' -f1)"
-    echo -e "5分钟: $(echo $load_avg | cut -d' ' -f2)"
-    echo -e "15分钟: $(echo $load_avg | cut -d' ' -f3)"
-    echo ""
-    
-    read -n 1 -s -r -p "按任意键继续..."
+    ./info.sh
 }
 
 # 开启BBR加速
@@ -453,27 +404,74 @@ enable_bbr() {
     echo -e "${BLUE}=================================================${NC}"
     echo ""
     
-    echo -e "${YELLOW}正在配置BBR...${NC}"
+    # 定义sysctl配置文件路径
+    SYSCTL_CONF="/etc/sysctl.conf"
     
-    # 创建临时文件
-    local tmp_conf=$(mktemp)
-    
-    # 如果存在原有配置，先复制
-    if [ -f "/etc/sysctl.conf" ]; then
-        grep -v "net.core.default_qdisc\|net.ipv4.tcp_congestion_control" /etc/sysctl.conf > "$tmp_conf"
-    fi
-    
-    # 添加BBR参数
-    cat >> "$tmp_conf" << EOF
+    # 添加系统优化函数
+    optimize_system() {
+        echo -e "${YELLOW}正在配置系统优化参数...${NC}"
+        
+        # 创建临时文件
+        local tmp_sysctl="/tmp/sysctl_temp.conf"
+
+        # 基础网络优化参数
+        cat > "$tmp_sysctl" << EOF
+
+# BBR优化
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
+
+# 内存优化
+vm.swappiness = 10
+
+# TCP缓冲区优化
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 212992 16777216
+net.ipv4.tcp_wmem = 4096 212992 16777216
+
+# 连接跟踪优化
+net.netfilter.nf_conntrack_max = 2000000
+net.netfilter.nf_conntrack_tcp_timeout_established = 7200
+net.netfilter.nf_conntrack_tcp_timeout_time_wait = 120
+net.netfilter.nf_conntrack_tcp_timeout_close_wait = 60
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 120
 EOF
 
-    # 更新系统配置
-    mv "$tmp_conf" /etc/sysctl.conf
-    sudo sysctl -p
+        # 备份和更新sysctl配置
+        if [ -f "$SYSCTL_CONF" ]; then
+            echo -e "${YELLOW}备份原配置文件到 ${SYSCTL_CONF}.bak${NC}"
+            cp "$SYSCTL_CONF" "${SYSCTL_CONF}.bak"
+            echo -e "${YELLOW}更新系统配置...${NC}"
+            grep -v -F -f <(grep -v '^#' "$tmp_sysctl" | cut -d= -f1 | tr -d ' ') "$SYSCTL_CONF" > "${SYSCTL_CONF}.tmp"
+            mv "${SYSCTL_CONF}.tmp" "$SYSCTL_CONF"
+        fi
+
+        # 添加新的配置
+        echo -e "${YELLOW}添加优化参数...${NC}"
+        cat "$tmp_sysctl" >> "$SYSCTL_CONF"
+
+        # 应用配置
+        echo -e "${YELLOW}应用新配置...${NC}"
+        if sysctl -p "$SYSCTL_CONF"; then
+            echo -e "${GREEN}系统优化参数配置成功！${NC}"
+        else
+            echo -e "${RED}系统优化参数配置失败！${NC}"
+            # 如果失败，恢复备份
+            if [ -f "${SYSCTL_CONF}.bak" ]; then
+                echo -e "${YELLOW}正在恢复原配置...${NC}"
+                mv "${SYSCTL_CONF}.bak" "$SYSCTL_CONF"
+                sysctl -p "$SYSCTL_CONF"
+            fi
+        fi
+
+        # 清理临时文件
+        rm -f "$tmp_sysctl"
+    }
     
-    echo -e "\n${GREEN}BBR配置完成！${NC}"
+    # 执行系统优化
+    optimize_system
+    
     read -n 1 -s -r -p "按任意键继续..."
 }
 
@@ -490,6 +488,11 @@ setup_ufw_rules() {
         chmod +x setup_ufw_rules.sh
     fi
     ./setup_ufw_rules.sh
+    
+    echo -e "\n${YELLOW}当前UFW规则列表：${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    sudo ufw status numbered
+    echo -e "${BLUE}=================================================${NC}"
 }
 
 # ASN黑名单
@@ -613,7 +616,7 @@ optimize_dns() {
         echo ""
         echo -e "1. ${GREEN}国外DNS优化${NC}"
         echo "   • 主DNS: 8.8.8.8 (Google)"
-        echo "   • 备DNS: 8.8.4.4 (Google)"
+        echo "   • 备DNS: 1.1.1.1 (Cloudflare)"
         echo ""
         echo -e "2. ${GREEN}国内DNS优化${NC}"
         echo "   • 主DNS: 223.5.5.5 (阿里云)"
@@ -633,7 +636,7 @@ optimize_dns() {
                 
                 # 设置国外DNS
                 echo "nameserver 8.8.8.8" > /etc/resolv.conf
-                echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+                echo "nameserver 1.1.1.1" >> /etc/resolv.conf
                 
                 echo -e "\n${GREEN}已设置为国外DNS${NC}"
                 ;;
@@ -752,23 +755,52 @@ setup_3xui() {
     bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
 }
 
+# iptables转发功能
+setup_iptables() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}         iptables 转发配置        ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    echo -e "${YELLOW}正在安装必要依赖...${NC}"
+    apt-get update
+    apt-get install -y net-tools
+    apt-get install -y iptables-persistent
+    
+    if [ ! -f "iptables-manager.sh" ]; then
+        echo -e "${YELLOW}正在下载iptables管理脚本...${NC}"
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/iptables-manager.sh
+        chmod +x iptables-manager.sh
+    fi
+    ./iptables-manager.sh
+}
+
 # 显示主菜单
 show_menu() {
     echo -e "${YELLOW}请选择要执行的操作：${NC}"
     echo ""
+    echo -e "${BLUE}==== 系统管理 ====${NC}"
     echo -e "${GREEN}1.${NC} 系统信息查询"
     echo -e "${GREEN}2.${NC} 修改SSH端口"
-    echo -e "${GREEN}3.${NC} SSH密钥管理"
+    echo -e "${GREEN}3.${NC} SSH密钥管理 ${YELLOW}★${NC}"
     echo -e "${GREEN}4.${NC} 定时任务管理"
     echo -e "${GREEN}5.${NC} 时区设置"
+    echo ""
+    echo -e "${BLUE}==== 性能优化 ====${NC}"
     echo -e "${GREEN}6.${NC} 开启BBR加速"
     echo -e "${GREEN}7.${NC} UFW防火墙配置"
     echo -e "${GREEN}8.${NC} ASN黑名单配置"
-    echo -e "${GREEN}9.${NC} Docker工具管理"
-    echo -e "${GREEN}10.${NC} DNS优化配置"
+    echo -e "${GREEN}9.${NC} DNS优化配置"
+    echo ""
+    echo -e "${BLUE}==== 服务部署 ====${NC}"
+    echo -e "${GREEN}10.${NC} Docker工具管理 ${YELLOW}★${NC}"
     echo -e "${GREEN}11.${NC} ServerStatus探针"
     echo -e "${GREEN}12.${NC} Hysteria 2搭建"
     echo -e "${GREEN}13.${NC} 3x-ui面板"
+    echo -e "${GREEN}14.${NC} iptables转发 ${YELLOW}★${NC}"
+    echo ""
+    echo -e "${BLUE}==== 其他选项 ====${NC}"
     echo -e "${GREEN}0.${NC} 退出脚本"
     echo ""
     echo -e "${BLUE}=================================================${NC}"
@@ -780,7 +812,7 @@ while true; do
     show_banner
     show_menu
     
-    read -p "请输入选项 [0-13]: " choice
+    read -p "请输入选项 [0-14]: " choice
     
     case $choice in
         1)
@@ -824,12 +856,12 @@ while true; do
             read -n 1 -s -r
             ;;
         9)
-            manage_docker_tools
+            optimize_dns
             echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
             read -n 1 -s -r
             ;;
         10)
-            optimize_dns
+            manage_docker_tools
             echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
             read -n 1 -s -r
             ;;
@@ -845,6 +877,11 @@ while true; do
             ;;
         13)
             setup_3xui
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        14)
+            setup_iptables
             echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
             read -n 1 -s -r
             ;;
