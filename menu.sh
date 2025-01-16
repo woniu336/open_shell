@@ -26,10 +26,11 @@ show_menu() {
     echo ""
     echo -e "${GREEN}1.${NC} SSL证书申请"
     echo -e "${GREEN}2.${NC} Nginx管理"
-    echo -e "${GREEN}3.${NC} 反向代理"
+    echo -e "${GREEN}3.${NC} 反向代理 ${YELLOW}★${NC}"
     echo -e "${GREEN}4.${NC} 流量监控"
     echo -e "${GREEN}5.${NC} Docker管理"
     echo -e "${GREEN}6.${NC} 快捷键设置"
+    echo -e "${GREEN}7.${NC} 系统工具集 ${YELLOW}★${NC}"
     echo -e "${GREEN}0.${NC} 退出脚本"
     echo ""
     echo -e "${BLUE}=================================================${NC}"
@@ -391,7 +392,12 @@ ssl_cert_menu() {
 
 # Nginx管理函数
 nginx_management() {
-    bash install_nginx.sh
+    if [ ! -f "install_nginx.sh" ]; then
+        echo -e "${YELLOW}正在下载 Nginx 安装脚本...${NC}"
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/install_nginx.sh
+        chmod +x install_nginx.sh
+    fi
+    ./install_nginx.sh
     read -n 1 -s -r -p "按任意键返回主菜单..."
 }
 
@@ -771,13 +777,23 @@ setup_shortcut() {
     done
 }
 
+# 系统工具集函数
+system_tools() {
+    if [ ! -f "xttool.sh" ]; then
+        echo -e "${YELLOW}正在下载系统工具集脚本...${NC}"
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/xttool.sh
+        chmod +x xttool.sh
+    fi
+    ./xttool.sh
+}
+
 # 主程序循环
 while true; do
     clear_screen
     show_banner
     show_menu
     
-    read -p "请输入选项 [0-6]: " choice
+    read -p "请输入选项 [0-7]: " choice
     
     case $choice in
         1)
@@ -797,6 +813,9 @@ while true; do
             ;;
         6)
             setup_shortcut
+            ;;
+        7)
+            system_tools
             ;;
         0)
             clear_screen
