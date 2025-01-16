@@ -37,6 +37,66 @@ done
 # 启用UFW（如果尚未启用）
 sudo ufw --force enable
 
+# 屏蔽单独的风险IP地址
+RISK_IPS=(
+  "94.154.33.153"
+  "185.220.101.29"
+  "138.197.191.87"
+  "152.42.217.201"
+  "149.88.106.138"
+  "179.43.191.19"
+  "146.190.111.4"
+  "185.220.101.190"
+  "192.42.116.178"
+)
+
+# 插入风险IP屏蔽规则
+for IP in "${RISK_IPS[@]}"; do
+  sudo ufw insert 1 deny from "$IP" to any
+  echo "已插入规则: deny from $IP"
+done
+
+# 屏蔽IDC扫描IP范围
+IDC_RANGES=(
+  "20.171.206.0/24"
+  "52.230.152.0/24"
+  "52.233.106.0/24"
+  "152.32.128.0/17"
+  "103.218.243.0/24"
+)
+
+# 插入IDC扫描IP范围屏蔽规则
+for RANGE in "${IDC_RANGES[@]}"; do
+  sudo ufw insert 1 deny from "$RANGE" to any
+  echo "已插入规则: deny from $RANGE"
+done
+
+# 屏蔽Facebook爬虫IPv4
+FACEBOOK_IPV4=(
+  "69.63.176.0/21"
+  "69.63.184.0/21"
+  "66.220.144.0/20"
+  "69.63.176.0/20"
+)
+
+# 插入Facebook IPv4屏蔽规则
+for RANGE in "${FACEBOOK_IPV4[@]}"; do
+  sudo ufw insert 1 deny from "$RANGE" to any
+  echo "已插入规则: deny from $RANGE"
+done
+
+# 屏蔽SemrushBot
+SEMRUSH_RANGES=(
+  "85.208.96.0/24"
+  "185.191.171.0/24"
+)
+
+# 插入SemrushBot屏蔽规则
+for RANGE in "${SEMRUSH_RANGES[@]}"; do
+  sudo ufw insert 1 deny from "$RANGE" to any
+  echo "已插入规则: deny from $RANGE"
+done
+
 # 屏蔽 Censys 的 IPv4 段
 CENSYS_IPV4=(
   "162.142.125.0/24"
@@ -68,6 +128,23 @@ fi
 
 echo "IPv6规则将从位置 $FIRST_V6_RULE 插入"
 
+# 屏蔽Facebook IPv6
+FACEBOOK_IPV6=(
+  "2620:0:1c00::/40"
+  "2a03:2880::/32"
+  "2a03:2880:fffe::/48"
+  "2a03:2880:ffff::/48"
+  "2620:0:1cff::/48"
+)
+
+# 插入Facebook IPv6屏蔽规则
+CURRENT_POSITION=$FIRST_V6_RULE
+for CIDR in "${FACEBOOK_IPV6[@]}"; do
+  sudo ufw insert "$CURRENT_POSITION" deny from "$CIDR" to any
+  echo "已插入IPv6规则: deny from $CIDR at position $CURRENT_POSITION"
+  CURRENT_POSITION=$((CURRENT_POSITION + 1))
+done
+
 # 屏蔽 Censys 的 IPv6 段
 CENSYS_IPV6=(
   "2602:80d:1000:b0cc:e::/80"
@@ -76,8 +153,7 @@ CENSYS_IPV6=(
   "2602:80d:1004::/112"
 )
 
-# 插入IPv6 DENY规则，顺序插入确保顺序正确
-CURRENT_POSITION=$FIRST_V6_RULE
+# 插入Censys IPv6 DENY规则
 for CIDR in "${CENSYS_IPV6[@]}"; do
   sudo ufw insert "$CURRENT_POSITION" deny from "$CIDR" to any
   echo "已插入IPv6规则: deny from $CIDR at position $CURRENT_POSITION"
