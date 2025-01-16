@@ -62,7 +62,8 @@ get_physical_memory() {
 
 # 获取虚拟内存使用情况
 get_swap_memory() {
-  free -m | awk 'NR==3{printf "%dMB/%dMB (%.2f%%)", $3, $2, $3/$2*100}'
+    local swap_info=$(free -m | awk 'NR==3{if($2==0) print "未启用"; else printf "%dMB/%dMB (%.2f%%)", $3, $2, $3/$2*100}')
+    echo "$swap_info"
 }
 
 # 获取硬盘占用情况
