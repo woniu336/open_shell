@@ -56,15 +56,15 @@ def send_dingtalk_notification():
     webhook_url = f"https://oapi.dingtalk.com/robot/send?access_token={ACCESS_TOKEN}&timestamp={timestamp}&sign={sign}"
     
     message = f"""
-V.PS 9.95EUR VPS方案已经有货!
+V.PS 圣何塞 8.95EUR 已经有货!
 
 配置信息:
-- CPU: 4 Cores
-- Memory: 4 GB
-- NVMe Storage: 40 GB
+- CPU: 2 Cores
+- Memory: 1 GB
+- NVMe Storage: 20 GB
 - Data Transfer: 1 TB
 
-购买链接: https://vps.hosting/cart/amsterdam-cloud-kvm-vps/
+购买链接: https://vps.hosting/cart/san-jose-cloud-kvm-vps/
 
 通知时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     """
@@ -90,7 +90,7 @@ V.PS 9.95EUR VPS方案已经有货!
         return False
 
 def check_stock():
-    url = "https://vps.hosting/cart/amsterdam-cloud-kvm-vps/"
+    url = "https://vps.hosting/cart/san-jose-cloud-kvm-vps/"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
@@ -98,29 +98,27 @@ def check_stock():
     try:
         response = requests.get(url, headers=headers)
         
-        # 查找Pro套餐区块
-        if "Pro" in response.text:
-            pro_section = response.text.split("Pro")[1].split("Premium")[0]
+        # 查找Starter套餐区块
+        if "Starter" in response.text:
+            # 检查是否存在缺货标记
+            is_out_of_stock = 'class="card cart-product   outofstock "' in response.text or 'cart-product-outofstock-badge' in response.text
             
-            # 检查价格和库存
-            has_price = "9.95 EUR" in pro_section
-            is_out_of_stock = "Out\nof stock" in pro_section
+            # 检查价格
+            has_price = "8.95 EUR" in response.text
             
             logging.info(f"价格检查: {'通过' if has_price else '未通过'}")
             logging.info(f"库存状态: {'缺货' if is_out_of_stock else '有货'}")
             
             if has_price and not is_out_of_stock:
-                logging.info("Pro方案有货!")
+                logging.info("Starter方案有货!")
                 return True
-                
-            if not has_price:
-                logging.info("未找到Pro方案价格")
+            
             if is_out_of_stock:
-                logging.info("Pro方案缺货")
+                logging.info("Starter方案缺货")
             return False
             
         else:
-            logging.info("未找到Pro方案")
+            logging.info("未找到Starter方案")
             return False
             
     except Exception as e:
