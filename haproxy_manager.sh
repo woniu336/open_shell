@@ -56,14 +56,18 @@ install_haproxy() {
 # 检查端口是否已被使用
 check_port() {
     local port=$1
-    # 检查端口是否已经在HAProxy配置中
-    if grep -q "bind \*:$port" /etc/haproxy/haproxy.cfg; then
+    local backend_ip=$2
+    
+    # 检查端口是否被其他程序使用（非HAProxy）
+    if netstat -tuln | grep -q ":$port " && ! systemctl is-active haproxy &>/dev/null; then
         return 1
     fi
-    # 检查端口是否被其他程序使用
-    if netstat -tuln | grep -q ":$port "; then
-        return 1
+    
+    # 检查是否存在完全相同的配置
+    if grep -q "server server_${port} ${backend_ip}:${port}" /etc/haproxy/haproxy.cfg; then
+        return 2
     fi
+    
     return 0
 }
 
@@ -84,10 +88,10 @@ check_config() {
 modify_haproxy_config() {
     # 保存原始配置
     cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
-    
+
     sed -i 's/mode\s*http/mode\t\ttcp/g' /etc/haproxy/haproxy.cfg
     sed -i 's/option\s*httplog/option\t\ttcplog/g' /etc/haproxy/haproxy.cfg
-    
+
     # 检查配置
     if check_config; then
         systemctl restart haproxy
@@ -111,14 +115,6 @@ add_port_forward() {
         return 1
     fi
     
-    # 检查端口是否已被使用
-    if ! check_port "$frontend_port"; then
-        echo -e "${RED}错误：端口 $frontend_port 已被使用${NC}"
-        echo -e "${YELLOW}请使用以下命令查看端口占用情况：${NC}"
-        echo -e "lsof -i :$frontend_port"
-        return 1
-    fi
-    
     echo -e "${YELLOW}请输入后端IP:${NC}"
     read backend_ip
     
@@ -128,19 +124,55 @@ add_port_forward() {
         return 1
     fi
     
+    # 检查端口和后端IP组合
+    check_port "$frontend_port" "$backend_ip"
+    port_status=$?
+    
+    if [ $port_status -eq 1 ]; then
+        echo -e "${RED}错误：端口 $frontend_port 已被其他程序使用${NC}"
+        echo -e "${YELLOW}请使用以下命令查看端口占用情况：${NC}"
+        echo -e "netstat -tuln | grep :$frontend_port"
+        return 1
+    elif [ $port_status -eq 2 ]; then
+        echo -e "${RED}错误：该端口转发配置已存在${NC}"
+        return 1
+    fi
+    
     # 保存原始配置
     cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.bak
     
-    # 添加配置到haproxy.cfg
-    cat >> /etc/haproxy/haproxy.cfg << EOF
+    # 检查是否已存在相同端口的frontend配置
+    if ! grep -q "frontend tcp_front_${frontend_port}" /etc/haproxy/haproxy.cfg; then
+        # 如果不存在，添加新的frontend和backend配置
+        cat >> /etc/haproxy/haproxy.cfg << EOF
 
 frontend tcp_front_${frontend_port}
     bind *:${frontend_port}
     default_backend servers_${frontend_port}
 
 backend servers_${frontend_port}
-    server server_${frontend_port} ${backend_ip}:${frontend_port} check
+    server server_${frontend_port}_$(date +%s) ${backend_ip}:${frontend_port} check
 EOF
+    else
+        # 如果已存在，只添加新的server配置到对应的backend部分
+        # 使用awk查找正确的backend部分并添加新的server配置
+        awk -v port="${frontend_port}" -v backend_ip="${backend_ip}" -v ts="$(date +%s)" '
+        {
+            print $0
+            if ($0 ~ "^backend servers_" port "$") {
+                printf "    server server_%s_%s %s:%s check\n", port, ts, backend_ip, port
+            }
+        }' /etc/haproxy/haproxy.cfg > /etc/haproxy/haproxy.cfg.new
+        
+        if [ $? -eq 0 ]; then
+            mv /etc/haproxy/haproxy.cfg.new /etc/haproxy/haproxy.cfg
+        else
+            echo -e "${RED}更新配置文件失败${NC}"
+            rm -f /etc/haproxy/haproxy.cfg.new
+            mv /etc/haproxy/haproxy.cfg.bak /etc/haproxy/haproxy.cfg
+            return 1
+        fi
+    fi
 
     # 检查配置并应用
     if check_config; then
@@ -185,19 +217,22 @@ view_forwards() {
     while IFS= read -r line; do
         if [[ $line =~ frontend[[:space:]]+tcp_front_([0-9]+) ]]; then
             port="${BASH_REMATCH[1]}"
-            # 使用awk提取IP地址
-            backend_ip=$(awk -v port="$port" '
+            echo -e "${CYAN}║${NC} ➜ 端口: ${GREEN}${port}${NC}"
+            
+            # 使用awk提取该端口下的所有后端IP
+            awk -v port="$port" '
                 $0 ~ "backend servers_" port {
                     in_backend = 1
                     next
                 }
+                in_backend && /^backend/ {
+                    in_backend = 0
+                }
                 in_backend && /server/ {
                     split($3, a, ":")
-                    print a[1]
-                    exit
+                    printf "'"${CYAN}║${NC}   └─→ 后端: ${GREEN}%-15s${NC}${CYAN}║${NC}\n"'", a[1]
                 }
-            ' /etc/haproxy/haproxy.cfg)
-            printf "${CYAN}║${NC} ➜ 端口: ${GREEN}%-4s${NC} → 后端: ${GREEN}%-15s${NC} ${CYAN}║${NC}\n" "$port" "$backend_ip"
+            ' /etc/haproxy/haproxy.cfg
         fi
     done < <(grep "frontend tcp_front_" /etc/haproxy/haproxy.cfg)
     
@@ -233,14 +268,36 @@ edit_config() {
 # 卸载HAProxy
 uninstall_haproxy() {
     echo -e "${RED}正在卸载 HAProxy...${NC}"
-    systemctl stop haproxy
+    
+    # 停止服务
+    systemctl stop haproxy 2>/dev/null
+    
+    # 禁用服务
+    systemctl disable haproxy 2>/dev/null
+    
+    # 删除服务文件
+    rm -f /lib/systemd/system/haproxy.service
+    systemctl daemon-reload
+    
+    # 卸载软件包
     apt remove --purge haproxy -y
-    # 清理所有相关目录
+    apt autoremove -y
+    
+    # 确保删除haproxy用户和组
+    userdel haproxy 2>/dev/null
+    groupdel haproxy 2>/dev/null
+    
+    # 强制删除相关目录及其内容
     rm -rf /etc/haproxy
     rm -rf /var/lib/haproxy
-    # 清理自动安装的依赖
-    apt autoremove -y
-    echo -e "${GREEN}HAProxy 已完全卸载，所有相关目录已清理${NC}"
+    rm -rf /var/run/haproxy
+    rm -rf /var/log/haproxy
+    
+    # 删除其他可能的残留文件
+    find /etc -name "*haproxy*" -exec rm -rf {} +
+    find /var -name "*haproxy*" -exec rm -rf {} +
+    
+    echo -e "${GREEN}HAProxy 已完全卸载，所有相关文件和目录已清理${NC}"
 }
 
 # 主循环
