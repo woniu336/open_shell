@@ -162,66 +162,73 @@ docker_management() {
     done
 }
 
-# 安装依赖
-install_dependency() {
-    if ! command -v docker &>/dev/null; then
-        echo -e "${YELLOW}正在安装 Docker...${NC}"
-        curl -fsSL https://get.docker.com | sh
-        systemctl start docker
-        systemctl enable docker
-    fi
-}
+# SSL证书申请函数
+ssl_cert_menu() {
+    while true; do
+        clear_screen
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             SSL证书管理菜单              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+        echo -e "${GREEN}1.${NC} 申请SSL证书"
+        echo -e "${GREEN}2.${NC} 查看证书状态"
+        echo -e "${GREEN}3.${NC} 手动续期证书"
+        echo -e "${GREEN}0.${NC} 返回主菜单"
+        echo ""
+        echo -e "${BLUE}=================================================${NC}"
 
-# 申请证书
-install_ssltls() {
-    cd ~
-    local file_path="/etc/letsencrypt/live/$yuming/fullchain.pem"
-    
-    # 使用 install_dependency 函数检查并安装 Docker
-    install_dependency
-    
-    if [ ! -f "$file_path" ]; then
-        local ipv4_pattern='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
-        local ipv6_pattern='^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$'
-        if [[ ($yuming =~ $ipv4_pattern || $yuming =~ $ipv6_pattern) ]]; then
-            mkdir -p /etc/letsencrypt/live/$yuming/
-            openssl req -x509 -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -keyout /etc/letsencrypt/live/$yuming/privkey.pem -out /etc/letsencrypt/live/$yuming/fullchain.pem -days 5475 -subj "/C=US/ST=State/L=City/O=Organization/OU=Organizational Unit/CN=Common Name"
+        read -p "请输入选项 [0-3]: " ssl_choice
+case $ssl_choice in
+    1)
+        if [ -f "certbot-ssl.sh" ]; then
+            echo -e "${GREEN}certbot-ssl.sh 已存在，跳过下载...${NC}"
+            chmod +x certbot-ssl.sh
         else
-            # 检查 Nginx 是否已安装
-            if ! command -v nginx &>/dev/null; then
-                echo -e "${YELLOW}注意: Nginx 未安装，但不影响证书申请${NC}"
-            # 如果 Nginx 已安装，检查是否在运行
-            elif systemctl is-active nginx >/dev/null 2>&1; then
-                echo -e "${YELLOW}检测到 Nginx 正在运行，需要临时停止以申请证书...${NC}"
-                systemctl stop nginx
-                local nginx_was_running=true
-            fi
-            
-            # 申请证书
-            docker run -it --rm -p 80:80 -v /etc/letsencrypt/:/etc/letsencrypt certbot/certbot certonly --standalone -d "$yuming" --email your@email.com --agree-tos --no-eff-email --force-renewal --key-type ecdsa
-            
-            # 如果之前 Nginx 在运行，重新启动它
-            if [ "$nginx_was_running" = true ]; then
-                echo -e "${YELLOW}重新启动 Nginx...${NC}"
-                systemctl start nginx
-                echo -e "${GREEN}Nginx 已重新启动${NC}"
-            fi
+            echo -e "${YELLOW}开始下载SSL证书申请脚本...${NC}"
+            curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/certbot-ssl.sh
+            chmod +x certbot-ssl.sh
         fi
-    fi
-}
-
-# 显示证书信息
-install_ssltls_text() {
-    echo -e "${YELLOW}$yuming 公钥信息${NC}"
-    cat /etc/letsencrypt/live/$yuming/fullchain.pem
-    echo ""
-    echo -e "${YELLOW}$yuming 私钥信息${NC}"
-    cat /etc/letsencrypt/live/$yuming/privkey.pem
-    echo ""
-    echo -e "${YELLOW}证书存放路径${NC}"
-    echo "公钥: /etc/letsencrypt/live/$yuming/fullchain.pem"
-    echo "私钥: /etc/letsencrypt/live/$yuming/privkey.pem"
-    echo ""
+        ./certbot-ssl.sh
+        ;;
+    2)
+        if [ -d "/etc/letsencrypt/live/" ]; then
+            echo -e "${YELLOW}已申请的证书到期情况${NC}"
+            echo "站点信息                      证书到期时间"
+            echo "------------------------"
+            for cert_dir in /etc/letsencrypt/live/*; do
+                local cert_file="$cert_dir/fullchain.pem"
+                if [ -f "$cert_file" ]; then
+                    local domain=$(basename "$cert_dir")
+                    local expire_date=$(openssl x509 -noout -enddate -in "$cert_file" | awk -F'=' '{print $2}')
+                    local formatted_date=$(date -d "$expire_date" '+%Y-%m-%d')
+                    printf "%-30s%s\n" "$domain" "$formatted_date"
+                fi
+            done
+            echo ""
+        else
+            echo -e "${RED}未找到任何SSL证书${NC}"
+        fi
+        ;;
+    3)
+        if [ -f "auto_cert_renewal.sh" ]; then
+            echo -e "${GREEN}auto_cert_renewal.sh 已存在，跳过下载...${NC}"
+            chmod +x auto_cert_renewal.sh
+        else
+            echo -e "${YELLOW}开始下载证书续期脚本...${NC}"
+            curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
+            chmod +x auto_cert_renewal.sh
+        fi
+        ./auto_cert_renewal.sh
+        ;;
+    0)
+        return
+        ;;
+    *)
+        echo -e "${RED}无效的选项，请重新选择${NC}"
+        ;;
+esac
+        read -n 1 -s -r -p "按任意键继续..."
+    done
 }
 
 # 安装 crontab
@@ -286,10 +293,10 @@ check_crontab_installed() {
     fi
 }
 
-# 设置证书自动续签
+# 设置证书自动续期
 setup_cert_renewal() {
     cd ~
-    curl -sS -O ${gh_proxy}https://raw.githubusercontent.com/woniu336/open_shell/main/nginx/auto_cert_renewal.sh
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
     chmod +x auto_cert_renewal.sh
 
     check_crontab_installed
@@ -302,93 +309,6 @@ setup_cert_renewal() {
     else
         echo -e "${YELLOW}证书自动续签任务已存在${NC}"
     fi
-}
-
-# 申请证书主函数
-add_ssl() {
-    yuming="${1:-}"
-    if [ -z "$yuming" ]; then
-        add_yuming
-    fi
-    
-    # 安装必要组件
-    install_dependency
-    setup_cert_renewal
-    
-    # 删除已存在的证书（如果有）
-    docker run -it --rm -v /etc/letsencrypt/:/etc/letsencrypt certbot/certbot delete --cert-name "$yuming" -n 2>/dev/null
-    
-    # 申请新证书
-    install_ssltls
-    certs_status
-    
-    # 如果证书申请成功，复制到 Nginx 证书目录
-    local cert_path="/etc/letsencrypt/live/$yuming"
-    if [ -f "$cert_path/fullchain.pem" ] && [ -f "$cert_path/privkey.pem" ]; then
-        echo -e "${YELLOW}正在复制证书到 Nginx 目录...${NC}"
-        # 确保目标目录存在
-        mkdir -p /etc/nginx/certs
-        # 复制证书文件
-        cp "$cert_path/fullchain.pem" "/etc/nginx/certs/${yuming}_cert.pem"
-        cp "$cert_path/privkey.pem" "/etc/nginx/certs/${yuming}_key.pem"
-        # 设置适当的权限
-        chmod 644 "/etc/nginx/certs/${yuming}_cert.pem"
-        chmod 600 "/etc/nginx/certs/${yuming}_key.pem"
-        echo -e "${GREEN}证书已复制到 Nginx 目录${NC}"
-    fi
-    
-    install_ssltls_text
-    ssl_ps
-    
-    echo -e "${GREEN}证书申请完成，已设置自动续签！${NC}"
-}
-
-# 获取 IP 地址
-ip_address() {
-    ipv4_address=$(curl -s ipv4.ip.sb)
-    ipv6_address=$(curl -s --max-time 1 ipv6.ip.sb)
-}
-
-# 提示用户输入域名
-add_yuming() {
-    ip_address
-    echo -e "先将域名解析到本机IP: ${YELLOW}$ipv4_address  $ipv6_address${NC}"
-    read -e -p "请输入你的IP或者解析过的域名: " yuming
-}
-
-# 检查证书状态
-certs_status() {
-    sleep 1
-    local file_path="/etc/letsencrypt/live/$yuming/fullchain.pem"
-    if [ -f "$file_path" ]; then
-        echo -e "${GREEN}域名证书申请成功${NC}"
-    else
-        echo -e "${RED}注意: ${NC}检测到域名证书申请失败，请检测域名是否正确解析或更换域名重新尝试！"
-    fi
-}
-
-# 显示已申请证书的到期情况
-ssl_ps() {
-    echo -e "${YELLOW}已申请的证书到期情况${NC}"
-    echo "站点信息                      证书到期时间"
-    echo "------------------------"
-    for cert_dir in /etc/letsencrypt/live/*; do
-        local cert_file="$cert_dir/fullchain.pem"
-        if [ -f "$cert_file" ]; then
-            local domain=$(basename "$cert_dir")
-            local expire_date=$(openssl x509 -noout -enddate -in "$cert_file" | awk -F'=' '{print $2}')
-            local formatted_date=$(date -d "$expire_date" '+%Y-%m-%d')
-            printf "%-30s%s\n" "$domain" "$formatted_date"
-        fi
-    done
-    echo ""
-}
-
-# SSL证书申请函数
-ssl_cert_menu() {
-    echo "开始SSL证书申请..."
-    add_ssl
-    read -n 1 -s -r -p "按任意键返回主菜单..."
 }
 
 # Nginx管理函数
@@ -435,7 +355,29 @@ setup_proxy() {
     if [ "$proxy_type" = "cloudflare" ]; then
         conf_url="https://raw.githubusercontent.com/woniu336/open_shell/main/nginx/cf.conf"
     else
-        conf_url="https://raw.githubusercontent.com/woniu336/open_shell/main/nginx/fast.conf"
+        # 显示源站类型子菜单
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             选择源站类型              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+        echo -e "${GREEN}1.${NC} 单个源站"
+        echo -e "${GREEN}2.${NC} 多个源站"
+        echo ""
+        echo -e "${BLUE}=================================================${NC}"
+        
+        read -p "请选择源站类型 [1-2]: " source_type
+        case $source_type in
+            1)
+                conf_url="https://raw.githubusercontent.com/woniu336/open_shell/main/nginx/one.conf"
+                ;;
+            2)
+                conf_url="https://raw.githubusercontent.com/woniu336/open_shell/main/nginx/fast.conf"
+                ;;
+            *)
+                echo -e "${RED}无效的选择！${NC}"
+                return 1
+                ;;
+        esac
     fi
     
     # 获取域名信息
@@ -458,17 +400,47 @@ setup_proxy() {
         return 1
     fi
     
-    # 替换域名
-    echo -e "${YELLOW}正在配置反向代理...${NC}"
-    sed -i "s/fast.1111.com/$main_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
-    sed -i "s/backend.222.com/$backend_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+    if [ "$proxy_type" = "source" ]; then
+        if [ "$source_type" = "1" ]; then
+            # 单个源站：直接替换域名
+            sed -i "s/fast.1111.com/$main_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+            sed -i "s/backend.222.com/$backend_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+        else
+            # 多个源站：使用 upstream 方式
+            read -p "请输入主源站IP: " primary_ip
+            read -p "请输入备用源站IP: " backup_ip
+            # 生成唯一的 upstream 名称
+            local upstream_name=$(echo "${main_domain}" | sed 's/[^a-zA-Z0-9]/_/g')"_backend"
+            # 替换默认的 upstream 块
+            sed -i "/upstream.*{/,/}/c\upstream $upstream_name {\n    server $primary_ip:80 weight=1 max_fails=3 fail_timeout=10s;\n    server $backup_ip:80 weight=1 max_fails=3 fail_timeout=10s;\n    keepalive 32;\n}" "/etc/nginx/conf.d/$main_domain.conf"
+            # 替换 proxy_pass
+            sed -i "s|proxy_pass.*|proxy_pass http://$upstream_name;|" "/etc/nginx/conf.d/$main_domain.conf"
+            # 替换域名
+            sed -i "s/fast.1111.com/$main_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+            sed -i "s/backend.222.com/$backend_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+        fi
+    else
+        # Cloudflare 配置
+        local upstream_name=$(echo "${main_domain}" | sed 's/[^a-zA-Z0-9]/_/g')"_backend"
+        sed -i "s/cloudflare_backend/$upstream_name/g" "/etc/nginx/conf.d/$main_domain.conf"
+        sed -i "s/fast.1111.com/$main_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+        sed -i "s/backend.222.com/$backend_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+    fi
     
     # 检查配置
     echo -e "${YELLOW}正在检查Nginx配置...${NC}"
     if nginx -t; then
         systemctl restart nginx
         echo -e "${GREEN}反向代理配置成功！${NC}"
-        echo -e "${GREEN}已将 $main_domain 反向代理到 $backend_domain${NC}"
+        if [ "$proxy_type" = "source" ]; then
+            if [ "$source_type" = "1" ]; then
+                echo -e "${GREEN}已将 $main_domain 反向代理到 $backend_domain${NC}"
+            else
+                echo -e "${GREEN}已将 $main_domain 反向代理到 $primary_ip 和 $backup_ip${NC}"
+            fi
+        else
+            echo -e "${GREEN}已将 $main_domain 反向代理到 $backend_domain${NC}"
+        fi
         read -n 1 -s -r -p "按任意键继续..."
     else
         echo -e "${RED}Nginx配置检查失败，请检查配置文件！${NC}"

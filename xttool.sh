@@ -776,6 +776,102 @@ setup_iptables() {
     ./iptables-manager.sh
 }
 
+# 添加虚拟内存管理函数
+manage_swap() {
+    clear_screen
+    echo -e "${BLUE}=================================================${NC}"
+    echo -e "${GREEN}             虚拟内存管理              ${NC}"
+    echo -e "${BLUE}=================================================${NC}"
+    echo ""
+    
+    while true; do
+        # 获取当前虚拟内存信息
+        local swap_used=$(free -m | awk 'NR==3{print $3}')
+        local swap_total=$(free -m | awk 'NR==3{print $2}')
+        local swap_info=$(free -m | awk 'NR==3{used=$3; total=$2; if (total == 0) {percentage=0} else {percentage=used*100/total}; printf "%dMB/%dMB (%d%%)", used, total, percentage}')
+        
+        echo -e "${YELLOW}当前虚拟内存：${NC}$swap_info"
+        echo -e "${BLUE}------------------------------------------------${NC}"
+        echo -e "${GREEN}1.${NC} 分配1024MB虚拟内存"
+        echo -e "${GREEN}2.${NC} 分配2048MB虚拟内存"
+        echo -e "${GREEN}3.${NC} 自定义虚拟内存大小"
+        echo -e "${GREEN}0.${NC} 返回主菜单"
+        echo -e "${BLUE}------------------------------------------------${NC}"
+        
+        read -p "请输入选项 [0-3]: " swap_choice
+        
+        case "$swap_choice" in
+            1)
+                add_swap 1024
+                ;;
+            2)
+                add_swap 2048
+                ;;
+            3)
+                echo ""
+                read -p "请输入虚拟内存大小(MB): " custom_size
+                if [[ "$custom_size" =~ ^[0-9]+$ ]]; then
+                    add_swap "$custom_size"
+                else
+                    echo -e "${RED}无效的输入！请输入数字。${NC}"
+                fi
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选项！${NC}"
+                ;;
+        esac
+        
+        read -n 1 -s -r -p "按任意键继续..."
+        clear_screen
+        echo -e "${BLUE}=================================================${NC}"
+        echo -e "${GREEN}             虚拟内存管理              ${NC}"
+        echo -e "${BLUE}=================================================${NC}"
+        echo ""
+    done
+}
+
+# 添加虚拟内存函数
+add_swap() {
+    local new_swap=$1
+    
+    echo -e "\n${YELLOW}正在配置${new_swap}MB虚拟内存...${NC}"
+    
+    # 获取并关闭所有swap分区
+    local swap_partitions=$(grep -E '^/dev/' /proc/swaps | awk '{print $1}')
+    for partition in $swap_partitions; do
+        swapoff "$partition"
+        wipefs -a "$partition"
+        mkswap -f "$partition"
+    done
+    
+    # 关闭并删除已存在的swapfile
+    swapoff /swapfile 2>/dev/null
+    rm -f /swapfile
+    
+    # 创建新的swap分区
+    echo -e "${YELLOW}创建新的虚拟内存文件...${NC}"
+    fallocate -l ${new_swap}M /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=${new_swap}
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    
+    # 更新/etc/fstab
+    sed -i '/\/swapfile/d' /etc/fstab
+    echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+    
+    # 为Alpine Linux添加特殊处理
+    if [ -f /etc/alpine-release ]; then
+        echo "nohup swapon /swapfile" > /etc/local.d/swap.start
+        chmod +x /etc/local.d/swap.start
+        rc-update add local
+    fi
+    
+    echo -e "${GREEN}虚拟内存已成功调整为${new_swap}MB${NC}"
+}
+
 # 显示主菜单
 show_menu() {
     echo -e "${YELLOW}请选择要执行的操作：${NC}"
@@ -792,6 +888,7 @@ show_menu() {
     echo -e "${GREEN}7.${NC} UFW防火墙配置"
     echo -e "${GREEN}8.${NC} ASN黑名单配置"
     echo -e "${GREEN}9.${NC} DNS优化配置"
+    echo -e "${GREEN}15.${NC} 虚拟内存管理 ${YELLOW}★${NC}"
     echo ""
     echo -e "${BLUE}==== 服务部署 ====${NC}"
     echo -e "${GREEN}10.${NC} Docker工具管理 ${YELLOW}★${NC}"
@@ -812,7 +909,7 @@ while true; do
     show_banner
     show_menu
     
-    read -p "请输入选项 [0-14]: " choice
+    read -p "请输入选项 [0-15]: " choice
     
     case $choice in
         1)
@@ -882,6 +979,11 @@ while true; do
             ;;
         14)
             setup_iptables
+            echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
+            read -n 1 -s -r
+            ;;
+        15)
+            manage_swap
             echo -e "\n${YELLOW}按任意键返回主菜单...${NC}"
             read -n 1 -s -r
             ;;
