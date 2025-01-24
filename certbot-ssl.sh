@@ -85,6 +85,61 @@ add_yuming() {
     read -e email
 }
 
+# 安装 crontab
+install_crontab() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            ubuntu|debian|kali)
+                apt update >/dev/null 2>&1
+                apt install -y cron >/dev/null 2>&1
+                systemctl enable cron >/dev/null 2>&1
+                systemctl start cron >/dev/null 2>&1
+                ;;
+            centos|rhel|almalinux|rocky|fedora)
+                yum install -y cronie >/dev/null 2>&1
+                systemctl enable crond >/dev/null 2>&1
+                systemctl start crond >/dev/null 2>&1
+                ;;
+            *)
+                echo -e "${RED}不支持的发行版: $ID${NC}"
+                return 1
+                ;;
+        esac
+    else
+        echo -e "${RED}无法确定操作系统类型${NC}"
+        return 1
+    fi
+}
+
+# 检查并安装 crontab
+check_crontab_installed() {
+    if ! command -v crontab >/dev/null 2>&1; then
+        echo -e "${YELLOW}正在安装 crontab...${NC}"
+        install_crontab
+    fi
+}
+
+# 设置证书自动续期
+setup_cert_renewal() {
+    # 检查并安装 crontab
+    check_crontab_installed
+    
+    # 下载自动续期脚本
+    if [ ! -f "auto_cert_renewal.sh" ]; then
+        echo -e "${YELLOW}正在下载证书续期脚本...${NC}"
+        curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
+        chmod +x auto_cert_renewal.sh
+    fi
+
+    # 添加定时任务（每天凌晨3点5分执行）
+    local cron_job="5 3 * * * $(pwd)/auto_cert_renewal.sh"
+    if ! (crontab -l 2>/dev/null | grep -Fq "$cron_job"); then
+        (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
+        echo -e "${GREEN}证书自动续期任务已添加${NC}"
+    fi
+}
+
 # 申请证书
 install_ssltls() {
     local domain_list="$1"
@@ -99,6 +154,7 @@ install_ssltls() {
     fi
     
     echo -e "${YELLOW}正在申请证书...${NC}"
+    echo -e "${YELLOW}请耐心等待，DNS验证可能需要一些时间...${NC}"
     
     # 将域名列表转换为带有-d选项的字符串
     domains_with_d=""
@@ -106,7 +162,7 @@ install_ssltls() {
         domains_with_d+=" -d $domain"
     done
     
-    # 申请证书
+    # 申请证书，增加DNS传播等待时间到60秒
     certbot certonly \
         --dns-cloudflare \
         --dns-cloudflare-credentials "$cf_credentials" \
@@ -117,7 +173,8 @@ install_ssltls() {
         --non-interactive \
         --key-type ecdsa \
         --force-renewal \
-        --dns-cloudflare-propagation-seconds 30
+        --dns-cloudflare-propagation-seconds 30 \
+        2>&1 | tee /tmp/certbot.log
         
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}证书申请成功！${NC}"
@@ -127,10 +184,21 @@ install_ssltls() {
         cp "$cert_path/privkey.pem" "/etc/nginx/certs/${primary_domain}_key.pem"
         chmod 644 "/etc/nginx/certs/${primary_domain}_cert.pem"
         chmod 600 "/etc/nginx/certs/${primary_domain}_key.pem"
+        
+        # 设置自动续期
+        setup_cert_renewal
     else
         echo -e "${RED}证书申请失败！${NC}"
+        echo -e "${YELLOW}错误详情：${NC}"
+        grep -i "error\|failed\|problem" /tmp/certbot.log
+        echo -e "${YELLOW}可能的解决方案：${NC}"
+        echo "1. 确保域名已正确添加到Cloudflare"
+        echo "2. 确保Cloudflare API Token权限正确"
+        echo "3. 检查域名DNS解析是否正常"
+        rm -f /tmp/certbot.log
         return 1
     fi
+    rm -f /tmp/certbot.log
 }
 
 # 显示证书信息
@@ -163,14 +231,6 @@ install_ssltls_text() {
     echo ""
 }
 
-# 设置自动续期
-setup_cert_renewal() {
-    # certbot 会自动创建续期任务
-    systemctl enable certbot.timer
-    systemctl start certbot.timer
-    echo -e "${GREEN}自动续期任务已设置${NC}"
-}
-
 # 主函数
 add_ssl() {
     # 静默安装依赖
@@ -189,9 +249,6 @@ add_ssl() {
     
     # 申请证书
     install_ssltls "$yuming" "$email"
-    
-    # 设置自动续期
-    setup_cert_renewal
     
     # 显示证书信息
     install_ssltls_text

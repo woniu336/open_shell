@@ -178,137 +178,57 @@ ssl_cert_menu() {
         echo -e "${BLUE}=================================================${NC}"
 
         read -p "请输入选项 [0-3]: " ssl_choice
-case $ssl_choice in
-    1)
-        if [ -f "certbot-ssl.sh" ]; then
-            echo -e "${GREEN}certbot-ssl.sh 已存在，跳过下载...${NC}"
-            chmod +x certbot-ssl.sh
-        else
-            echo -e "${YELLOW}开始下载SSL证书申请脚本...${NC}"
-            curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/certbot-ssl.sh
-            chmod +x certbot-ssl.sh
-        fi
-        ./certbot-ssl.sh
-        ;;
-    2)
-        if [ -d "/etc/letsencrypt/live/" ]; then
-            echo -e "${YELLOW}已申请的证书到期情况${NC}"
-            echo "站点信息                      证书到期时间"
-            echo "------------------------"
-            for cert_dir in /etc/letsencrypt/live/*; do
-                local cert_file="$cert_dir/fullchain.pem"
-                if [ -f "$cert_file" ]; then
-                    local domain=$(basename "$cert_dir")
-                    local expire_date=$(openssl x509 -noout -enddate -in "$cert_file" | awk -F'=' '{print $2}')
-                    local formatted_date=$(date -d "$expire_date" '+%Y-%m-%d')
-                    printf "%-30s%s\n" "$domain" "$formatted_date"
+        case $ssl_choice in
+            1)
+                if [ -f "certbot-ssl.sh" ]; then
+                    echo -e "${GREEN}certbot-ssl.sh 已存在，跳过下载...${NC}"
+                    chmod +x certbot-ssl.sh
+                else
+                    echo -e "${YELLOW}开始下载SSL证书申请脚本...${NC}"
+                    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/certbot-ssl.sh
+                    chmod +x certbot-ssl.sh
                 fi
-            done
-            echo ""
-        else
-            echo -e "${RED}未找到任何SSL证书${NC}"
-        fi
-        ;;
-    3)
-        if [ -f "auto_cert_renewal.sh" ]; then
-            echo -e "${GREEN}auto_cert_renewal.sh 已存在，跳过下载...${NC}"
-            chmod +x auto_cert_renewal.sh
-        else
-            echo -e "${YELLOW}开始下载证书续期脚本...${NC}"
-            curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
-            chmod +x auto_cert_renewal.sh
-        fi
-        ./auto_cert_renewal.sh
-        ;;
-    0)
-        return
-        ;;
-    *)
-        echo -e "${RED}无效的选项，请重新选择${NC}"
-        ;;
-esac
-        read -n 1 -s -r -p "按任意键继续..."
-    done
-}
-
-# 安装 crontab
-install_crontab() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        case "$ID" in
-            ubuntu|debian|kali)
-                apt update
-                apt install -y cron
-                systemctl enable cron
-                systemctl start cron
+                ./certbot-ssl.sh
                 ;;
-            centos|rhel|almalinux|rocky|fedora)
-                yum install -y cronie
-                systemctl enable crond
-                systemctl start crond
+            2)
+                if [ -d "/etc/letsencrypt/live/" ]; then
+                    echo -e "${YELLOW}已申请的证书到期情况${NC}"
+                    echo "站点信息                      证书到期时间"
+                    echo "------------------------"
+                    for cert_dir in /etc/letsencrypt/live/*; do
+                        local cert_file="$cert_dir/fullchain.pem"
+                        if [ -f "$cert_file" ]; then
+                            local domain=$(basename "$cert_dir")
+                            local expire_date=$(openssl x509 -noout -enddate -in "$cert_file" | awk -F'=' '{print $2}')
+                            local formatted_date=$(date -d "$expire_date" '+%Y-%m-%d')
+                            printf "%-30s%s\n" "$domain" "$formatted_date"
+                        fi
+                    done
+                    echo ""
+                else
+                    echo -e "${RED}未找到任何SSL证书${NC}"
+                fi
                 ;;
-            alpine)
-                apk add --no-cache cronie
-                rc-update add crond
-                rc-service crond start
+            3)
+                if [ -f "auto_cert_renewal.sh" ]; then
+                    echo -e "${GREEN}auto_cert_renewal.sh 已存在，跳过下载...${NC}"
+                    chmod +x auto_cert_renewal.sh
+                else
+                    echo -e "${YELLOW}开始下载证书续期脚本...${NC}"
+                    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
+                    chmod +x auto_cert_renewal.sh
+                fi
+                ./auto_cert_renewal.sh
                 ;;
-            arch|manjaro)
-                pacman -S --noconfirm cronie
-                systemctl enable cronie
-                systemctl start cronie
-                ;;
-            opensuse|suse|opensuse-tumbleweed)
-                zypper install -y cron
-                systemctl enable cron
-                systemctl start cron
-                ;;
-            openwrt|lede)
-                opkg update
-                opkg install cron
-                /etc/init.d/cron enable
-                /etc/init.d/cron start
-                ;;
-            *)
-                echo "不支持的发行版: $ID"
+            0)
                 return
                 ;;
+            *)
+                echo -e "${RED}无效的选项，请重新选择${NC}"
+                ;;
         esac
-    else
-        echo "无法确定操作系统。"
-        return
-    fi
-
-    echo -e "${GREEN}crontab 已安装且 cron 服务正在运行。${NC}"
-}
-
-# 检查并安装 crontab
-check_crontab_installed() {
-    if command -v crontab >/dev/null 2>&1; then
-        echo -e "${GREEN}crontab 已经安装${NC}"
-        return
-    else
-        echo -e "${YELLOW}正在安装 crontab...${NC}"
-        install_crontab
-        return
-    fi
-}
-
-# 设置证书自动续期
-setup_cert_renewal() {
-    cd ~
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/auto_cert_renewal.sh
-    chmod +x auto_cert_renewal.sh
-
-    check_crontab_installed
-    local cron_job="5 3 * * * ~/auto_cert_renewal.sh"
-    local existing_cron=$(crontab -l 2>/dev/null | grep -F "$cron_job")
-
-    if [ -z "$existing_cron" ]; then
-        (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
-        echo -e "${GREEN}证书自动续签任务已添加${NC}"
-    else
-        echo -e "${YELLOW}证书自动续签任务已存在${NC}"
-    fi
+        read -n 1 -s -r -p "按任意键继续..."
+    done
 }
 
 # Nginx管理函数
