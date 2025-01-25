@@ -304,6 +304,15 @@ setup_proxy() {
     read -p "请输入主域名: " main_domain
     read -p "请输入源站域名: " backend_domain
     
+    # 如果是单个源站，询问是否为https
+    if [ "$proxy_type" = "source" ] && [ "$source_type" = "1" ]; then
+        read -p "源站是否使用HTTPS? (y/n): " use_https
+        local protocol="http"
+        if [[ "$use_https" =~ ^[Yy]$ ]]; then
+            protocol="https"
+        fi
+    fi
+    
     # 检查证书
     if ! check_cert_exists "$main_domain"; then
         echo -e "${RED}错误: 未找到域名 $main_domain 的证书！${NC}"
@@ -322,9 +331,10 @@ setup_proxy() {
     
     if [ "$proxy_type" = "source" ]; then
         if [ "$source_type" = "1" ]; then
-            # 单个源站：直接替换域名
+            # 单个源站：替换域名和协议
             sed -i "s/fast.1111.com/$main_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
             sed -i "s/backend.222.com/$backend_domain/g" "/etc/nginx/conf.d/$main_domain.conf"
+            sed -i "s|set \$upstream_endpoint https://|set \$upstream_endpoint $protocol://|g" "/etc/nginx/conf.d/$main_domain.conf"
         else
             # 多个源站：使用 upstream 方式
             read -p "请输入主源站IP: " primary_ip
@@ -350,6 +360,8 @@ setup_proxy() {
     # 检查配置
     echo -e "${YELLOW}正在检查Nginx配置...${NC}"
     if nginx -t; then
+        # 清理 Nginx 缓存
+        rm -rf /usr/local/nginx/cache/proxy/*
         systemctl restart nginx
         echo -e "${GREEN}反向代理配置成功！${NC}"
         if [ "$proxy_type" = "source" ]; then
@@ -402,6 +414,8 @@ list_and_delete_proxy() {
             echo -e "${GREEN}配置文件已删除${NC}"
             # 重启 Nginx
             if nginx -t; then
+                # 清理 Nginx 缓存
+                rm -rf /usr/local/nginx/cache/proxy/*
                 systemctl restart nginx
                 echo -e "${GREEN}Nginx 已重新加载配置${NC}"
             else
