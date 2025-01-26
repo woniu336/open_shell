@@ -866,6 +866,11 @@ endpoint = https://xxxxxx.r2.cloudflarestorage.com"
                             
                             read -n 1 -s -r -p "按任意键开始编辑配置文件..."
                             nano /home/www/.config/rclone/rclone.conf
+                            
+                            # 复制配置文件到root目录
+                            mkdir -p /root/.config/rclone/
+                            cp /home/www/.config/rclone/rclone.conf /root/.config/rclone/
+                            echo -e "${GREEN}已将配置文件复制到 /root/.config/rclone/ 目录${NC}"
                             ;;
                         2)
                             echo -e "${YELLOW}设置可执行目录...${NC}"
