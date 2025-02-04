@@ -187,7 +187,7 @@ install_ng()
         ##ubuntu
         sudo apt update
         sudo apt install -y build-essential
-        for pkg in gcc make libpcre3-dev libssl-dev zlib1g-dev
+        for pkg in gcc make libpcre++-dev libssl-dev zlib1g-dev
         do
             if ! dpkg -l $pkg >/dev/null 2>&1
             then
