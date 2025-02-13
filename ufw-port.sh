@@ -85,7 +85,7 @@ delete_rule() {
 # 查看当前规则
 view_rules() {
     echo -e "${GREEN}当前的UFW规则：${NC}"
-    ufw status verbose
+    sudo ufw status numbered
 }
 
 # 清除端口的所有规则
