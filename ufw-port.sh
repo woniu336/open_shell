@@ -41,10 +41,18 @@ add_whitelist_rule() {
     
     # 验证IP地址格式
     if [[ $ip_address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || [[ $ip_address =~ ^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$ ]]; then
-        # 先添加允许规则
+        # 先清除该端口的现有规则
+        ufw delete deny $port/tcp >/dev/null 2>&1
+        ufw delete allow $port/tcp >/dev/null 2>&1
+        rules=$(ufw status numbered | grep "$port/tcp" | awk '{print $1}' | sed 's/\[//' | sed 's/\]//' | sort -nr)
+        for rule in $rules; do
+            echo "y" | ufw delete $rule >/dev/null 2>&1
+        done
+        
+        # 添加新规则
         ufw allow from $ip_address to any port $port proto tcp
         
-        # 然后添加默认拒绝规则
+        # 添加默认拒绝规则
         ufw deny $port/tcp
         
         echo -e "${GREEN}已添加规则: 允许 $ip_address 访问端口 $port${NC}"
@@ -55,7 +63,7 @@ add_whitelist_rule() {
         echo -e "${RED}无效的IP地址格式${NC}"
         return 1
     fi
-}
+} 
 
 # 删除规则
 delete_rule() {
