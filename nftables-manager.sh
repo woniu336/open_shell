@@ -14,6 +14,11 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# 在文件开头的全局变量定义部分添加
+RULES_FILE="/etc/nftables.conf"
+TEMP_RULES="/tmp/nftables_temp.conf"
+SYSCTL_CONF="/etc/sysctl.conf"
+
 # 启用 IP 转发
 enable_ip_forward() {
     echo "正在启用 IP 转发..."
@@ -51,180 +56,30 @@ install_nftables() {
     fi
 }
 
-# 在文件开头的全局变量定义部分添加
-RULES_FILE="/etc/nftables.conf"
-TEMP_RULES="/tmp/nftables_temp.conf"
-SYSCTL_CONF="/etc/sysctl.conf"
-
-# 添加新的全局变量
-NFTIP_SERVICE="nftip.service"
-NFTIP_SCRIPT="/usr/local/bin/nftip.sh"
-
-# 添加故障转移配置函数
-configure_failover() {
-    while true; do
-        clear_screen
-        echo -e "${CYAN}=== 故障转移配置 ===${NC}\n"
-        
-        # 检查 nftip 服务是否已安装
-        if systemctl is-active --quiet nftip; then
-            echo -e "当前状态: ${GREEN}故障转移服务运行中${NC}"
-        else
-            echo -e "当前状态: ${YELLOW}故障转移服务未运行${NC}"
-        fi
-        
-        echo -e "\n${YELLOW}选项：${NC}"
-        echo "  1. 配置故障转移"
-        echo "  2. 启动/重启服务"
-        echo "  3. 停止服务"
-        echo "  4. 查看服务状态"
-        echo "  5. 返回主菜单"
-        
-        echo -n -e "\n${YELLOW}请选择操作 [1-5]${NC}: "
-        read -r failover_choice
-
-        case $failover_choice in
-            1)
-                echo -e "\n${YELLOW}请输入故障转移配置：${NC}"
-                echo -e "${BLUE}----------------------------------------${NC}"
-                echo -n "主服务器 IP: "
-                read -r main_server
-                echo -n "备用服务器 IP: "
-                read -r backup_server
-                echo -n "本地端口 (多个端口用空格分隔): "
-                read -r local_ports
-                echo -n "目标端口 (与本地端口一一对应，用空格分隔): "
-                read -r target_ports
-                echo -n "检查间隔(秒) [默认10]: "
-                read -r check_interval
-                check_interval=${check_interval:-10}
-                echo -n "失败次数阈值 [默认3]: "
-                read -r required_fails
-                required_fails=${required_fails:-3}
-                
-                # 创建 nftip.sh
-                cat > "$NFTIP_SCRIPT" << EOF
-#!/bin/bash
-
-MAIN_SERVER="$main_server"
-BACKUP_SERVER="$backup_server"
-FAIL_COUNT=0
-REQUIRED_FAILS=$required_fails
-CHECK_INTERVAL=$check_interval
-LOCAL_PORTS=($local_ports)
-TARGET_PORTS=($target_ports)
-
-switch_to_backup() {
-   nft flush ruleset
-   nft add table ip forward2jp
-   nft add chain ip forward2jp prerouting { type nat hook prerouting priority -100 \; }
-   nft add chain ip forward2jp postrouting { type nat hook postrouting priority 100 \; }
-   
-   for i in \${!LOCAL_PORTS[@]}; do
-       nft add rule ip forward2jp prerouting tcp dport \${LOCAL_PORTS[i]} dnat to \$BACKUP_SERVER:\${TARGET_PORTS[i]}
-       nft add rule ip forward2jp prerouting udp dport \${LOCAL_PORTS[i]} dnat to \$BACKUP_SERVER:\${TARGET_PORTS[i]}
-   done
-   nft add rule ip forward2jp postrouting ip daddr \$BACKUP_SERVER masquerade
-}
-
-switch_to_main() {
-   nft flush ruleset
-   nft add table ip forward2jp
-   nft add chain ip forward2jp prerouting { type nat hook prerouting priority -100 \; }
-   nft add chain ip forward2jp postrouting { type nat hook postrouting priority 100 \; }
-   
-   for i in \${!LOCAL_PORTS[@]}; do
-       nft add rule ip forward2jp prerouting tcp dport \${LOCAL_PORTS[i]} dnat to \$MAIN_SERVER:\${TARGET_PORTS[i]}
-       nft add rule ip forward2jp prerouting udp dport \${LOCAL_PORTS[i]} dnat to \$MAIN_SERVER:\${TARGET_PORTS[i]}
-   done
-   nft add rule ip forward2jp postrouting ip daddr \$MAIN_SERVER masquerade
-}
-
-# 验证端口数量是否匹配
-if [ \${#LOCAL_PORTS[@]} -ne \${#TARGET_PORTS[@]} ]; then
-    echo "错误：本地端口和目标端口数量不匹配"
-    exit 1
-fi
-
-# 初始化规则
-switch_to_main
-
-while true; do
-   if ! ping -c 3 -W 2 \$MAIN_SERVER &> /dev/null; then
-       FAIL_COUNT=\$((FAIL_COUNT + 1))
-       if [ \$FAIL_COUNT -ge \$REQUIRED_FAILS ]; then
-           switch_to_backup
-       fi
-   else
-       if [ \$FAIL_COUNT -ge \$REQUIRED_FAILS ]; then
-           switch_to_main
-       fi
-       FAIL_COUNT=0
-   fi
-   sleep \$CHECK_INTERVAL
-done
-EOF
-                chmod +x "$NFTIP_SCRIPT"
-                
-                # 创建 systemd 服务
-                cat > "/etc/systemd/system/$NFTIP_SERVICE" << EOF
-[Unit]
-Description=NFTables IP Failover Service
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=$NFTIP_SCRIPT
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-                
-                systemctl daemon-reload
-                echo -e "${GREEN}配置已保存！${NC}"
-                ;;
-            2)
-                systemctl restart nftip
-                systemctl enable nftip
-                echo -e "${GREEN}服务已启动/重启！${NC}"
-                ;;
-            3)
-                systemctl stop nftip
-                systemctl disable nftip
-                echo -e "${YELLOW}服务已停止！${NC}"
-                ;;
-            4)
-                echo -e "\n${CYAN}服务状态：${NC}"
-                systemctl status nftip
-                ;;
-            5)
-                return
-                ;;
-            *)
-                echo -e "${RED}无效的选择${NC}"
-                ;;
-        esac
-        
-        echo -e "\n${YELLOW}按回车键继续...${NC}"
-        read -r
-    done
-}
-
-# 检查并停止故障转移服务
-check_and_stop_failover() {
-    if systemctl is-active --quiet "$NFTIP_SERVICE"; then
-        echo -e "${YELLOW}检测到故障转移服务正在运行，正在停止...${NC}"
-        systemctl stop "$NFTIP_SERVICE"
-        echo -e "${GREEN}故障转移服务已停止${NC}"
+# 配置 UFW
+configure_ufw() {
+    echo -e "${YELLOW}配置 UFW 设置...${NC}"
+    
+    # 确保 UFW 已安装
+    if ! command -v ufw &> /dev/null; then
+        echo "正在安装 UFW..."
+        apt update && apt install -y ufw
     fi
+    
+    # 配置 UFW 以允许转发
+    if [ -f "/etc/default/ufw" ]; then
+        sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+    fi
+    
+    # 启用 UFW
+    echo "正在启用 UFW..."
+    ufw --force enable
+    
+    echo -e "${GREEN}UFW 配置完成！${NC}"
 }
 
 # 修改 add_forward_rule 函数
 add_forward_rule() {
-    # 检查并停止故障转移服务
-    check_and_stop_failover
-    
     echo -e "${YELLOW}请输入转发规则信息：${NC}"
     echo -e "${BLUE}----------------------------------------${NC}"
     echo -n "目标服务器 IP: "
@@ -234,6 +89,11 @@ add_forward_rule() {
     echo -n "目标端口: "
     read -r target_port
     echo -e "${BLUE}----------------------------------------${NC}"
+
+    # 添加 UFW 规则
+    echo -e "${YELLOW}添加 UFW 规则...${NC}"
+    ufw route allow proto tcp from any to $target_ip port $target_port
+    ufw route allow proto udp from any to $target_ip port $target_port
 
     # 如果配置文件不存在，创建基础配置
     if [ ! -f "$RULES_FILE" ] || ! grep -q "table ip forward2jp" "$RULES_FILE"; then
@@ -275,6 +135,124 @@ EOF
         rm -f "$TEMP_RULES"
         return 1
     fi
+}
+
+# 修改 delete_rules 函数
+delete_rules() {
+    clear_screen
+    echo -e "${CYAN}=== 删除转发规则 ===${NC}\n"
+    
+    # 获取并显示当前规则
+    echo -e "${YELLOW}当前 UFW 转发规则：${NC}"
+    ufw status numbered | grep "ALLOW FWD" || echo "没有转发规则"
+    echo
+    show_rules
+    
+    echo -e "\n${YELLOW}删除选项：${NC}"
+    echo "1. 删除指定转发规则"
+    echo "2. 删除所有转发规则"
+    echo "3. 返回主菜单"
+    
+    echo -n -e "\n${YELLOW}请选择操作 [1-3]${NC}: "
+    read -r delete_choice
+    
+    case $delete_choice in
+        1)
+            echo -n -e "\n${YELLOW}请输入要删除的规则编号（UFW规则号）：${NC} "
+            read -r rule_number
+            if [[ "$rule_number" =~ ^[0-9]+$ ]]; then
+                # 检查规则是否为转发规则
+                if ufw status numbered | grep "^\[$rule_number\]" | grep -q "ALLOW FWD"; then
+                    if ufw delete $rule_number; then
+                        echo -e "${GREEN}转发规则删除成功！${NC}"
+                    else
+                        echo -e "${RED}转发规则删除失败！${NC}"
+                    fi
+                else
+                    echo -e "${RED}错误：指定的规则不是转发规则${NC}"
+                fi
+            else
+                echo -e "${RED}无效的规则编号${NC}"
+            fi
+            ;;
+        2)
+            echo -n "确定要删除所有转发规则吗？(y/n): "
+            read -r confirm
+            if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+                # 删除所有 UFW 转发规则
+                echo -e "${YELLOW}删除所有 UFW 转发规则...${NC}"
+                # 从最后一条规则开始删除，避免规则号变化
+                ufw status numbered | grep "ALLOW FWD" | tac | while read -r line; do
+                    num=$(echo $line | grep -o '^\[\s*[0-9]\+\]' | grep -o '[0-9]\+')
+                    if [ ! -z "$num" ]; then
+                        ufw delete $num
+                    fi
+                done
+                
+                # 删除 nftables 规则
+                if nft list tables | grep -q "forward2jp"; then
+                    nft flush table ip forward2jp
+                    nft delete table ip forward2jp
+                    rm -f "$RULES_FILE"
+                    echo -e "${GREEN}所有转发规则已删除！${NC}"
+                else
+                    echo -e "${YELLOW}没有找到任何 nftables 规则${NC}"
+                fi
+            else
+                echo "取消删除操作"
+            fi
+            ;;
+        3)
+            return
+            ;;
+        *)
+            echo -e "${RED}无效的选择${NC}"
+            ;;
+    esac
+}
+
+# 添加清屏函数
+clear_screen() {
+    clear
+    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║          NFTables 转发规则管理器       ║${NC}"
+    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
+    echo
+}
+
+# 添加新函数
+check_ufw_status() {
+    if ! ufw status | grep -q "Status: active"; then
+        echo -e "${YELLOW}检测到 UFW 未启用，正在重新启用...${NC}"
+        configure_ufw
+    fi
+}
+
+# 修改 show_rules 函数
+show_rules() {
+    echo -e "${BLUE}----------------------------------------${NC}"
+    if nft list ruleset | grep -q "table ip forward2jp"; then
+        echo -e "${YELLOW}当前转发规则：${NC}"
+        nft list table ip forward2jp | grep 'dnat to' | grep 'tcp' | awk '
+        {
+            for(i=1; i<=NF; i++) {
+                if($i == "dport") local_port = $(i+1)
+                if($i == "to") {
+                    split($(i+1), dest, ":")
+                    target_ip = dest[1]
+                    target_port = dest[2]
+                }
+            }
+            if(local_port && target_ip && target_port) {
+                gsub(/,/, "", local_port)
+                printf "%d. 本地端口: %s, 目标IP: %s, 目标端口: %s\n", 
+                    NR, local_port, target_ip, target_port
+            }
+        }'
+    else
+        echo -e "  ${YELLOW}当前没有配置任何转发规则${NC}"
+    fi
+    echo -e "${BLUE}----------------------------------------${NC}"
 }
 
 # 添加系统优化函数
@@ -341,72 +319,10 @@ EOF
     rm -f "$tmp_sysctl"
 }
 
-# 修改 show_rules 函数，修复显示格式
-show_rules() {
-    echo -e "${BLUE}----------------------------------------${NC}"
-    if nft list ruleset | grep -q "table ip forward2jp"; then
-        echo -e "${YELLOW}当前转发规则：${NC}"
-        nft list table ip forward2jp | grep 'dnat to' | grep 'tcp' | awk '
-        {
-            for(i=1; i<=NF; i++) {
-                if($i == "dport") local_port = $(i+1)
-                if($i == "to") {
-                    split($(i+1), dest, ":")
-                    target_ip = dest[1]
-                    target_port = dest[2]
-                }
-            }
-            if(local_port && target_ip && target_port) {
-                gsub(/,/, "", local_port)
-                printf "%d. 本地端口: %s, 目标IP: %s, 目标端口: %s\n", 
-                    NR, local_port, target_ip, target_port
-            }
-        }'
-    else
-        echo -e "  ${YELLOW}当前没有配置任何转发规则${NC}"
-    fi
-    echo -e "${BLUE}----------------------------------------${NC}"
-}
-
-# 修改 delete_rules 函数
-delete_rules() {
-    clear_screen
-    echo -e "${CYAN}=== 删除转发规则 ===${NC}\n"
-    
-    # 检查并停止故障转移服务
-    check_and_stop_failover
-    
-    # 获取并显示当前规则
-    show_rules
-    
-    echo -n "确定要删除所有转发规则吗？(y/n): "
-    read -r confirm
-    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-        if nft list tables | grep -q "forward2jp"; then
-            nft flush table ip forward2jp
-            nft delete table ip forward2jp
-            rm -f "$RULES_FILE"
-            echo -e "${GREEN}所有转发规则已删除！${NC}"
-        else
-            echo -e "${YELLOW}没有找到任何转发规则${NC}"
-        fi
-    else
-        echo "取消删除操作"
-    fi
-}
-
-# 添加清屏函数
-clear_screen() {
-    clear
-    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║          NFTables 转发规则管理器       ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
-    echo
-}
-
-# 主菜单
+# 修改主菜单
 main_menu() {
     while true; do
+        check_ufw_status
         clear_screen
         echo -e "${YELLOW}可用操作：${NC}"
         echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -414,11 +330,10 @@ main_menu() {
         echo -e "  ${GREEN}2${NC}. 删除转发规则"
         echo -e "  ${GREEN}3${NC}. 显示当前规则"
         echo -e "  ${GREEN}4${NC}. 系统性能优化"
-        echo -e "  ${GREEN}5${NC}. 配置故障转移"
         echo -e "  ${GREEN}0${NC}. 退出程序"
         echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo
-        echo -n -e "${YELLOW}请选择操作 [0-5]${NC}: "
+        echo -n -e "${YELLOW}请选择操作 [0-4]${NC}: "
         read -r choice
 
         case $choice in
@@ -427,6 +342,7 @@ main_menu() {
                 echo -e "${CYAN}=== 添加转发规则 ===${NC}\n"
                 enable_ip_forward
                 install_nftables
+                configure_ufw
                 add_forward_rule
                 echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
                 read -r
@@ -450,9 +366,6 @@ main_menu() {
                 echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
                 read -r
                 ;;
-            5)
-                configure_failover
-                ;;
             0)
                 clear_screen
                 echo -e "${GREEN}感谢使用，再见！${NC}"
@@ -467,4 +380,4 @@ main_menu() {
 }
 
 # 运行主菜单
-main_menu
+main_menu 
