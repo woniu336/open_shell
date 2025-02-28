@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
+RED='\033[0;31m'          # 错误信息保留红色
+GREEN='\033[0;36m'        # 将成功信息改为青色
+NC='\033[0m'              # 保持不变
+BLUE='\033[0;34m'         # 深蓝色
+CYAN='\033[1;36m'         # 亮青色（用于标题和重要信息）
+WHITE='\033[1;37m'        # 亮白色（替代黄色）
 
 # 检查是否以 root 权限运行
 if [ "$EUID" -ne 0 ]; then 
@@ -37,13 +37,13 @@ install_nftables() {
         if systemctl is-active --quiet nftables; then
             echo -e "nftables 服务状态: ${GREEN}运行中${NC}"
         else
-            echo -e "nftables 服务状态: ${YELLOW}未运行${NC}"
+            echo -e "nftables 服务状态: ${WHITE}未运行${NC}"
             echo "正在启动 nftables 服务..."
             systemctl start nftables
             systemctl enable nftables
         fi
     else
-        echo -e "${YELLOW}未安装${NC}"
+        echo -e "${WHITE}未安装${NC}"
         echo "正在安装 nftables..."
         if apt update && apt install -y nftables; then
             systemctl enable nftables
@@ -58,7 +58,7 @@ install_nftables() {
 
 # 配置 UFW
 configure_ufw() {
-    echo -e "${YELLOW}配置 UFW 设置...${NC}"
+    echo -e "${WHITE}配置 UFW 设置...${NC}"
     
     # 确保 UFW 已安装
     if ! command -v ufw &> /dev/null; then
@@ -78,9 +78,9 @@ configure_ufw() {
     echo -e "${GREEN}UFW 配置完成！${NC}"
 }
 
-# 修改 add_forward_rule 函数
+# 修改 add_forward_rule 函数，移除 UFW 规则添加
 add_forward_rule() {
-    echo -e "${YELLOW}请输入转发规则信息：${NC}"
+    echo -e "${WHITE}请输入转发规则信息：${NC}"
     echo -e "${BLUE}----------------------------------------${NC}"
     echo -n "目标服务器 IP: "
     read -r target_ip
@@ -89,11 +89,6 @@ add_forward_rule() {
     echo -n "目标端口: "
     read -r target_port
     echo -e "${BLUE}----------------------------------------${NC}"
-
-    # 添加 UFW 规则
-    echo -e "${YELLOW}添加 UFW 规则...${NC}"
-    ufw route allow proto tcp from any to $target_ip port $target_port
-    ufw route allow proto udp from any to $target_ip port $target_port
 
     # 如果配置文件不存在，创建基础配置
     if [ ! -f "$RULES_FILE" ] || ! grep -q "table ip forward2jp" "$RULES_FILE"; then
@@ -143,52 +138,62 @@ delete_rules() {
     echo -e "${CYAN}=== 删除转发规则 ===${NC}\n"
     
     # 获取并显示当前规则
-    echo -e "${YELLOW}当前 UFW 转发规则：${NC}"
-    ufw status numbered | grep "ALLOW FWD" || echo "没有转发规则"
-    echo
     show_rules
     
-    echo -e "\n${YELLOW}删除选项：${NC}"
-    echo "1. 删除指定转发规则"
+    echo -e "\n${WHITE}删除选项：${NC}"
+    echo "1. 删除单个转发规则"
     echo "2. 删除所有转发规则"
     echo "3. 返回主菜单"
     
-    echo -n -e "\n${YELLOW}请选择操作 [1-3]${NC}: "
+    echo -n -e "\n${WHITE}请选择操作 [1-3]${NC}: "
     read -r delete_choice
     
     case $delete_choice in
         1)
-            echo -n -e "\n${YELLOW}请输入要删除的规则编号（UFW规则号）：${NC} "
+            echo -n -e "\n${WHITE}请输入要删除的规则序号：${NC} "
             read -r rule_number
             if [[ "$rule_number" =~ ^[0-9]+$ ]]; then
-                # 检查规则是否为转发规则
-                if ufw status numbered | grep "^\[$rule_number\]" | grep -q "ALLOW FWD"; then
-                    if ufw delete $rule_number; then
-                        echo -e "${GREEN}转发规则删除成功！${NC}"
+                # 获取要删除的规则信息
+                rule_info=$(nft list table ip forward2jp | grep 'dnat to' | grep 'tcp' | sed -n "${rule_number}p")
+                if [ -n "$rule_info" ]; then
+                    # 从规则信息中提取端口和IP
+                    local_port=$(echo "$rule_info" | awk '{for(i=1;i<=NF;i++) if($i=="dport") print $(i+1)}' | tr -d ',')
+                    target_info=$(echo "$rule_info" | awk '{for(i=1;i<=NF;i++) if($i=="to") print $(i+1)}')
+                    
+                    # 创建临时文件
+                    cp "$RULES_FILE" "$TEMP_RULES"
+                    
+                    # 删除指定的规则（TCP和UDP）
+                    sed -i "/tcp dport ${local_port} dnat to ${target_info}/d" "$TEMP_RULES"
+                    sed -i "/udp dport ${local_port} dnat to ${target_info}/d" "$TEMP_RULES"
+                    
+                    # 检查是否还有其他使用相同目标IP的规则
+                    target_ip=$(echo "$target_info" | cut -d: -f1)
+                    if ! grep -q "dnat to.*${target_ip}" "$TEMP_RULES"; then
+                        # 如果没有，删除对应的 masquerade 规则
+                        sed -i "/ip daddr ${target_ip} masquerade/d" "$TEMP_RULES"
+                    fi
+                    
+                    # 应用新配置
+                    if nft -c -f "$TEMP_RULES"; then
+                        mv "$TEMP_RULES" "$RULES_FILE"
+                        nft -f "$RULES_FILE"
+                        echo -e "${GREEN}规则删除成功！${NC}"
                     else
-                        echo -e "${RED}转发规则删除失败！${NC}"
+                        echo -e "${RED}规则删除失败！配置无效${NC}"
+                        rm -f "$TEMP_RULES"
                     fi
                 else
-                    echo -e "${RED}错误：指定的规则不是转发规则${NC}"
+                    echo -e "${RED}未找到指定序号的规则${NC}"
                 fi
             else
-                echo -e "${RED}无效的规则编号${NC}"
+                echo -e "${RED}无效的规则序号${NC}"
             fi
             ;;
         2)
             echo -n "确定要删除所有转发规则吗？(y/n): "
             read -r confirm
             if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-                # 删除所有 UFW 转发规则
-                echo -e "${YELLOW}删除所有 UFW 转发规则...${NC}"
-                # 从最后一条规则开始删除，避免规则号变化
-                ufw status numbered | grep "ALLOW FWD" | tac | while read -r line; do
-                    num=$(echo $line | grep -o '^\[\s*[0-9]\+\]' | grep -o '[0-9]\+')
-                    if [ ! -z "$num" ]; then
-                        ufw delete $num
-                    fi
-                done
-                
                 # 删除 nftables 规则
                 if nft list tables | grep -q "forward2jp"; then
                     nft flush table ip forward2jp
@@ -196,7 +201,7 @@ delete_rules() {
                     rm -f "$RULES_FILE"
                     echo -e "${GREEN}所有转发规则已删除！${NC}"
                 else
-                    echo -e "${YELLOW}没有找到任何 nftables 规则${NC}"
+                    echo -e "${WHITE}没有找到任何 nftables 规则${NC}"
                 fi
             else
                 echo "取消删除操作"
@@ -214,16 +219,16 @@ delete_rules() {
 # 添加清屏函数
 clear_screen() {
     clear
-    echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║          NFTables 转发规则管理器       ║${NC}"
-    echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
+    echo -e "${CYAN}┌────────────────────────────────────────┐${NC}"
+    echo -e "${CYAN}│${WHITE}          NFTables 转发规则管理器       ${CYAN}│${NC}"
+    echo -e "${CYAN}└────────────────────────────────────────┘${NC}"
     echo
 }
 
 # 添加新函数
 check_ufw_status() {
     if ! ufw status | grep -q "Status: active"; then
-        echo -e "${YELLOW}检测到 UFW 未启用，正在重新启用...${NC}"
+        echo -e "${WHITE}检测到 UFW 未启用，正在重新启用...${NC}"
         configure_ufw
     fi
 }
@@ -232,7 +237,7 @@ check_ufw_status() {
 show_rules() {
     echo -e "${BLUE}----------------------------------------${NC}"
     if nft list ruleset | grep -q "table ip forward2jp"; then
-        echo -e "${YELLOW}当前转发规则：${NC}"
+        echo -e "${WHITE}当前转发规则：${NC}"
         nft list table ip forward2jp | grep 'dnat to' | grep 'tcp' | awk '
         {
             for(i=1; i<=NF; i++) {
@@ -250,14 +255,14 @@ show_rules() {
             }
         }'
     else
-        echo -e "  ${YELLOW}当前没有配置任何转发规则${NC}"
+        echo -e "  ${WHITE}当前没有配置任何转发规则${NC}"
     fi
     echo -e "${BLUE}----------------------------------------${NC}"
 }
 
 # 添加系统优化函数
 optimize_system() {
-    echo -e "${YELLOW}正在配置系统优化参数...${NC}"
+    echo -e "${WHITE}正在配置系统优化参数...${NC}"
     
     # 创建临时文件
     local tmp_sysctl="/tmp/sysctl_temp.conf"
@@ -290,26 +295,26 @@ EOF
 
     # 备份和更新sysctl配置
     if [ -f "$SYSCTL_CONF" ]; then
-        echo -e "${YELLOW}备份原配置文件到 ${SYSCTL_CONF}.bak${NC}"
+        echo -e "${WHITE}备份原配置文件到 ${SYSCTL_CONF}.bak${NC}"
         cp "$SYSCTL_CONF" "${SYSCTL_CONF}.bak"
-        echo -e "${YELLOW}更新系统配置...${NC}"
+        echo -e "${WHITE}更新系统配置...${NC}"
         grep -v -F -f <(grep -v '^#' "$tmp_sysctl" | cut -d= -f1 | tr -d ' ') "$SYSCTL_CONF" > "${SYSCTL_CONF}.tmp"
         mv "${SYSCTL_CONF}.tmp" "$SYSCTL_CONF"
     fi
 
     # 添加新的配置
-    echo -e "${YELLOW}添加优化参数...${NC}"
+    echo -e "${WHITE}添加优化参数...${NC}"
     cat "$tmp_sysctl" >> "$SYSCTL_CONF"
 
     # 应用配置
-    echo -e "${YELLOW}应用新配置...${NC}"
+    echo -e "${WHITE}应用新配置...${NC}"
     if sysctl -p "$SYSCTL_CONF"; then
         echo -e "${GREEN}系统优化参数配置成功！${NC}"
     else
         echo -e "${RED}系统优化参数配置失败！${NC}"
         # 如果失败，恢复备份
         if [ -f "${SYSCTL_CONF}.bak" ]; then
-            echo -e "${YELLOW}正在恢复原配置...${NC}"
+            echo -e "${WHITE}正在恢复原配置...${NC}"
             mv "${SYSCTL_CONF}.bak" "$SYSCTL_CONF"
             sysctl -p "$SYSCTL_CONF"
         fi
@@ -324,16 +329,16 @@ main_menu() {
     while true; do
         check_ufw_status
         clear_screen
-        echo -e "${YELLOW}可用操作：${NC}"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-        echo -e "  ${GREEN}1${NC}. 添加转发规则"
-        echo -e "  ${GREEN}2${NC}. 删除转发规则"
-        echo -e "  ${GREEN}3${NC}. 显示当前规则"
-        echo -e "  ${GREEN}4${NC}. 系统性能优化"
-        echo -e "  ${GREEN}0${NC}. 退出程序"
-        echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        echo -e "${CYAN}可用操作：${NC}"
+        echo -e "${BLUE}┌────────────────────────────────────────┐${NC}"
+        echo -e "${BLUE}│${NC}  ${WHITE}1${NC}. 添加转发规则                        ${BLUE}│${NC}"
+        echo -e "${BLUE}│${NC}  ${WHITE}2${NC}. 删除转发规则                        ${BLUE}│${NC}"
+        echo -e "${BLUE}│${NC}  ${WHITE}3${NC}. 显示当前规则                        ${BLUE}│${NC}"
+        echo -e "${BLUE}│${NC}  ${WHITE}4${NC}. 系统性能优化                        ${BLUE}│${NC}"
+        echo -e "${BLUE}│${NC}  ${WHITE}0${NC}. 退出程序                            ${BLUE}│${NC}"
+        echo -e "${BLUE}└────────────────────────────────────────┘${NC}"
         echo
-        echo -n -e "${YELLOW}请选择操作 [0-4]${NC}: "
+        echo -n -e "${CYAN}请选择操作 [0-4]${NC}: "
         read -r choice
 
         case $choice in
@@ -344,26 +349,26 @@ main_menu() {
                 install_nftables
                 configure_ufw
                 add_forward_rule
-                echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
+                echo -e "\n${WHITE}按回车键返回主菜单...${NC}"
                 read -r
                 ;;
             2)
                 delete_rules
-                echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
+                echo -e "\n${WHITE}按回车键返回主菜单...${NC}"
                 read -r
                 ;;
             3)
                 clear_screen
                 echo -e "${CYAN}=== 当前转发规则 ===${NC}\n"
                 show_rules
-                echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
+                echo -e "\n${WHITE}按回车键返回主菜单...${NC}"
                 read -r
                 ;;
             4)
                 clear_screen
                 echo -e "${CYAN}=== 系统性能优化 ===${NC}\n"
                 optimize_system
-                echo -e "\n${YELLOW}按回车键返回主菜单...${NC}"
+                echo -e "\n${WHITE}按回车键返回主菜单...${NC}"
                 read -r
                 ;;
             0)
