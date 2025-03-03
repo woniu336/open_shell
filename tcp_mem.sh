@@ -30,14 +30,10 @@ echo "原配置已备份到：$backup_file"
 
 # 创建新的sysctl配置
 cat > /etc/sysctl.conf << EOF
-# --------------------------
-# 文件描述符与进程限制
-# --------------------------
+# 核心网络参数
 fs.file-max = 6815744
 
-# --------------------------
-# TCP 基础优化参数
-# --------------------------
+# TCP协议栈优化
 net.ipv4.tcp_no_metrics_save = 1
 net.ipv4.tcp_ecn = 0
 net.ipv4.tcp_frto = 1
@@ -50,32 +46,17 @@ net.ipv4.tcp_adv_win_scale = 1
 net.ipv4.tcp_moderate_rcvbuf = 1
 net.ipv4.tcp_slow_start_after_idle = 0
 
-# --------------------------
-# 网络缓冲区优化（适配低内存）
-# --------------------------
+# 内存缓冲区优化
 net.core.rmem_max = 4194304
 net.core.wmem_max = 4194304
 net.core.rmem_default = 65536
 net.core.wmem_default = 16384
-
-# 默认配置（内存安全）
 net.ipv4.tcp_rmem = 4096 65536 1048576
 net.ipv4.tcp_wmem = 4096 16384 1048576
-
-# 高吞吐场景
-# net.ipv4.tcp_rmem = 4096 131072 2097152
-# net.ipv4.tcp_wmem = 4096 65536 2097152
-
-# 高并发场景
-# net.ipv4.tcp_rmem = 4096 65536 524288
-# net.ipv4.tcp_wmem = 4096 16384 524288
-
 net.ipv4.udp_rmem_min = 8192
 net.ipv4.udp_wmem_min = 8192
 
-# --------------------------
-# 连接队列与超时控制（适配低内存）
-# --------------------------
+# 连接队列优化
 net.core.somaxconn = 32768
 net.ipv4.tcp_max_syn_backlog = 32768
 net.ipv4.tcp_syn_retries = 2
@@ -84,19 +65,21 @@ net.ipv4.tcp_max_tw_buckets = 16384
 net.ipv4.tcp_fin_timeout = 15
 net.ipv4.tcp_tw_reuse = 1
 
-# --------------------------
-# 内存与拥塞控制
-# --------------------------
+# 连接跟踪系统
+net.netfilter.nf_conntrack_max = 2000000
+net.netfilter.nf_conntrack_buckets = 262144
+net.netfilter.nf_conntrack_tcp_timeout_established = 7200
+net.netfilter.nf_conntrack_tcp_timeout_time_wait = 120
+net.netfilter.nf_conntrack_tcp_timeout_close_wait = 60
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 120
+
+# 拥塞控制
 net.core.netdev_max_backlog = 16384
 net.ipv4.tcp_mem = $min_tcp_mem $pressure_tcp_mem $max_tcp_mem
-
-# 拥塞控制算法
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 
-# --------------------------
-# Keepalive 与安全
-# --------------------------
+# 安全参数
 net.ipv4.tcp_keepalive_time = 600
 net.ipv4.tcp_keepalive_intvl = 30
 net.ipv4.tcp_keepalive_probes = 3
@@ -104,18 +87,14 @@ net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
 net.ipv4.conf.all.route_localnet = 0
 
-# --------------------------
-# 网络转发与 IPv6
-# --------------------------
+# 网络转发
 net.ipv4.ip_forward = 1
 net.ipv4.conf.all.forwarding = 1
 net.ipv4.conf.default.forwarding = 1
 net.ipv6.conf.all.forwarding = 1
 net.ipv6.conf.default.forwarding = 1
 
-# --------------------------
-# 高级加速选项
-# --------------------------
+# 高级加速
 net.ipv4.tcp_fastopen = 3
 EOF
 
