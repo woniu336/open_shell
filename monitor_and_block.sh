@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # 配置参数
-CONN_THRESHOLD=180    # 单个IP的连接数阈值
+CONN_THRESHOLD=200    # 降低阈值到200
 TIME_WINDOW=60       # 监控时间窗口(秒)
 LOG_FILE="/var/log/ip_monitor.log"
-WHITELIST=("127.0.0.1" "192.168.1.") # 白名单IP/IP段
+WHITELIST=("127.0.0.1" "192.168.1." "172.19.0.") # 白名单IP/IP段
 LOCK_FILE="/var/run/ip_monitor.lock"  # 添加锁文件
 
 # 检查是否以root权限运行
@@ -58,7 +58,7 @@ is_whitelisted() {
 # 检查IP是否已被封禁
 is_blocked() {
     local ip=$1
-    iptables -L INPUT -n | grep -q "$ip"
+    ufw status | grep -q "$ip"
     return $?
 }
 
@@ -66,8 +66,8 @@ is_blocked() {
 block_ip() {
     local ip=$1
     if ! is_blocked "$ip"; then
-        iptables -A INPUT -s "$ip" -j DROP
-        log_message "已封禁IP: $ip"
+        ufw insert 1 deny from "$ip" to any
+        log_message "已封禁IP: $ip (优先级: 1)"
     fi
 }
 
