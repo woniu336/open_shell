@@ -265,16 +265,85 @@ show_blacklist() {
     fi
 }
 
+# 显示拦截统计信息
+show_block_stats() {
+    echo -e "${YELLOW}拦截统计信息：${NC}"
+    echo "----------------------------------------"
+    if iptables -L BANNED -n -v -x >/dev/null 2>&1; then
+        echo -e "${GREEN}详细拦截记录：${NC}"
+        iptables -L BANNED -n -v -x
+    else
+        echo -e "${RED}未找到 BANNED 链或没有拦截记录${NC}"
+    fi
+    echo "----------------------------------------"
+}
+
+# 管理单个 IP
+manage_single_ip() {
+    while true; do
+        clear
+        echo -e "${YELLOW}IP 黑名单管理${NC}"
+        echo "1. 添加 IP 到黑名单"
+        echo "2. 从黑名单移除 IP"
+        echo "3. 查看拦截统计"
+        echo "0. 返回主菜单"
+        
+        read -rp "请选择操作 [0-3]: " op_choice
+        
+        case $op_choice in
+            1)
+                read -rp "请输入要封禁的 IP 地址: " ip_addr
+                if [[ $ip_addr =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    if ipset add banned_ips "$ip_addr" 2>/dev/null; then
+                        echo -e "${GREEN}成功将 $ip_addr 添加到黑名单${NC}"
+                        logger "手动添加 IP $ip_addr 到黑名单"
+                    else
+                        echo -e "${RED}添加失败，IP 可能已在黑名单中${NC}"
+                    fi
+                else
+                    echo -e "${RED}无效的 IP 地址格式${NC}"
+                fi
+                ;;
+            2)
+                read -rp "请输入要解封的 IP 地址: " ip_addr
+                if [[ $ip_addr =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    if ipset del banned_ips "$ip_addr" 2>/dev/null; then
+                        echo -e "${GREEN}成功将 $ip_addr 从黑名单中移除${NC}"
+                        logger "手动从黑名单移除 IP $ip_addr"
+                    else
+                        echo -e "${RED}移除失败，IP 可能不在黑名单中${NC}"
+                    fi
+                else
+                    echo -e "${RED}无效的 IP 地址格式${NC}"
+                fi
+                ;;
+            3)
+                show_block_stats
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo -e "${RED}无效的选择${NC}"
+                ;;
+        esac
+        
+        echo -e "\n按回车键继续..."
+        read -r
+    done
+}
+
 # 主菜单
 show_menu() {
     while true; do
+        clear
         echo -e "\n${YELLOW}=== IP 黑名单防火墙管理系统 ===${NC}"
         echo "1. 初始化"
         echo "2. 更新"
         echo "3. 定时任务"
         echo "4. 清理"
         echo "5. 显示状态"
-        echo "6. IP黑名单数量"
+        echo "6. 管理单个 IP"
         echo "0. 退出"
         
         read -rp "请选择操作 [0-6]: " choice
@@ -285,7 +354,7 @@ show_menu() {
             3) setup_cron ;;
             4) cleanup_rules ;;
             5) show_status ;;
-            6) show_blacklist ;;
+            6) manage_single_ip ;;
             0) echo -e "${GREEN}再见！${NC}"; exit 0 ;;
             *) echo -e "${RED}无效的选择${NC}" ;;
         esac
