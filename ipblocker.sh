@@ -1,201 +1,316 @@
 #!/bin/bash
 set -e
 
-# 唯一标识符 (防止与其他规则冲突)
-PREFIX="IPBLOCKER"
-IPSET_NAME="${PREFIX}_BANNED_IPS"
-IPTABLES_CHAIN="${PREFIX}_BANNED_CHAIN"
-CONFIG_DIR="/etc/${PREFIX}"
-LOG_FILE="/var/log/${PREFIX}.log"
-
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m'
+NC='\033[0m' # No Color
 
-# 日志记录函数
-log() {
-  local level=$1
-  local message=$2
-  echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] [${level}] ${message}${NC}"
-  logger -t "${PREFIX}" "[${level}] ${message}"
-}
-
-# 检查 root 权限
-check_root() {
-  if [ "$EUID" -ne 0 ]; then
-    log "ERROR" "请使用 root 权限运行此脚本"
+# 检查是否为root用户
+if [ "$EUID" -ne 0 ]; then 
+    echo -e "${RED}请使用 root 权限运行此脚本${NC}"
     exit 1
-  fi
-}
+fi
 
-# 检查依赖工具
+# 检查必要的命令
 check_requirements() {
-  local missing_tools=()
-  for tool in ipset iptables wget awk; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      missing_tools+=("$tool")
+    local missing_tools=()
+    for tool in ipset iptables wget awk logger; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            missing_tools+=("$tool")
+        fi
+    done
+
+    if [ ${#missing_tools[@]} -ne 0 ]; then
+        echo -e "${RED}缺少必要的工具: ${missing_tools[*]}${NC}"
+        echo "请安装缺少的工具："
+        echo "Debian/Ubuntu: apt-get install iptables ipset"
+        echo "CentOS/RHEL: yum install iptables ipset"
+        exit 1
     fi
-  done
-
-  if [ ${#missing_tools[@]} -ne 0 ]; then
-    log "ERROR" "缺少必要的工具: ${missing_tools[*]}"
-    echo "安装命令:"
-    echo "Debian/Ubuntu: apt-get install iptables ipset wget"
-    echo "CentOS/RHEL: yum install iptables ipset wget"
-    exit 1
-  fi
 }
 
-# 初始化防火墙规则
+# 初始化防火墙
 init_firewall() {
-  log "INFO" "正在初始化防火墙规则..."
-
-  # 清理旧规则 (仅处理本脚本创建的)
-  cleanup_rules silent
-
-  # 创建 ipset
-  if ! ipset list "$IPSET_NAME" >/dev/null 2>&1; then
-    ipset create "$IPSET_NAME" hash:ip hashsize 65536 maxelem 1000000
-  fi
-
-  # 创建 iptables 链
-  if ! iptables -nL "$IPTABLES_CHAIN" >/dev/null 2>&1; then
-    iptables -N "$IPTABLES_CHAIN"
-    iptables -I INPUT -j "$IPTABLES_CHAIN"
-    iptables -I FORWARD -j "$IPTABLES_CHAIN"
-    iptables -A "$IPTABLES_CHAIN" -m set --match-set "$IPSET_NAME" src -j DROP
-  fi
-
-  log "INFO" "防火墙规则初始化完成"
+    echo -e "${YELLOW}正在初始化防火墙规则...${NC}"
+    
+    # 检查并删除已存在的规则
+    ipset list banned_ips >/dev/null 2>&1 && ipset destroy banned_ips
+    
+    # 创建新的 ipset
+    ipset create banned_ips hash:ip hashsize 65536 maxelem 1000000
+    
+    # 设置 iptables 规则
+    iptables -N BANNED 2>/dev/null || true
+    iptables -I FORWARD -j BANNED 2>/dev/null || true
+    iptables -I INPUT -j BANNED 2>/dev/null || true
+    iptables -I BANNED -m set --match-set banned_ips src -j DROP 2>/dev/null || true
+    
+    echo -e "${GREEN}防火墙规则初始化完成${NC}"
 }
 
-# 更新 IP 黑名单
+# 更新黑名单的核心功能
+update_blacklist_core() {
+    local silent_mode=$1
+    cd /root/cron || exit 1
+
+    [[ "$silent_mode" != "silent" ]] && echo "正在下载黑名单文件..."
+    if ! wget -q https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-1d.ipv4 -O abuseipdb-s100-1d.ipv4.tmp; then
+        [[ "$silent_mode" != "silent" ]] && echo -e "${RED}下载失败，使用上次的黑名单${NC}"
+        logger "下载失败，使用上次的黑名单"
+        return 1
+    fi
+
+    if [ ! -s abuseipdb-s100-1d.ipv4.tmp ]; then
+        [[ "$silent_mode" != "silent" ]] && echo -e "${RED}下载文件为空${NC}"
+        logger "下载文件为空，使用上次的黑名单"
+        rm -f abuseipdb-s100-1d.ipv4.tmp
+        return 1
+    fi
+
+    mv abuseipdb-s100-1d.ipv4.tmp abuseipdb-s100-1d.ipv4
+
+    [[ "$silent_mode" != "silent" ]] && echo "正在处理 IP 列表..."
+    # 检查并删除已存在的临时 ipset
+    ipset list banned_ips.tmp >/dev/null 2>&1 && ipset destroy banned_ips.tmp
+
+    # 创建临时 ipset
+    ipset create banned_ips.tmp hash:ip hashsize 65536 maxelem 1000000
+
+    # 提取有效IP到临时文件
+    awk '!/^#/ && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print $1 }' abuseipdb-s100-1d.ipv4 > valid_ips.tmp
+
+    # 使用 ipset restore 批量添加
+    while read -r ip; do
+        echo "add banned_ips.tmp $ip"
+    done < valid_ips.tmp | ipset restore -!
+
+    # 清理临时文件
+    rm -f valid_ips.tmp
+
+    # 原子性地替换 ipset
+    ipset swap banned_ips.tmp banned_ips
+    ipset destroy banned_ips.tmp
+
+    [[ "$silent_mode" != "silent" ]] && echo -e "${GREEN}IP 黑名单更新完成${NC}"
+    logger "IP 黑名单更新完成"
+}
+
+# 命令行模式更新黑名单
+cli_update() {
+    logger "开始更新 IP 黑名单"
+    update_blacklist_core "silent"
+}
+
+# 交互式更新 IP 黑名单
 update_blacklist() {
-  log "INFO" "开始更新 IP 黑名单..."
-  mkdir -p "$CONFIG_DIR"
-  
-  local tmp_file="${CONFIG_DIR}/abuseipdb.tmp"
-  local target_file="${CONFIG_DIR}/abuseipdb.list"
-
-  if ! wget -q -O "$tmp_file" https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-1d.ipv4; then
-    log "ERROR" "黑名单下载失败"
-    return 1
-  fi
-
-  if [ ! -s "$tmp_file" ]; then
-    log "ERROR" "下载文件为空"
-    rm -f "$tmp_file"
-    return 1
-  fi
-
-  # 验证文件格式
-  if ! grep -Pq '^\d+\.\d+\.\d+\.\d+$' "$tmp_file"; then
-    log "ERROR" "文件格式验证失败"
-    return 1
-  fi
-
-  # 原子操作替换文件
-  mv "$tmp_file" "$target_file"
-
-  # 创建临时 ipset
-  ipset create "${IPSET_NAME}_tmp" hash:ip hashsize 65536 maxelem 1000000
-
-  # 填充数据
-  while read -r ip; do
-    ipset add "${IPSET_NAME}_tmp" "$ip" 2>/dev/null || log "WARN" "无效IP: $ip"
-  done < <(grep -v '^#' "$target_file")
-
-  # 原子替换
-  ipset swap "${IPSET_NAME}_tmp" "$IPSET_NAME"
-  ipset destroy "${IPSET_NAME}_tmp"
-
-  log "INFO" "黑名单更新完成，当前记录数: $(ipset list "$IPSET_NAME" | grep '^Number' | awk '{print $2}')"
+    echo -e "${YELLOW}正在更新 IP 黑名单...${NC}"
+    update_blacklist_core
 }
 
-# 清理规则 (仅处理本脚本创建的)
-cleanup_rules() {
-  local silent=${1:-}
-  [ -z "$silent" ] && log "INFO" "正在清理防火墙规则..."
+# 创建定时任务脚本
+create_cron_scripts() {
+    echo -e "${YELLOW}正在创建定时任务脚本...${NC}"
+    
+    # 创建 ban_at_boot.sh
+    cat > /root/cron/ban_at_boot.sh << 'EOF'
+#!/bin/bash
+set -e  # 遇到错误立即退出
+cd /root/cron || exit 1
 
-  # 删除 iptables 规则
-  iptables -D INPUT -j "$IPTABLES_CHAIN" 2>/dev/null || true
-  iptables -D FORWARD -j "$IPTABLES_CHAIN" 2>/dev/null || true
-  iptables -F "$IPTABLES_CHAIN" 2>/dev/null || true
-  iptables -X "$IPTABLES_CHAIN" 2>/dev/null || true
+# 检查 Docker 是否真正启动
+while ! docker info >/dev/null 2>&1; do
+    echo "等待 Docker 启动..."
+    sleep 2
+done
 
-  # 删除 ipset
-  ipset destroy "$IPSET_NAME" 2>/dev/null || true
-  ipset destroy "${IPSET_NAME}_tmp" 2>/dev/null || true
+# 检查 ipset 是否已存在，如存在则删除
+ipset list banned_ips >/dev/null 2>&1 && ipset destroy banned_ips
 
-  [ -z "$silent" ] && log "INFO" "防火墙规则清理完成"
+# 创建 ipset 集合
+ipset create banned_ips hash:ip hashsize 65536 maxelem 1000000
+
+# 设置 iptables 规则
+iptables -N BANNED 2>/dev/null || true
+iptables -I FORWARD -j BANNED 2>/dev/null || true
+iptables -I INPUT -j BANNED 2>/dev/null || true
+iptables -I BANNED -m set --match-set banned_ips src -j DROP 2>/dev/null || true
+
+# 下载并处理 IP 黑名单
+wget -q https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-1d.ipv4 -O abuseipdb-s100-1d.ipv4.tmp
+
+if [ -s abuseipdb-s100-1d.ipv4.tmp ]; then
+    mv abuseipdb-s100-1d.ipv4.tmp abuseipdb-s100-1d.ipv4
+    awk '!/^#/ && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print $1 }' abuseipdb-s100-1d.ipv4 | while IFS= read -r line; do
+        ipset add banned_ips "$line"
+    done
+fi
+EOF
+
+    # 创建 ban.sh
+    cat > /root/cron/ban.sh << 'EOF'
+#!/bin/bash
+set -e
+cd /root/cron || exit 1
+
+# 添加日志
+logger "开始更新 IP 黑名单"
+
+# 下载失败时使用备份文件
+if ! wget -q https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-1d.ipv4 -O abuseipdb-s100-1d.ipv4.tmp; then
+    logger "下载失败，使用上次的黑名单"
+    exit 1
+fi
+
+# 验证下载文件
+if [ -s abuseipdb-s100-1d.ipv4.tmp ]; then
+    mv abuseipdb-s100-1d.ipv4.tmp abuseipdb-s100-1d.ipv4
+else
+    logger "下载文件为空，使用上次的黑名单"
+    rm -f abuseipdb-s100-1d.ipv4.tmp
+    exit 1
+fi
+
+# 创建临时 ipset
+ipset create banned_ips.tmp hash:ip hashsize 65536 maxelem 1000000
+
+# 填充临时 ipset
+awk '!/^#/ && $1 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ { print $1 }' abuseipdb-s100-1d.ipv4 | while IFS= read -r line; do
+    ipset add banned_ips.tmp "$line"
+done
+
+# 原子性地替换 ipset
+ipset swap banned_ips.tmp banned_ips
+ipset destroy banned_ips.tmp
+
+logger "IP 黑名单更新完成"
+EOF
+
+    # 设置执行权限
+    chmod +x /root/cron/ban_at_boot.sh
+    chmod +x /root/cron/ban.sh
+    
+    echo -e "${GREEN}定时任务脚本创建完成${NC}"
 }
 
-# 定时任务脚本
+# 设置定时任务
 setup_cron() {
-  log "INFO" "正在配置定时任务..."
-  mkdir -p /etc/cron.d
-
-  # 创建每日更新脚本
-  cat > /etc/cron.d/${PREFIX}_daily <<EOF
-#!/bin/bash
-${0} update >/dev/null 2>&1
-EOF
-
-  # 创建启动加载脚本
-  cat > /etc/cron.d/${PREFIX}_boot <<EOF
-#!/bin/bash
-${0} init >/dev/null 2>&1
-EOF
-
-  # 设置定时任务
-  echo "0 5 * * * root /bin/bash /etc/cron.d/${PREFIX}_daily" > /etc/cron.d/${PREFIX}
-  echo "@reboot root /bin/bash /etc/cron.d/${PREFIX}_boot" >> /etc/cron.d/${PREFIX}
-
-  systemctl restart cron 2>/dev/null || systemctl restart crond
-  log "INFO" "定时任务配置完成"
+    echo -e "${YELLOW}正在设置定时任务...${NC}"
+    
+    # 首先创建定时任务脚本
+    create_cron_scripts
+    
+    # 检查是否已经存在相关定时任务
+    if crontab -l 2>/dev/null | grep -q "/root/cron/ban"; then
+        echo -e "${RED}定时任务已存在${NC}"
+        return 1
+    fi
+    
+    # 添加定时任务
+    (crontab -l 2>/dev/null; echo "0 5 * * * /bin/bash /root/cron/ban.sh") | crontab -
+    (crontab -l 2>/dev/null; echo "@reboot /bin/bash /root/cron/ban_at_boot.sh") | crontab -
+    
+    echo -e "${GREEN}定时任务设置完成${NC}"
 }
 
-# 显示状态
+# 清理所有规则
+cleanup_rules() {
+    echo -e "${YELLOW}正在清理防火墙规则...${NC}"
+    
+    iptables -D BANNED -m set --match-set banned_ips src -j DROP 2>/dev/null || true
+    iptables -D INPUT -j BANNED 2>/dev/null || true
+    iptables -D FORWARD -j BANNED 2>/dev/null || true
+    iptables -X BANNED 2>/dev/null || true
+    ipset destroy banned_ips 2>/dev/null || true
+    
+    echo -e "${GREEN}防火墙规则已清理${NC}"
+}
+
+# 显示当前状态
 show_status() {
-  echo -e "\n${YELLOW}=== 防火墙状态 ==="
-  echo -e "${GREEN}[IPSet]${NC}"
-  ipset list "$IPSET_NAME" 2>/dev/null || echo "未找到黑名单集合"
-  
-  echo -e "\n${GREEN}[IPTables]${NC}"
-  iptables -nL "$IPTABLES_CHAIN" 2>/dev/null || echo "未找到防火墙链"
-  
-  echo -e "\n${GREEN}[定时任务]${NC}"
-  ls /etc/cron.d/${PREFIX}* 2>/dev/null || echo "未配置定时任务"
+    echo -e "${YELLOW}当前状态：${NC}"
+    echo "----------------------------------------"
+    echo -e "${GREEN}IPSet 规则：${NC}"
+    if ipset list banned_ips >/dev/null 2>&1; then
+        echo "已创建 IPSet 规则"
+        echo "当前黑名单 IP 数量: $(ipset list banned_ips | grep -c "^[0-9]")"
+    else
+        echo "未创建 IPSet 规则"
+    fi
+    echo "----------------------------------------"
+    echo -e "${GREEN}IPTables 规则：${NC}"
+    iptables -L BANNED 2>/dev/null || echo "未创建 IPTables 规则"
+    echo "----------------------------------------"
+    echo -e "${GREEN}定时任务：${NC}"
+    crontab -l | grep "/root/cron/ban" || echo "未设置定时任务"
+    echo "----------------------------------------"
 }
 
-# 帮助信息
-show_help() {
-  echo -e "${YELLOW}使用方法: $0 [命令]"
-  echo "命令列表:"
-  echo "  init     初始化防火墙规则"
-  echo "  update   更新黑名单"
-  echo "  cron     配置定时任务"
-  echo "  clean    清理所有规则"
-  echo "  status   显示当前状态"
-  echo "  help     显示帮助信息"
+# 显示黑名单详情
+show_blacklist() {
+    echo -e "${YELLOW}IP 黑名单详情：${NC}"
+    if ipset list banned_ips >/dev/null 2>&1; then
+        local ip_count=$(ipset list banned_ips | grep -c "^[0-9]")
+        echo -e "${GREEN}当前黑名单共有 ${ip_count} 个 IP${NC}"
+        
+        echo -e "\n是否要查看完整的 IP 列表？[y/N]"
+        read -r show_full
+        if [[ "$show_full" =~ ^[Yy]$ ]]; then
+            echo -e "\n${YELLOW}黑名单 IP 列表：${NC}"
+            ipset list banned_ips | grep "^[0-9]"
+        fi
+    else
+        echo -e "${RED}黑名单未创建或为空${NC}"
+    fi
+}
+
+# 主菜单
+show_menu() {
+    while true; do
+        echo -e "\n${YELLOW}=== IP 黑名单防火墙管理系统 ===${NC}"
+        echo "1. 初始化"
+        echo "2. 更新"
+        echo "3. 定时任务"
+        echo "4. 清理"
+        echo "5. 显示状态"
+        echo "6. IP黑名单数量"
+        echo "0. 退出"
+        
+        read -rp "请选择操作 [0-6]: " choice
+        
+        case $choice in
+            1) init_firewall ;;
+            2) update_blacklist ;;
+            3) setup_cron ;;
+            4) cleanup_rules ;;
+            5) show_status ;;
+            6) show_blacklist ;;
+            0) echo -e "${GREEN}再见！${NC}"; exit 0 ;;
+            *) echo -e "${RED}无效的选择${NC}" ;;
+        esac
+        
+        echo -e "\n按回车键继续..."
+        read -r
+    done
 }
 
 # 主程序
 main() {
-  check_root
-  check_requirements
+    # 检查是否有命令行参数
+    if [ "$1" = "update" ]; then
+        cli_update
+        exit 0
+    fi
 
-  case $1 in
-    init)    init_firewall ;;
-    update)  update_blacklist ;;
-    cron)    setup_cron ;;
-    clean)   cleanup_rules ;;
-    status)  show_status ;;
-    help)    show_help ;;
-    *)       show_help; exit 1 ;;
-  esac
+    # 创建必要的目录
+    mkdir -p /root/cron
+    
+    # 检查必要的命令
+    check_requirements
+    
+    # 显示菜单
+    show_menu
 }
 
-main "$@"
+main "$@" 
