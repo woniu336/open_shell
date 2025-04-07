@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 # Censys UFW Blocker
-# 版本: 1.1.0
-# 描述: 自动下载 Censys 扫描器 IP 列表并更新 UFW 防火墙规则
+# 版本: 1.2.0
+# 描述: 使用硬编码的 Censys 扫描器 IP 列表更新 UFW 防火墙规则
 # 最后更新: $(date '+%Y-%m-%d')
 #
 
@@ -11,12 +11,32 @@ set -e
 trap 'echo "错误发生在第 $LINENO 行"; exit 1' ERR
 
 # 定义变量
-CENSYS_IP_LIST_URL="https://support.censys.io/hc/en-us/article_attachments/34972050185876"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_FILE="${SCRIPT_DIR}/censys_ufw_update.log"
 IPv4_LIST="${SCRIPT_DIR}/censys_ipv4.txt"
 IPv6_LIST="${SCRIPT_DIR}/censys_ipv6.txt"
-TEMP_FILE="${SCRIPT_DIR}/censys_mixed_ips.txt"
+
+# 硬编码的 Censys IP 列表
+declare -a CENSYS_IPV4=(
+    "66.132.159.0/24"
+    "162.142.125.0/24"
+    "167.94.138.0/24"
+    "167.94.145.0/24"
+    "167.94.146.0/24"
+    "167.248.133.0/24"
+    "199.45.154.0/24"
+    "199.45.155.0/24"
+    "206.168.34.0/24"
+    "206.168.35.0/24"
+)
+
+# 硬编码的 Censys IPv6 列表
+declare -a CENSYS_IPV6=(
+    "2602:80d:1000:b0cc:e::/80"
+    "2620:96:e000:b0cc:e::/80"
+    "2602:80d:1003::/112"
+    "2602:80d:1004::/112"
+)
 
 # 预定义的风险 IP 地址
 declare -a RISK_IPS=(
@@ -152,35 +172,16 @@ for range in "${SEMRUSH_RANGES[@]}"; do
     add_or_update_rule "$range" 1
 done
 
-# 下载和处理 Censys IP 列表
-log_message "下载 Censys IP 列表..."
-if ! curl -s -o "$TEMP_FILE" "$CENSYS_IP_LIST_URL"; then
-    log_message "错误：下载 IP 列表失败"
-    exit 1
-fi
-
-# 初始化 IP 列表文件
+# 创建 IP 列表文件用于统计
 > "$IPv4_LIST"
 > "$IPv6_LIST"
 
-# 处理下载的 IP 列表
-log_message "处理 IP 列表..."
-while IFS= read -r line; do
-    line=$(echo "$line" | tr -d '\r' | tr -d ' ')
-    [[ -z "$line" || "$line" =~ ^AS[0-9]+ ]] && continue
-    
-    if [[ "$line" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
-        echo "$line" >> "$IPv4_LIST"
-    elif [[ "$line" =~ : ]]; then
-        echo "$line" >> "$IPv6_LIST"
-    fi
-done < "$TEMP_FILE"
-
-# 处理 IPv4 规则
+# 添加 Censys IPv4 规则
 log_message "添加 Censys IPv4 规则..."
-while IFS= read -r subnet; do
-    [[ "$subnet" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]] && add_or_update_rule "$subnet" 1
-done < "$IPv4_LIST"
+for subnet in "${CENSYS_IPV4[@]}"; do
+    add_or_update_rule "$subnet" 1
+    echo "$subnet" >> "$IPv4_LIST"
+done
 
 # 查找 IPv6 规则插入位置
 FIRST_V6_RULE=$(ufw status numbered | grep '(v6)' | head -n1 | awk -F'[][]' '{print $2}')
@@ -196,25 +197,23 @@ for range in "${FACEBOOK_IPV6[@]}"; do
     FIRST_V6_RULE=$((FIRST_V6_RULE + 1))
 done
 
-# 处理 IPv6 规则
+# 添加 Censys IPv6 规则
 log_message "添加 Censys IPv6 规则..."
-while IFS= read -r subnet; do
-    [[ "$subnet" =~ : ]] && add_or_update_rule "$subnet" "$FIRST_V6_RULE"
+for subnet in "${CENSYS_IPV6[@]}"; do
+    add_or_update_rule "$subnet" "$FIRST_V6_RULE"
+    echo "$subnet" >> "$IPv6_LIST"
     FIRST_V6_RULE=$((FIRST_V6_RULE + 1))
-done < "$IPv6_LIST"
+done
 
 # 重新加载 UFW
 log_message "重新加载 UFW..."
 ufw reload
 
-# 统计和清理
+# 统计
 IPv4_COUNT=$(wc -l < "$IPv4_LIST")
 IPv6_COUNT=$(wc -l < "$IPv6_LIST")
 log_message "规则更新完成！"
-log_message "IPv4 规则数量: $IPv4_COUNT"
-log_message "IPv6 规则数量: $IPv6_COUNT"
+log_message "Censys IPv4 规则数量: $IPv4_COUNT"
+log_message "Censys IPv6 规则数量: $IPv6_COUNT"
 
-# 清理临时文件
-rm -f "$TEMP_FILE"
-
-exit 0 
+exit 0
