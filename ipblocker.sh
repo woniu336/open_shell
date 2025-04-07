@@ -16,7 +16,7 @@ fi
 # 检查必要的命令
 check_requirements() {
     local missing_tools=()
-    for tool in ipset iptables wget awk logger; do
+    for tool in ipset iptables wget awk logger crontab; do
         if ! command -v "$tool" >/dev/null 2>&1; then
             missing_tools+=("$tool")
         fi
@@ -25,8 +25,8 @@ check_requirements() {
     if [ ${#missing_tools[@]} -ne 0 ]; then
         echo -e "${RED}缺少必要的工具: ${missing_tools[*]}${NC}"
         echo "请安装缺少的工具："
-        echo "Debian/Ubuntu: apt-get install iptables ipset"
-        echo "CentOS/RHEL: yum install iptables ipset"
+        echo "Debian/Ubuntu: apt-get install iptables ipset cron"
+        echo "CentOS/RHEL: yum install iptables ipset cronie"
         exit 1
     fi
 }
@@ -198,6 +198,15 @@ EOF
 setup_cron() {
     echo -e "${YELLOW}正在设置定时任务...${NC}"
     
+    # 检查 crontab 是否存在
+    if ! command -v crontab >/dev/null 2>&1; then
+        echo -e "${RED}系统未安装 crontab，请先安装：${NC}"
+        echo "Debian/Ubuntu: apt-get install cron"
+        echo "CentOS/RHEL: yum install cronie"
+        echo "安装后重新运行此功能"
+        return 1
+    fi
+    
     # 首先创建定时任务脚本
     create_cron_scripts
     
@@ -243,7 +252,11 @@ show_status() {
     iptables -L BANNED 2>/dev/null || echo "未创建 IPTables 规则"
     echo "----------------------------------------"
     echo -e "${GREEN}定时任务：${NC}"
-    crontab -l | grep "/root/cron/ban" || echo "未设置定时任务"
+    if command -v crontab >/dev/null 2>&1; then
+        crontab -l | grep "/root/cron/ban" || echo "未设置定时任务"
+    else
+        echo "系统未安装 crontab，无法查看定时任务"
+    fi
     echo "----------------------------------------"
 }
 
@@ -382,4 +395,4 @@ main() {
     show_menu
 }
 
-main "$@" 
+main "$@"
