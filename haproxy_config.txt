@@ -1,0 +1,66 @@
+global
+    log /dev/log local0 warning
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    user haproxy
+    group haproxy
+    daemon
+    maxconn 10000
+    stats socket /run/haproxy/admin.sock mode 660 level admin expose-fd listeners
+    stats timeout 30s
+
+defaults
+    log global
+    mode http
+    option dontlognull
+    option httplog
+    option http-keep-alive
+    option forwardfor
+    timeout connect 5s
+    timeout client  30s
+    timeout server  30s
+    timeout http-keep-alive 15s
+    errorfile 400 /etc/haproxy/errors/400.http
+    errorfile 403 /etc/haproxy/errors/403.http
+    errorfile 408 /etc/haproxy/errors/408.http
+    errorfile 500 /etc/haproxy/errors/500.http
+    errorfile 502 /etc/haproxy/errors/502.http
+    errorfile 503 /etc/haproxy/errors/503.http
+    errorfile 504 /etc/haproxy/errors/504.http
+
+frontend http-in
+    bind *:80
+    
+    # 检测IP直接访问（无Host头或Host头为IP地址）
+    acl is_ip_access hdr(host) -m reg ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$
+    acl no_host_header hdr_cnt(host) eq 0
+    
+    # 定义允许的域名
+    acl domain1 hdr(host) -i 123.com 789.com
+    acl domain2 hdr(host) -i 456.com
+    
+    # 创建一个包含所有允许域名的ACL
+    acl valid_domains hdr(host) -i 123.com 789.com 456.com
+    
+    # 路由到对应的后端
+    use_backend backend1 if domain1
+    use_backend backend2 if domain2
+    
+    # 对于IP访问、无Host头或未配置域名，路由到拒绝后端
+    use_backend deny_backend if is_ip_access
+    use_backend deny_backend if no_host_header
+    use_backend deny_backend if !valid_domains
+    
+    # 默认拒绝后端（作为最后的保障）
+    default_backend deny_backend
+
+# 正常的业务后端
+backend backend1
+    server server1 8.8.8.8:80 check
+
+backend backend2
+    server server2 3.3.3.3:80 check
+
+# 拒绝访问的后端 - 返回403错误
+backend deny_backend
+    http-request deny
