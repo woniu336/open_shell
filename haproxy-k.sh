@@ -233,7 +233,7 @@ $use_backend_line
             # 添加backend配置
             echo "" >> "$HAPROXY_CFG"
             echo "backend backend$backend_num" >> "$HAPROXY_CFG"
-            echo "    server server$backend_num $backend_ip check" >> "$HAPROXY_CFG"
+            echo "    server server$backend_num $backend_ip check inter 10s rise 2 fall 3" >> "$HAPROXY_CFG"
             
             echo -e "${GREEN}√ 配置已添加成功${NC}"
         else
