@@ -78,6 +78,94 @@ install_caddy() {
     fi
 }
 
+# 卸载Caddy
+uninstall_caddy() {
+    echo -e "${YELLOW}准备卸载Caddy...${NC}"
+    echo ""
+    
+    if ! check_caddy_installed; then
+        echo -e "${YELLOW}Caddy未安装，无需卸载${NC}"
+        return 0
+    fi
+    
+    echo -e "${RED}警告：此操作将完全卸载Caddy并删除所有相关文件！${NC}"
+    echo -e "${RED}包括：配置文件、日志文件、数据文件等${NC}"
+    echo ""
+    
+    read -p "确定要继续卸载吗？(y/N): " confirm
+    
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo -e "${BLUE}取消卸载操作${NC}"
+        return 0
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}开始卸载Caddy...${NC}"
+    
+    # 停止Caddy服务
+    echo -e "${BLUE}正在停止Caddy服务...${NC}"
+    systemctl stop caddy
+    systemctl disable caddy 2>/dev/null
+    
+    # 卸载Caddy软件包
+    echo -e "${BLUE}正在卸载Caddy软件包...${NC}"
+    apt purge -y caddy
+    
+    # 删除相关目录和文件
+    echo -e "${BLUE}正在删除Caddy相关文件...${NC}"
+    rm -rf /etc/caddy
+    rm -rf /var/lib/caddy
+    rm -rf /var/log/caddy
+    
+    # 删除仓库配置（可选）
+    read -p "是否删除Caddy官方仓库配置？(y/N): " remove_repo
+    if [[ "$remove_repo" == "y" || "$remove_repo" == "Y" ]]; then
+        rm -f /etc/apt/sources.list.d/caddy-stable.list
+        rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+        echo -e "${GREEN}已删除Caddy仓库配置${NC}"
+        
+        # 更新软件包列表
+        apt update
+    fi
+    
+    # 刷新命令缓存并检查卸载是否成功
+    hash -r 2>/dev/null
+    sleep 1
+    
+    echo ""
+    echo -e "${BLUE}正在验证卸载结果...${NC}"
+    
+    # 多重检查确保卸载完成
+    caddy_still_exists=false
+    
+    # 检查命令是否还存在
+    if command -v caddy &> /dev/null; then
+        caddy_still_exists=true
+    fi
+    
+    # 检查二进制文件是否还存在
+    if [[ -f "/usr/bin/caddy" ]] || [[ -f "/usr/local/bin/caddy" ]]; then
+        caddy_still_exists=true
+    fi
+    
+    # 检查systemd服务文件是否还存在
+    if [[ -f "/lib/systemd/system/caddy.service" ]] || [[ -f "/etc/systemd/system/caddy.service" ]]; then
+        caddy_still_exists=true
+    fi
+    
+    if [[ "$caddy_still_exists" == "false" ]]; then
+        echo -e "${GREEN}✓ Caddy卸载成功！${NC}"
+        echo -e "${GREEN}✓ 所有相关文件已删除${NC}"
+    else
+        echo -e "${YELLOW}⚠ Caddy可能未完全卸载${NC}"
+        echo -e "${YELLOW}建议手动检查以下位置：${NC}"
+        echo -e "  • /usr/bin/caddy"
+        echo -e "  • /usr/local/bin/caddy"
+        echo -e "  • /lib/systemd/system/caddy.service"
+        echo -e "  • /etc/systemd/system/caddy.service"
+    fi
+}
+
 # 检查Caddy状态
 check_caddy_status() {
     echo -e "${BLUE}Caddy服务状态：${NC}"
@@ -87,34 +175,7 @@ check_caddy_status() {
     caddy version
 }
 
-# 初始化Caddyfile
-init_caddyfile() {
-    if [[ ! -f "$CADDY_CONFIG" ]]; then
-        echo -e "${YELLOW}创建初始Caddyfile...${NC}"
-        cat > "$CADDY_CONFIG" << 'EOF'
-# Caddy配置文件
 
-# 定义可复用的配置片段
-(common_config) {
-    reverse_proxy {args.0}
-    tls {
-        protocols tls1.2 tls1.3
-    }
-    header {
-        Permissions-Policy interest-cohort=()
-        Strict-Transport-Security max-age=31536000;
-        X-Content-Type-Options nosniff
-        X-Frame-Options DENY
-        Referrer-Policy no-referrer-when-downgrade
-        -Via
-        -Alt-Svc
-    }
-}
-EOF
-        chown caddy:caddy "$CADDY_CONFIG"
-        echo -e "${GREEN}初始Caddyfile创建完成${NC}"
-    fi
-}
 
 # 编辑配置文件
 edit_config() {
@@ -123,8 +184,10 @@ edit_config() {
     
     # 检查配置文件是否存在
     if [[ ! -f "$CADDY_CONFIG" ]]; then
-        echo -e "${YELLOW}配置文件不存在，正在创建初始配置...${NC}"
-        init_caddyfile
+        echo -e "${YELLOW}配置文件不存在，将创建新的配置文件${NC}"
+        mkdir -p "$(dirname "$CADDY_CONFIG")"
+        touch "$CADDY_CONFIG"
+        chown caddy:caddy "$CADDY_CONFIG"
     fi
     
     # 创建备份
@@ -242,6 +305,7 @@ show_menu() {
     echo -e "${GREEN}4.${NC} 列出站点"
     echo -e "${GREEN}5.${NC} 查看配置文件"
     echo -e "${GREEN}6.${NC} 重启Caddy服务"
+    echo -e "${RED}7.${NC} 卸载Caddy"
     echo -e "${GREEN}0.${NC} 退出"
     echo ""
 }
@@ -254,7 +318,7 @@ main() {
         show_title
         show_menu
         
-        read -p "请输入选项 [0-6]: " choice
+        read -p "请输入选项 [0-7]: " choice
         
         case $choice in
             1)
@@ -264,9 +328,7 @@ main() {
                     caddy version
                 else
                     echo -e "${YELLOW}Caddy未安装，开始安装...${NC}"
-                    if install_caddy; then
-                        init_caddyfile
-                    fi
+                    install_caddy
                 fi
                 ;;
             2)
@@ -300,6 +362,10 @@ main() {
                 else
                     echo -e "${RED}Caddy未安装，请先安装Caddy${NC}"
                 fi
+                ;;
+            7)
+                echo ""
+                uninstall_caddy
                 ;;
             0)
                 echo -e "${GREEN}感谢使用Caddy管理脚本！${NC}"
