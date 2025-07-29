@@ -1,0 +1,58 @@
+# 定义可复用的配置片段 
+(common_config) { 
+    reverse_proxy { 
+        to 后端服务器1:80 后端服务器2:80
+         
+        # 负载均衡策略（可选：round_robin, least_conn, ip_hash） 
+        lb_policy round_robin 
+         
+        # 故障转移配置 
+        lb_try_duration 30s 
+        lb_try_interval 250ms 
+        
+        # 被动健康检查
+        fail_duration 30s
+        max_fails 3
+        unhealthy_status 5xx
+         
+        # 主动健康检查
+        health_uri / 
+        health_interval 15s 
+        health_timeout 3s 
+    } 
+     
+    tls { 
+        protocols tls1.2 tls1.3 
+    } 
+     
+    header { 
+        Permissions-Policy interest-cohort=() 
+        Strict-Transport-Security max-age=31536000; 
+        X-Content-Type-Options nosniff 
+        Referrer-Policy strict-origin-when-cross-origin 
+        X-XSS-Protection "1; mode=block"
+        -Via 
+        -Alt-Svc 
+        -Server
+    } 
+    
+    # 错误处理
+    handle_errors {
+        @5xx expression {http.error.status_code} >= 500
+        respond @5xx "服务暂时不可用，请稍后重试" 503
+        
+        @4xx expression {http.error.status_code} >= 400
+        respond @4xx "请求错误" {http.error.status_code}
+    }
+} 
+ 
+
+2345.com {
+    redir https://www.2345.com{uri} permanent
+}
+
+
+www.2345.com {
+    import common_config
+}
+
