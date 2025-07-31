@@ -1,0 +1,29 @@
+(common_config) {
+	tls {
+		protocols tls1.2 tls1.3
+	}
+	header {
+		Permissions-Policy interest-cohort=()
+		Strict-Transport-Security max-age=31536000;
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-XSS-Protection "1; mode=block"
+		-Via
+		-Alt-Svc
+		-Server
+	}
+}
+2345.com {
+	redir https://www.2345.com{uri} permanent
+}
+www.2345.com {
+	import common_config
+	reverse_proxy 6.6.6.6:80
+}
+123.com {
+	redir https://www.123.com{uri} permanent
+}
+www.123.com {
+	import common_config
+	reverse_proxy 6.6.6.6:80
+}
