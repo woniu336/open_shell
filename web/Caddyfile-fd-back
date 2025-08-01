@@ -1,0 +1,37 @@
+(simple_tls_config) {
+	tls {
+		protocols tls1.2 tls1.3
+	}
+	header {
+		-Via
+		-Alt-Svc
+		-Server
+	}
+}
+
+(proxy_headers) {
+	header_up Host {upstream_hostport}
+	header_up X-Real-IP {remote}
+}
+
+1234.cc {
+	redir https://www.1234.cc{uri} permanent
+}
+
+www.1234.cc {
+	import simple_tls_config
+	reverse_proxy https://1234.kkk.eu.org {
+		import proxy_headers
+	}
+}
+
+456.com {
+	redir https://www.456.com{uri} permanent
+}
+
+www.456.com {
+	import simple_tls_config
+	reverse_proxy https://456.kkk.eu.org {
+		import proxy_headers
+	}
+}

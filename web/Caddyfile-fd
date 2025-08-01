@@ -1,4 +1,5 @@
-(simple_tls_config) {
+# 通用配置 - 安全头和TLS设置
+(common_config) {
 	tls {
 		protocols tls1.2 tls1.3
 	}
@@ -9,29 +10,30 @@
 	}
 }
 
-(proxy_headers) {
-	header_up Host {upstream_hostport}
-	header_up X-Real-IP {remote}
-}
-
+# 重定向到www版本
 1234.cc {
 	redir https://www.1234.cc{uri} permanent
 }
 
+# 反向代理配置 - 将请求转发到后端服务器
 www.1234.cc {
-	import simple_tls_config
+	import common_config
 	reverse_proxy https://1234.kkk.eu.org {
-		import proxy_headers
+		header_up Host {upstream_hostport}
+		header_up X-Real-IP {remote}
 	}
 }
 
-456.com {
-	redir https://www.456.com{uri} permanent
+# 重定向到www版本
+5678.com {
+	redir https://www.5678.com{uri} permanent
 }
 
-www.456.com {
-	import simple_tls_config
-	reverse_proxy https://456.kkk.eu.org {
-		import proxy_headers
+# 反向代理配置 - 将请求转发到后端服务器
+www.5678.com {
+	import common_config
+	reverse_proxy https://5678.kkk.eu.org {
+		header_up Host {upstream_hostport}
+		header_up X-Real-IP {remote}
 	}
 }
