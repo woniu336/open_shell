@@ -64,7 +64,6 @@ backend backend2
     server server2 9.9.9.9:80 check inter 10s rise 2 fall 3
 
 
-
 backend backend3
     server server3 3.3.3.3:80 check inter 10s rise 2 fall 3
 
