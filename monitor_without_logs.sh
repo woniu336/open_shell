@@ -3,7 +3,7 @@
 
 echo "=== HAProxy限流监控 (无日志版本) $(date) ==="
 
-FORWARDING_IP="15.204.56.161"
+FORWARDING_IP="8.8.8.8"
 
 # 当前连接分析
 echo "当前连接统计 (排除转发IP):"
