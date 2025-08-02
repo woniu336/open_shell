@@ -15,10 +15,6 @@
         max_fails 3
         unhealthy_status 5xx
          
-        # 主动健康检查
-        health_uri / 
-        health_interval 15s 
-        health_timeout 3s 
     } 
      
     tls { 
@@ -46,13 +42,10 @@
     }
 } 
  
-
+ 
 2345.com {
     redir https://www.2345.com{uri} permanent
 }
-
-
 www.2345.com {
     import common_config
 }
-
