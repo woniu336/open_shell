@@ -1,5 +1,6 @@
-# 通用配置 - 安全头和TLS设置
-(common_config) {
+# Caddy 多域名配置
+
+(common) {
 	tls {
 		protocols tls1.2 tls1.3
 	}
@@ -10,30 +11,32 @@
 	}
 }
 
-# 重定向到www版本
-1234.cc {
-	redir https://www.1234.cc{uri} permanent
+(proxy) {
+	header_up Host {upstream_hostport}
+	header_up X-Real-IP {remote}
 }
 
-# 反向代理配置 - 将请求转发到后端服务器
-www.1234.cc {
-	import common_config
+1234.com {
+	import common
+	redir https://www.1234.com{uri} permanent
+}
+
+www.1234.com {
+	import common
 	reverse_proxy https://1234.kkk.eu.org {
-		header_up Host {upstream_hostport}
-		header_up X-Real-IP {remote}
+		import proxy
 	}
 }
 
-# 重定向到www版本
-5678.com {
-	redir https://www.5678.com{uri} permanent
+4567.com {
+	import common
+	redir https://www.4567.com{uri} permanent
 }
 
-# 反向代理配置 - 将请求转发到后端服务器
-www.5678.com {
-	import common_config
-	reverse_proxy https://5678.kkk.eu.org {
-		header_up Host {upstream_hostport}
-		header_up X-Real-IP {remote}
+www.4567.com {
+	import common
+	reverse_proxy https://4567.kkk.eu.org {
+		import proxy
 	}
 }
+
