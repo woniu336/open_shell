@@ -17,7 +17,6 @@
 }
 
 1234.com {
-	import common
 	redir https://www.1234.com{uri} permanent
 }
 
@@ -29,7 +28,6 @@ www.1234.com {
 }
 
 4567.com {
-	import common
 	redir https://www.4567.com{uri} permanent
 }
 
@@ -39,4 +37,3 @@ www.4567.com {
 		import proxy
 	}
 }
-
