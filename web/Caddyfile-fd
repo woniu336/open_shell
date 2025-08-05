@@ -37,3 +37,23 @@ www.4567.com {
 		import proxy
 	}
 }
+
+# 完全禁用HTTPS
+http://789.com, http://www.789.com {
+	# 设置响应头（移到外层）
+	header {
+		-Via
+		-Alt-Svc
+		-Server
+	}
+
+	# 裸域重定向到www（都在HTTP）
+	@bare_domain host 789.com
+	redir @bare_domain http://www.789.com{uri} permanent
+
+	# www子域的反向代理
+	@www_domain host www.789.com
+	reverse_proxy @www_domain https://789.kkk.eu.org {
+		import proxy
+	}
+}
