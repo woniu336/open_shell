@@ -75,8 +75,8 @@ www.789.cc {
 }
 
 www.456.cc {
-	reverse_proxy 192.168.100.3:80
 	import common_config
+	reverse_proxy 192.168.100.3:80
 }
 
 http://456g.cc, http://www.456g.cc {
