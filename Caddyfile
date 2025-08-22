@@ -1,0 +1,84 @@
+# ===========================================
+# 可复用配置片段
+# ===========================================
+
+# 主要后端配置
+(main_backend) {
+	reverse_proxy {
+		to 192.168.100.1:80 192.168.100.2:80
+		lb_policy round_robin
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		fail_duration 30s
+		max_fails 3
+		unhealthy_status 5xx
+	}
+}
+
+# 通用配置
+(common_config) {
+	tls {
+		protocols tls1.2 tls1.3
+	}
+	header {
+		Permissions-Policy interest-cohort=()
+		Strict-Transport-Security max-age=31536000;
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-XSS-Protection "1; mode=block"
+		-Via
+		-Alt-Svc
+		-Server
+	}
+	handle_errors {
+		@5xx expression {http.error.status_code} >= 500
+		respond @5xx "服务暂时不可用，请稍后重试" 503
+		@4xx expression {http.error.status_code} >= 400
+		respond @4xx "请求错误" {http.error.status_code}
+	}
+	log {
+		output file /var/log/caddy/global.log {
+			roll_size 50mb
+			roll_keep 5
+		}
+	}
+}
+
+# 标准站点配置
+(standard_site) {
+	import main_backend
+	import common_config
+}
+
+# ===========================================
+# 站点配置
+# ===========================================
+
+2345.com {
+	redir https://www.2345.com{uri} permanent
+}
+
+www.2345.com {
+	import standard_site
+}
+
+789.cc {
+	redir https://www.789.cc{uri} permanent
+}
+
+www.789.cc {
+	import standard_site
+}
+
+456.cc {
+	redir https://www.456.cc{uri} permanent
+}
+
+www.456.cc {
+	reverse_proxy 192.168.100.3:80
+	import common_config
+}
+
+http://456g.cc, http://www.456g.cc {
+	redir https://www.456.cc{uri} permanent
+}
