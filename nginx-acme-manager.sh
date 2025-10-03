@@ -759,7 +759,7 @@ clear_all_logs() {
     fi
 }
 
-# 卸载 Nginx
+# 卸载 Nginx（修正版）
 uninstall_nginx() {
     echo -e "${RED}========================================${NC}"
     echo -e "${RED}        警告：卸载操作${NC}"
@@ -780,40 +780,121 @@ uninstall_nginx() {
         return
     fi
     
-    # 停止 Nginx
+    # 1. 停止 Nginx 服务（多次尝试确保停止）
     if pgrep -x "nginx" > /dev/null; then
         print_msg "停止 Nginx 服务..."
-        ${NGINX_PREFIX}/sbin/nginx -s stop 2>/dev/null
-        sleep 2
-        pkill -9 nginx 2>/dev/null
+        
+        # 尝试优雅停止
+        if [ -f "${NGINX_PREFIX}/sbin/nginx" ]; then
+            ${NGINX_PREFIX}/sbin/nginx -s quit 2>/dev/null
+            sleep 3
+        fi
+        
+        # 检查是否还在运行
+        if pgrep -x "nginx" > /dev/null; then
+            print_warning "优雅停止失败，尝试强制停止..."
+            ${NGINX_PREFIX}/sbin/nginx -s stop 2>/dev/null
+            sleep 2
+        fi
+        
+        # 最后检查，如果还在运行则强制杀死进程
+        if pgrep -x "nginx" > /dev/null; then
+            print_warning "强制停止失败，使用 kill 命令..."
+            pkill -9 nginx 2>/dev/null
+            sleep 1
+        fi
+        
+        # 验证是否已停止
+        if pgrep -x "nginx" > /dev/null; then
+            print_error "无法停止 Nginx 进程，卸载中止"
+            print_warning "请手动停止所有 Nginx 进程后重试"
+            return 1
+        else
+            print_msg "Nginx 服务已停止"
+        fi
+    else
+        print_msg "Nginx 未在运行"
     fi
     
-    # 删除 Nginx 目录
+    # 2. 删除 Nginx 程序目录
     if [ -d "${NGINX_PREFIX}" ]; then
-        print_msg "删除 Nginx 程序目录..."
+        print_msg "删除 Nginx 程序目录: ${NGINX_PREFIX}"
         rm -rf ${NGINX_PREFIX}
+        if [ $? -eq 0 ]; then
+            print_msg "✓ Nginx 程序目录已删除"
+        else
+            print_error "✗ 删除 Nginx 程序目录失败"
+        fi
+    else
+        print_warning "Nginx 程序目录不存在，跳过"
     fi
     
-    # 删除源码目录
+    # 3. 删除源码编译目录
     if [ -d "${BUILD_DIR}" ]; then
-        print_msg "删除源码编译目录..."
+        print_msg "删除源码编译目录: ${BUILD_DIR}"
         rm -rf ${BUILD_DIR}
+        if [ $? -eq 0 ]; then
+            print_msg "✓ 源码编译目录已删除"
+        else
+            print_error "✗ 删除源码编译目录失败"
+        fi
+    else
+        print_warning "源码编译目录不存在，跳过"
     fi
     
-    # 删除 nginx 用户
+    # 4. 删除 nginx 用户（确保没有进程在使用）
     if id "nginx" &>/dev/null; then
-        print_msg "删除 nginx 用户..."
+        print_msg "删除 nginx 系统用户..."
+        
+        # 检查是否有进程属于 nginx 用户
+        if ps -u nginx &>/dev/null; then
+            print_warning "检测到 nginx 用户还有运行的进程，尝试终止..."
+            pkill -9 -u nginx 2>/dev/null
+            sleep 1
+        fi
+        
+        # 删除用户
         userdel nginx 2>/dev/null
+        if [ $? -eq 0 ]; then
+            print_msg "✓ nginx 用户已删除"
+        else
+            # 尝试强制删除
+            userdel -f nginx 2>/dev/null
+            if [ $? -eq 0 ]; then
+                print_msg "✓ nginx 用户已强制删除"
+            else
+                print_warning "✗ 删除 nginx 用户失败（可能需要手动删除）"
+            fi
+        fi
+        
+        # 删除用户的家目录（如果存在）
+        if [ -d "/home/nginx" ]; then
+            rm -rf /home/nginx
+            print_msg "✓ nginx 用户家目录已删除"
+        fi
+    else
+        print_warning "nginx 用户不存在，跳过"
     fi
     
-    print_msg "=== 卸载完成 ==="
+    # 5. 清理可能残留的 PID 和 lock 文件
+    print_msg "清理残留文件..."
+    rm -f /var/run/nginx.pid 2>/dev/null
+    rm -f /var/lock/nginx.lock 2>/dev/null
+    
     echo ""
-    echo "已删除的内容："
-    echo "  ✓ Nginx 程序目录"
-    echo "  ✓ 源码编译目录"
-    echo "  ✓ nginx 系统用户"
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}        卸载完成${NC}"
+    echo -e "${GREEN}========================================${NC}"
     echo ""
-    print_warning "如需重新安装，请运行菜单选项 1"
+    echo "已完成的操作："
+    echo "  ✓ 停止 Nginx 服务"
+    echo "  ✓ 删除 Nginx 程序目录 (${NGINX_PREFIX})"
+    echo "  ✓ 删除源码编译目录 (${BUILD_DIR})"
+    echo "  ✓ 删除 nginx 系统用户"
+    echo "  ✓ 清理残留文件"
+    echo ""
+    print_msg "卸载完成！如需重新安装，请运行菜单选项 1"
+    echo ""
 }
 
 # 完整安装
