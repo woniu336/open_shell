@@ -269,12 +269,6 @@ http {
     ssl_session_tickets off;
     ssl_buffer_size 4k;
 
-    # 安全头
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
     # 全局限流（保持）
     limit_req_zone $binary_remote_addr zone=req_limit:10m rate=200r/s;
     limit_req zone=req_limit burst=300;
@@ -344,7 +338,12 @@ server {
     ssl_certificate_key \$acme_certificate_key;
     ssl_certificate_cache max=2;
 
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
 
     location / {
         proxy_pass http://${UPSTREAM_NAME};
@@ -410,7 +409,12 @@ server {
     ssl_certificate_key \$acme_certificate_key;
     ssl_certificate_cache max=2;
 
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    # 安全头
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
 
     location / {
         proxy_pass http://${UPSTREAM_NAME};
