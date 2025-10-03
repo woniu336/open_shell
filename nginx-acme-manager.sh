@@ -520,6 +520,293 @@ check_status() {
     fi
 }
 
+# 备份配置
+backup_config() {
+    BACKUP_DIR="/root/nginx_backup_$(date +%Y%m%d_%H%M%S)"
+    print_msg "开始备份到: ${BACKUP_DIR}"
+    
+    mkdir -p ${BACKUP_DIR}
+    
+    # 备份配置文件
+    if [ -d "${NGINX_PREFIX}/conf" ]; then
+        cp -r ${NGINX_PREFIX}/conf ${BACKUP_DIR}/
+        print_msg "配置文件已备份"
+    fi
+    
+    # 备份证书
+    if [ -d "${NGINX_PREFIX}/acme" ]; then
+        cp -r ${NGINX_PREFIX}/acme ${BACKUP_DIR}/
+        print_msg "证书文件已备份"
+    fi
+    
+    # 创建备份信息文件
+    cat > ${BACKUP_DIR}/backup_info.txt << EOF
+备份时间: $(date)
+Nginx 版本: ${NGINX_VERSION}
+Nginx 路径: ${NGINX_PREFIX}
+构建路径: ${BUILD_DIR}
+EOF
+    
+    print_msg "备份完成: ${BACKUP_DIR}"
+    ls -lh ${BACKUP_DIR}
+}
+
+# 恢复配置
+restore_config() {
+    print_msg "可用的备份目录："
+    ls -dt /root/nginx_backup_* 2>/dev/null
+    
+    if [ $? -ne 0 ]; then
+        print_error "没有找到备份目录"
+        return
+    fi
+    
+    echo ""
+    read -p "请输入要恢复的备份目录完整路径: " RESTORE_DIR
+    
+    if [ ! -d "$RESTORE_DIR" ]; then
+        print_error "备份目录不存在"
+        return
+    fi
+    
+    # 显示备份信息
+    if [ -f "$RESTORE_DIR/backup_info.txt" ]; then
+        echo ""
+        print_msg "备份信息："
+        cat "$RESTORE_DIR/backup_info.txt"
+        echo ""
+    fi
+    
+    read -p "确认恢复此备份？(y/n): " CONFIRM
+    if [ "$CONFIRM" != "y" ]; then
+        print_warning "已取消恢复操作"
+        return
+    fi
+    
+    # 停止 Nginx
+    if pgrep -x "nginx" > /dev/null; then
+        print_msg "停止 Nginx 服务..."
+        ${NGINX_PREFIX}/sbin/nginx -s stop 2>/dev/null
+        sleep 2
+    fi
+    
+    # 恢复配置文件
+    if [ -d "$RESTORE_DIR/conf" ]; then
+        print_msg "恢复配置文件..."
+        rm -rf ${NGINX_PREFIX}/conf.bak 2>/dev/null
+        mv ${NGINX_PREFIX}/conf ${NGINX_PREFIX}/conf.bak 2>/dev/null
+        cp -r $RESTORE_DIR/conf ${NGINX_PREFIX}/
+        print_msg "配置文件已恢复"
+    fi
+    
+    # 恢复证书
+    if [ -d "$RESTORE_DIR/acme" ]; then
+        print_msg "恢复证书文件..."
+        rm -rf ${NGINX_PREFIX}/acme.bak 2>/dev/null
+        mv ${NGINX_PREFIX}/acme ${NGINX_PREFIX}/acme.bak 2>/dev/null
+        cp -r $RESTORE_DIR/acme ${NGINX_PREFIX}/
+        print_msg "证书文件已恢复"
+    fi
+    
+    # 设置权限
+    chown -R nginx:nginx ${NGINX_PREFIX}
+    
+    print_msg "=== 恢复完成 ==="
+    print_warning "旧配置已备份到 ${NGINX_PREFIX}/conf.bak 和 ${NGINX_PREFIX}/acme.bak"
+    print_msg "请测试配置后重新启动 Nginx"
+}
+
+# 日志管理菜单
+log_management() {
+    while true; do
+        clear
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${BLUE}          日志管理${NC}"
+        echo -e "${BLUE}========================================${NC}"
+        echo ""
+        echo "  1) 查看日志统计"
+        echo "  2) 备份日志"
+        echo "  3) 删除旧日志"
+        echo "  4) 清空所有日志"
+        echo "  0) 返回主菜单"
+        echo ""
+        echo -e "${BLUE}========================================${NC}"
+        
+        read -p "请选择操作 [0-4]: " log_choice
+        
+        case $log_choice in
+            1) view_log_stats ;;
+            2) backup_logs ;;
+            3) delete_old_logs ;;
+            4) clear_all_logs ;;
+            0) return ;;
+            *) print_error "无效选项，请重新选择" ;;
+        esac
+        
+        echo ""
+        read -p "按回车键继续..."
+    done
+}
+
+# 查看日志统计
+view_log_stats() {
+    print_msg "日志目录统计："
+    if [ -d "${NGINX_PREFIX}/logs" ]; then
+        echo ""
+        echo "文件列表："
+        ls -lh ${NGINX_PREFIX}/logs/
+        echo ""
+        echo "磁盘占用："
+        du -sh ${NGINX_PREFIX}/logs/
+        echo ""
+        echo "文件数量："
+        find ${NGINX_PREFIX}/logs/ -type f | wc -l
+    else
+        print_error "日志目录不存在"
+    fi
+}
+
+# 备份日志
+backup_logs() {
+    LOG_BACKUP_DIR="/root/nginx_logs_backup_$(date +%Y%m%d_%H%M%S)"
+    
+    read -p "备份最近几天的日志？(默认7天): " DAYS
+    DAYS=${DAYS:-7}
+    
+    print_msg "开始备份最近 ${DAYS} 天的日志到: ${LOG_BACKUP_DIR}"
+    
+    mkdir -p ${LOG_BACKUP_DIR}
+    
+    if [ -d "${NGINX_PREFIX}/logs" ]; then
+        find ${NGINX_PREFIX}/logs -type f -mtime -${DAYS} -exec cp {} ${LOG_BACKUP_DIR}/ \;
+        
+        # 创建备份信息
+        cat > ${LOG_BACKUP_DIR}/backup_info.txt << EOF
+备份时间: $(date)
+备份范围: 最近 ${DAYS} 天
+Nginx 路径: ${NGINX_PREFIX}
+EOF
+        
+        print_msg "日志备份完成: ${LOG_BACKUP_DIR}"
+        ls -lh ${LOG_BACKUP_DIR}
+    else
+        print_error "日志目录不存在"
+    fi
+}
+
+# 删除旧日志
+delete_old_logs() {
+    read -p "删除多少天前的日志？(默认30天): " DAYS
+    DAYS=${DAYS:-30}
+    
+    echo ""
+    print_warning "将删除 ${DAYS} 天前的日志文件"
+    
+    if [ -d "${NGINX_PREFIX}/logs" ]; then
+        echo ""
+        echo "将删除以下文件："
+        find ${NGINX_PREFIX}/logs -type f -mtime +${DAYS}
+        echo ""
+        
+        read -p "确认删除？(y/n): " CONFIRM
+        if [ "$CONFIRM" = "y" ]; then
+            DELETED=$(find ${NGINX_PREFIX}/logs -type f -mtime +${DAYS} | wc -l)
+            find ${NGINX_PREFIX}/logs -type f -mtime +${DAYS} -delete
+            print_msg "已删除 ${DELETED} 个旧日志文件"
+        else
+            print_warning "已取消删除操作"
+        fi
+    else
+        print_error "日志目录不存在"
+    fi
+}
+
+# 清空所有日志
+clear_all_logs() {
+    echo -e "${RED}========================================${NC}"
+    echo -e "${RED}        警告：清空所有日志${NC}"
+    echo -e "${RED}========================================${NC}"
+    echo ""
+    print_warning "此操作将清空 ${NGINX_PREFIX}/logs 目录下的所有日志文件"
+    echo ""
+    read -p "确认清空所有日志？输入 YES 继续: " CONFIRM
+    
+    if [ "$CONFIRM" != "YES" ]; then
+        print_warning "已取消清空操作"
+        return
+    fi
+    
+    if [ -d "${NGINX_PREFIX}/logs" ]; then
+        rm -f ${NGINX_PREFIX}/logs/*.log
+        print_msg "所有日志文件已清空"
+        
+        # 重新加载 Nginx 以创建新日志文件
+        if pgrep -x "nginx" > /dev/null; then
+            ${NGINX_PREFIX}/sbin/nginx -s reopen 2>/dev/null
+            print_msg "日志文件已重新打开"
+        fi
+    else
+        print_error "日志目录不存在"
+    fi
+}
+
+# 卸载 Nginx
+uninstall_nginx() {
+    echo -e "${RED}========================================${NC}"
+    echo -e "${RED}        警告：卸载操作${NC}"
+    echo -e "${RED}========================================${NC}"
+    echo ""
+    echo "此操作将删除："
+    echo "  - Nginx 程序目录: ${NGINX_PREFIX}"
+    echo "  - 源码编译目录: ${BUILD_DIR}"
+    echo "  - nginx 系统用户"
+    echo ""
+    echo -e "${YELLOW}注意：此操作不可恢复！${NC}"
+    echo -e "${YELLOW}建议在卸载前先执行备份操作（菜单选项 12）${NC}"
+    echo ""
+    read -p "确认卸载？输入 YES 继续，其他键取消: " CONFIRM
+    
+    if [ "$CONFIRM" != "YES" ]; then
+        print_warning "已取消卸载操作"
+        return
+    fi
+    
+    # 停止 Nginx
+    if pgrep -x "nginx" > /dev/null; then
+        print_msg "停止 Nginx 服务..."
+        ${NGINX_PREFIX}/sbin/nginx -s stop 2>/dev/null
+        sleep 2
+        pkill -9 nginx 2>/dev/null
+    fi
+    
+    # 删除 Nginx 目录
+    if [ -d "${NGINX_PREFIX}" ]; then
+        print_msg "删除 Nginx 程序目录..."
+        rm -rf ${NGINX_PREFIX}
+    fi
+    
+    # 删除源码目录
+    if [ -d "${BUILD_DIR}" ]; then
+        print_msg "删除源码编译目录..."
+        rm -rf ${BUILD_DIR}
+    fi
+    
+    # 删除 nginx 用户
+    if id "nginx" &>/dev/null; then
+        print_msg "删除 nginx 用户..."
+        userdel nginx 2>/dev/null
+    fi
+    
+    print_msg "=== 卸载完成 ==="
+    echo ""
+    echo "已删除的内容："
+    echo "  ✓ Nginx 程序目录"
+    echo "  ✓ 源码编译目录"
+    echo "  ✓ nginx 系统用户"
+    echo ""
+    print_warning "如需重新安装，请运行菜单选项 1"
+}
+
 # 完整安装
 full_install() {
     check_root
@@ -553,6 +840,10 @@ show_menu() {
     echo "  9) 停止 Nginx"
     echo " 10) 查看证书"
     echo " 11) 查看 Nginx 状态"
+    echo " 12) 备份配置和证书"
+    echo " 13) 恢复配置和证书"
+    echo " 14) 日志管理"
+    echo " 15) 卸载 Nginx"
     echo "  0) 退出"
     echo ""
     echo -e "${BLUE}========================================${NC}"
@@ -562,7 +853,7 @@ show_menu() {
 main() {
     while true; do
         show_menu
-        read -p "请选择操作 [0-11]: " choice
+        read -p "请选择操作 [0-15]: " choice
         
         case $choice in
             1) full_install ;;
@@ -576,6 +867,10 @@ main() {
             9) stop_nginx ;;
             10) view_certificates ;;
             11) check_status ;;
+            12) backup_config ;;
+            13) restore_config ;;
+            14) log_management ;;
+            15) uninstall_nginx ;;
             0) print_msg "退出脚本"; exit 0 ;;
             *) print_error "无效选项，请重新选择" ;;
         esac
