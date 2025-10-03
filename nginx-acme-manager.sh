@@ -251,6 +251,9 @@ http {
     proxy_hide_header X-Powered-By;
     proxy_hide_header Server;
 
+    # 隐藏 Nginx 版本号
+    server_tokens off;
+
     # ACME
     acme_shared_zone zone=acme_shared:2M;
     acme_issuer letsencrypt {
