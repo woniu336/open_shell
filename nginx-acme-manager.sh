@@ -360,7 +360,6 @@ server {
     location / {
         proxy_pass http://${UPSTREAM_NAME};
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
 
         # 代理超时与重试
         proxy_connect_timeout 5s;
@@ -432,7 +431,6 @@ server {
     location / {
         proxy_pass http://${UPSTREAM_NAME};
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
 
         # 代理超时与重试
         proxy_connect_timeout 5s;
