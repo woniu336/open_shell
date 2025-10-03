@@ -206,8 +206,8 @@ http {
     sendfile on;
     tcp_nopush on;
     tcp_nodelay on;
-    keepalive_timeout 65;
-    keepalive_requests 100;
+    keepalive_timeout 65s 60s;
+    keepalive_requests 1000;
     reset_timedout_connection on;
 
     client_max_body_size 100m;
