@@ -10,6 +10,13 @@
 CHAIN="DOCKER-USER"
 RULE_FILE="/etc/iptables/rules.v4"
 
+# 检查并安装 netfilter-persistent
+if ! command -v netfilter-persistent >/dev/null 2>&1; then
+    echo "未检测到 netfilter-persistent，正在安装..."
+    sudo apt update
+    sudo apt install -y iptables-persistent
+fi
+
 # 查看规则
 if [ "$1" == "list" ]; then
     echo "当前 $CHAIN 链规则："
