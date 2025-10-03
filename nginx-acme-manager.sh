@@ -210,12 +210,21 @@ http {
     keepalive_requests 1000;
     reset_timedout_connection on;
 
+    # === 客户端请求体配置 ===
     client_max_body_size 100m;
-    client_body_buffer_size 128k;
+    client_body_buffer_size 256k;
+    client_body_timeout 60s;
+	
+    # === 客户端请求头配置 ===
     client_header_buffer_size 4k;
-    large_client_header_buffers 4 8k;
-
+    large_client_header_buffers 8 16k;
+    client_header_timeout 10s;
+    
+    # === 临时文件路径 ===
     client_body_temp_path cache/client_temp;
+    
+    # === 防止慢速攻击 ===
+    client_body_in_single_buffer off;
 
     # Gzip
     gzip on;
@@ -351,6 +360,7 @@ server {
     location / {
         proxy_pass http://${UPSTREAM_NAME};
         proxy_http_version 1.1;
+        proxy_set_header Connection "";
 
         # 代理超时与重试
         proxy_connect_timeout 5s;
@@ -422,6 +432,7 @@ server {
     location / {
         proxy_pass http://${UPSTREAM_NAME};
         proxy_http_version 1.1;
+        proxy_set_header Connection "";
 
         # 代理超时与重试
         proxy_connect_timeout 5s;
