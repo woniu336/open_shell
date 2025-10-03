@@ -357,9 +357,10 @@ server {
         proxy_next_upstream error timeout http_502 http_503 http_504;
     }
 
-    location ^~ /.well-known/acme-challenge/ {
-        root ${NGINX_PREFIX}/html;
-        allow all;
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
     }
 
     error_page 500 502 503 504 /50x.html;
@@ -422,9 +423,10 @@ server {
         proxy_next_upstream error timeout http_502 http_503 http_504;
     }
 
-    location ^~ /.well-known/acme-challenge/ {
-        root ${NGINX_PREFIX}/html;
-        allow all;
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
     }
 
     error_page 500 502 503 504 /50x.html;
