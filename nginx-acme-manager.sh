@@ -213,7 +213,7 @@ http {
     # === 客户端请求体配置 ===
     client_max_body_size 100m;
     client_body_buffer_size 256k;
-    client_body_timeout 60s;
+    client_body_timeout 30s;
 	
     # === 客户端请求头配置 ===
     client_header_buffer_size 4k;
