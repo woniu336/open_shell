@@ -217,7 +217,7 @@ http {
 	
     # === 客户端请求头配置 ===
     client_header_buffer_size 4k;
-    large_client_header_buffers 8 16k;
+    large_client_header_buffers 4 16k;
     client_header_timeout 10s;
     
     # === 临时文件路径 ===
