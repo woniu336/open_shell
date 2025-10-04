@@ -300,6 +300,14 @@ http {
         }
     }
 
+    # 禁止 IP 直接访问
+    server {
+        listen 443 ssl default_server;
+        listen [::]:443 ssl default_server;
+        server_name _;
+        ssl_reject_handshake on;
+    }
+
     include conf.d/*.conf;
 }
 EOF
