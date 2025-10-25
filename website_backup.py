@@ -8,6 +8,7 @@ import configparser
 from datetime import datetime
 import tarfile
 import shutil
+import json
 
 def setup_logging(log_file):
     """配置日志"""
@@ -98,6 +99,59 @@ def convert_size(size_bytes):
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024.0
+
+def list_remote_backups(config):
+    """列出远程备份文件"""
+    remote_path = f"{config['rclone']['remote_name']}:{config['rclone']['remote_path']}"
+    
+    try:
+        result = subprocess.run(
+            ['rclone', 'lsjson', remote_path],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        files = json.loads(result.stdout)
+        # 过滤出备份文件并按时间排序
+        backup_files = [f for f in files if f['Name'].startswith('backup_') and f['Name'].endswith('.tar.gz')]
+        backup_files.sort(key=lambda x: x['ModTime'], reverse=True)
+        
+        return backup_files
+    except Exception as e:
+        logging.error(f"列出远程备份失败: {str(e)}")
+        return []
+
+def cleanup_old_backups(config, keep_count=3):
+    """清理远程旧备份，保留最新的 keep_count 个"""
+    logging.info(f"开始清理远程旧备份，保留最新 {keep_count} 个...")
+    
+    backup_files = list_remote_backups(config)
+    
+    if len(backup_files) <= keep_count:
+        logging.info(f"当前备份数量: {len(backup_files)}，无需清理")
+        return
+    
+    # 需要删除的文件
+    files_to_delete = backup_files[keep_count:]
+    remote_path = f"{config['rclone']['remote_name']}:{config['rclone']['remote_path']}"
+    
+    logging.info(f"发现 {len(files_to_delete)} 个旧备份需要删除")
+    
+    for file_info in files_to_delete:
+        file_name = file_info['Name']
+        file_path = f"{remote_path}/{file_name}"
+        
+        try:
+            result = subprocess.run(
+                ['rclone', 'deletefile', file_path],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            logging.info(f"已删除远程文件: {file_name}")
+        except Exception as e:
+            logging.error(f"删除远程文件失败 {file_name}: {str(e)}")
 
 def sync_to_r2(archive_path, config):
     """使用 rclone 同步到 R2"""
@@ -206,6 +260,9 @@ def main():
         if sync_to_r2(archive_path, config):
             # 清理本地文件
             cleanup(archive_path)
+            
+            # 清理远程旧备份，保留最新3个
+            cleanup_old_backups(config, keep_count=3)
         else:
             logging.error("由于同步失败，保留本地备份文件")
 
@@ -214,4 +271,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main() 
+    main()
