@@ -24,7 +24,7 @@ check_root() {
 show_title() {
     clear
     echo -e "${BLUE}================================${NC}"
-    echo -e "${BLUE}      Caddy 管理脚本 v1.0      ${NC}"
+    echo -e "${BLUE}      Caddy 管理脚本 v1.1      ${NC}"
     echo -e "${BLUE}================================${NC}"
     echo ""
 }
@@ -175,8 +175,6 @@ check_caddy_status() {
     caddy version
 }
 
-
-
 # 编辑配置文件
 edit_config() {
     echo -e "${BLUE}编辑Caddyfile配置${NC}"
@@ -296,6 +294,139 @@ restart_caddy() {
     fi
 }
 
+# 切换Caddy缓存插件版
+switch_caddy_cache() {
+    echo -e "${BLUE}切换Caddy缓存插件版${NC}"
+    echo ""
+    echo -e "${YELLOW}此操作将下载并执行第三方脚本来安装带缓存插件的Caddy版本${NC}"
+    echo -e "${YELLOW}这可能会替换当前的Caddy安装${NC}"
+    echo ""
+    
+    read -p "确定要继续吗？(y/N): " confirm
+    
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        echo -e "${BLUE}取消操作${NC}"
+        return 0
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}正在下载并执行安装脚本...${NC}"
+    
+    if curl -fsSL https://raw.githubusercontent.com/woniu336/open_shell/main/caddy-cache.sh | bash; then
+        echo ""
+        echo -e "${GREEN}Caddy缓存插件版切换完成！${NC}"
+    else
+        echo ""
+        echo -e "${RED}切换失败！请检查网络连接或脚本源${NC}"
+        return 1
+    fi
+}
+
+# 修正Caddyfile格式
+format_caddyfile() {
+    echo -e "${BLUE}修正Caddyfile格式${NC}"
+    echo ""
+    
+    if [[ ! -f "$CADDY_CONFIG" ]]; then
+        echo -e "${RED}配置文件不存在：$CADDY_CONFIG${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}正在格式化配置文件...${NC}"
+    
+    # 创建备份
+    backup_file="${CADDY_CONFIG}.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$CADDY_CONFIG" "$backup_file"
+    echo -e "${GREEN}已创建配置文件备份：$backup_file${NC}"
+    echo ""
+    
+    # 执行格式化
+    if caddy fmt --overwrite "$CADDY_CONFIG"; then
+        echo ""
+        echo -e "${GREEN}配置文件格式化成功！${NC}"
+        echo ""
+        echo -e "${BLUE}格式化后的配置：${NC}"
+        echo ""
+        cat "$CADDY_CONFIG"
+    else
+        echo ""
+        echo -e "${RED}配置文件格式化失败！${NC}"
+        echo -e "${YELLOW}已保留备份文件：$backup_file${NC}"
+        return 1
+    fi
+}
+
+# 备份Caddy
+backup_caddy() {
+    echo -e "${BLUE}Caddy备份管理${NC}"
+    echo ""
+    
+    # 检查rsync是否已安装
+    if ! command -v rsync &> /dev/null; then
+        echo -e "${YELLOW}rsync未安装，正在安装...${NC}"
+        apt update
+        if apt install -y rsync; then
+            echo -e "${GREEN}rsync安装成功！${NC}"
+        else
+            echo -e "${RED}rsync安装失败！${NC}"
+            return 1
+        fi
+        echo ""
+    fi
+    
+    # 检查备份脚本是否存在
+    if [[ ! -f "./caddy_backup.sh" ]]; then
+        echo -e "${YELLOW}备份脚本不存在，正在下载...${NC}"
+        if curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/caddy_backup.sh; then
+            chmod +x caddy_backup.sh
+            echo -e "${GREEN}备份脚本下载成功！${NC}"
+        else
+            echo -e "${RED}备份脚本下载失败！请检查网络连接${NC}"
+            return 1
+        fi
+        echo ""
+    fi
+    
+    # 显示备份选项
+    echo -e "${BLUE}请选择操作：${NC}"
+    echo -e "${GREEN}1.${NC} 执行备份"
+    echo -e "${GREEN}2.${NC} 查看备份脚本帮助"
+    echo -e "${GREEN}3.${NC} 重新下载备份脚本"
+    echo -e "${GREEN}0.${NC} 返回主菜单"
+    echo ""
+    
+    read -p "请输入选项 [0-3]: " backup_choice
+    
+    case $backup_choice in
+        1)
+            echo ""
+            echo -e "${YELLOW}正在执行备份...${NC}"
+            ./caddy_backup.sh backup
+            ;;
+        2)
+            echo ""
+            ./caddy_backup.sh --help
+            ;;
+        3)
+            echo ""
+            echo -e "${YELLOW}正在重新下载备份脚本...${NC}"
+            rm -f caddy_backup.sh
+            if curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/caddy_backup.sh; then
+                chmod +x caddy_backup.sh
+                echo -e "${GREEN}备份脚本下载成功！${NC}"
+            else
+                echo -e "${RED}备份脚本下载失败！${NC}"
+            fi
+            ;;
+        0)
+            return 0
+            ;;
+        *)
+            echo -e "${RED}无效选项${NC}"
+            ;;
+    esac
+}
+
 # 显示主菜单
 show_menu() {
     echo -e "${BLUE}请选择操作：${NC}"
@@ -305,7 +436,10 @@ show_menu() {
     echo -e "${GREEN}4.${NC} 列出站点"
     echo -e "${GREEN}5.${NC} 查看配置文件"
     echo -e "${GREEN}6.${NC} 重启Caddy服务"
-    echo -e "${RED}7.${NC} 卸载Caddy"
+    echo -e "${GREEN}7.${NC} 切换Caddy缓存插件版"
+    echo -e "${GREEN}8.${NC} 修正Caddyfile格式"
+    echo -e "${GREEN}9.${NC} 备份Caddy"
+    echo -e "${RED}10.${NC} 卸载Caddy"
     echo -e "${GREEN}0.${NC} 退出"
     echo ""
 }
@@ -318,7 +452,7 @@ main() {
         show_title
         show_menu
         
-        read -p "请输入选项 [0-7]: " choice
+        read -p "请输入选项 [0-10]: " choice
         
         case $choice in
             1)
@@ -364,6 +498,22 @@ main() {
                 fi
                 ;;
             7)
+                echo ""
+                switch_caddy_cache
+                ;;
+            8)
+                echo ""
+                if check_caddy_installed; then
+                    format_caddyfile
+                else
+                    echo -e "${RED}Caddy未安装，请先安装Caddy${NC}"
+                fi
+                ;;
+            9)
+                echo ""
+                backup_caddy
+                ;;
+            10)
                 echo ""
                 uninstall_caddy
                 ;;
