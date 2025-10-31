@@ -62,7 +62,7 @@ fi
 
 # === 下载中国 IPv4 段 ===
 echo -e "${YELLOW}[INFO] 正在下载中国大陆 IPv4 段数据...${NC}"
-curl -s http://www.ipdeny.com/ipblocks/data/countries/cn.zone -o "$CN_IP_FILE"
+curl -s https://www.ipdeny.com/ipblocks/data/countries/cn.zone -o "$CN_IP_FILE"
 if [ $? -ne 0 ] || [ ! -s "$CN_IP_FILE" ]; then
     echo -e "${RED}[ERROR] 无法下载中国IP列表！${NC}"
     exit 1
@@ -253,7 +253,7 @@ CN_IP_FILE="/tmp/cn.zone"
 CN_IPSET_NAME="china"
 CN_IPSET6_NAME="china6"
 
-curl -s http://www.ipdeny.com/ipblocks/data/countries/cn.zone -o "$CN_IP_FILE"
+curl -s https://www.ipdeny.com/ipblocks/data/countries/cn.zone -o "$CN_IP_FILE"
 [ $? -ne 0 ] || [ ! -s "$CN_IP_FILE" ] && exit 1
 
 ipset flush $CN_IPSET_NAME
