@@ -1,8 +1,4 @@
-# ===========================================
-# 可复用配置片段
-# ===========================================
-
-# 主要后端配置
+# 后端负载均衡配置
 (main_backend) {
 	reverse_proxy {
 		to 192.168.100.1:80 192.168.100.2:80
@@ -81,4 +77,12 @@ www.456.cc {
 
 http://456g.cc, http://www.456g.cc {
 	redir https://www.456.cc{uri} permanent
+}
+
+xxx.123456.com {
+        import common_config
+        reverse_proxy https://xxxx.eu.org {
+                header_up Host {upstream_hostport}
+                header_up X-Real-IP {remote}
+        }
 }
