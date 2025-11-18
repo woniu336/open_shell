@@ -9,7 +9,7 @@ import hashlib
 
 # ============ 配置区域 ============
 # 钱包地址
-WALLET_ADDRESS = "TCTzWxB668iFqGZy7FbrSmiSR28XsnowTk"
+WALLET_ADDRESS = "TM1zzNDZD2DPASbKcgdVoTYhfmYgtfwx9R"
 
 # 邮件配置
 SMTP_SERVER = "smtp.qq.com"  # 例如: smtp.gmail.com, smtp.qq.com, smtp.163.com
