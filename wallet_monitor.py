@@ -5,21 +5,20 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-import hashlib
 
 # ============ 配置区域 ============
 # 钱包地址
 WALLET_ADDRESS = "TM1zzNDZD2DPASbKcgdVoTYhfmYgtfwx9R"
 
 # 邮件配置
-SMTP_SERVER = "smtp.qq.com"  # 例如: smtp.gmail.com, smtp.qq.com, smtp.163.com
+SMTP_SERVER = "smtp.qq.com"  # QQ邮箱
 SMTP_PORT = 587
-SENDER_EMAIL = "111111@qq.com"  # 发件人邮箱
-SENDER_PASSWORD = "2222222"  # 邮箱授权码（不是登录密码）
-RECEIVER_EMAIL = "333333@qq.com"  # 收件人邮箱
+SENDER_EMAIL = "your_email@qq.com"  # 发件人邮箱
+SENDER_PASSWORD = "your_auth_code"  # 邮箱授权码（不是登录密码！）
+RECEIVER_EMAIL = "receiver@qq.com"  # 收件人邮箱
 
-# 监控间隔（秒）
-CHECK_INTERVAL = 900  # 每900秒检查一次
+# 监控间隔（秒）- 建议不少于900秒（15分钟）
+CHECK_INTERVAL = 900  # 默认15分钟
 
 # 数据存储文件
 CACHE_FILE = "wallet_cache.json"
@@ -29,6 +28,17 @@ class WalletMonitor:
     def __init__(self):
         self.api_base = "https://api.trongrid.io"
         self.last_transactions = self.load_cache()
+        self.validate_config()
+        
+    def validate_config(self):
+        """验证配置完整性"""
+        if SENDER_PASSWORD == 'your_auth_code':
+            print("⚠️  警告: 未配置邮箱授权码，邮件通知将无法使用")
+            print("   QQ邮箱获取授权码: 邮箱设置 -> 账户 -> POP3/SMTP服务")
+        
+        if CHECK_INTERVAL < 900:
+            print(f"⚠️  警告: 检查间隔({CHECK_INTERVAL}秒)过短，可能触发API限流")
+            print("   建议设置为900秒（15分钟）或以上")
         
     def load_cache(self):
         """加载上次的交易记录"""
@@ -37,17 +47,24 @@ class WalletMonitor:
                 return json.load(f)
         except FileNotFoundError:
             return {"usdt": [], "trx": []}
+        except json.JSONDecodeError:
+            print("⚠️  缓存文件损坏，重新初始化")
+            return {"usdt": [], "trx": []}
     
     def save_cache(self, transactions):
         """保存交易记录到缓存"""
-        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(transactions, f, ensure_ascii=False, indent=2)
+        try:
+            with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+                json.dump(transactions, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"✗ 保存缓存失败: {e}")
     
     def get_account_info(self):
         """获取账户基本信息"""
         try:
             url = f"{self.api_base}/v1/accounts/{WALLET_ADDRESS}"
             response = requests.get(url, timeout=10)
+            
             if response.status_code == 200:
                 data = response.json()
                 if data.get('data'):
@@ -58,8 +75,12 @@ class WalletMonitor:
                         'trx_balance': trx_balance,
                         'create_time': account.get('create_time', 0)
                     }
+            elif response.status_code == 403:
+                print("⚠️  API访问被限流(403)，请等待30秒或考虑申请API Key")
+            else:
+                print(f"⚠️  API返回错误: {response.status_code}")
         except Exception as e:
-            print(f"获取账户信息失败: {e}")
+            print(f"✗ 获取账户信息失败: {e}")
         return None
     
     def get_usdt_transactions(self):
@@ -73,6 +94,7 @@ class WalletMonitor:
                 "contract_address": contract_address
             }
             response = requests.get(url, params=params, timeout=10)
+            
             if response.status_code == 200:
                 data = response.json()
                 transactions = []
@@ -86,8 +108,12 @@ class WalletMonitor:
                         'type': 'in' if tx.get('to') == WALLET_ADDRESS else 'out'
                     })
                 return transactions
+            elif response.status_code == 403:
+                print("⚠️  API访问被限流(403)，跳过本次USDT查询")
+            else:
+                print(f"⚠️  获取USDT交易失败: {response.status_code}")
         except Exception as e:
-            print(f"获取USDT交易失败: {e}")
+            print(f"✗ 获取USDT交易失败: {e}")
         return []
     
     def get_trx_transactions(self):
@@ -96,28 +122,42 @@ class WalletMonitor:
             url = f"{self.api_base}/v1/accounts/{WALLET_ADDRESS}/transactions"
             params = {"limit": 20}
             response = requests.get(url, params=params, timeout=10)
+            
             if response.status_code == 200:
                 data = response.json()
                 transactions = []
                 for tx in data.get('data', []):
-                    if tx.get('raw_data', {}).get('contract', [{}])[0].get('type') == 'TransferContract':
-                        contract = tx['raw_data']['contract'][0]
-                        value_sun = contract.get('parameter', {}).get('value', {}).get('amount', 0)
+                    raw_data = tx.get('raw_data', {})
+                    contracts = raw_data.get('contract', [])
+                    
+                    if contracts and contracts[0].get('type') == 'TransferContract':
+                        contract = contracts[0]
+                        param_value = contract.get('parameter', {}).get('value', {})
+                        value_sun = param_value.get('amount', 0)
+                        
                         transactions.append({
                             'hash': tx.get('txID'),
-                            'from': contract.get('parameter', {}).get('value', {}).get('owner_address'),
-                            'to': contract.get('parameter', {}).get('value', {}).get('to_address'),
+                            'from': param_value.get('owner_address'),
+                            'to': param_value.get('to_address'),
                             'value': value_sun / 1_000_000,
                             'timestamp': tx.get('block_timestamp'),
-                            'type': 'in' if contract.get('parameter', {}).get('value', {}).get('to_address') == WALLET_ADDRESS else 'out'
+                            'type': 'in' if param_value.get('to_address') == WALLET_ADDRESS else 'out'
                         })
                 return transactions
+            elif response.status_code == 403:
+                print("⚠️  API访问被限流(403)，跳过本次TRX查询")
+            else:
+                print(f"⚠️  获取TRX交易失败: {response.status_code}")
         except Exception as e:
-            print(f"获取TRX交易失败: {e}")
+            print(f"✗ 获取TRX交易失败: {e}")
         return []
     
     def send_email(self, subject, body):
         """发送邮件通知"""
+        if SENDER_PASSWORD == 'your_auth_code':
+            print("✗ 邮件未发送: 请先配置邮箱授权码")
+            return False
+            
         try:
             msg = MIMEMultipart()
             msg['From'] = SENDER_EMAIL
@@ -137,57 +177,89 @@ class WalletMonitor:
             print(f"✗ 邮件发送失败: {e}")
             return False
     
-    def format_transaction_email(self, new_transactions):
+    def format_transaction_email(self, new_transactions, account_info):
         """格式化交易信息为邮件内容"""
+        trx_balance = account_info.get('trx_balance', 0) if account_info else 0
+        
         html = f"""
         <html>
         <head>
             <style>
-                body {{ font-family: Arial, sans-serif; }}
-                .header {{ background-color: #4CAF50; color: white; padding: 10px; }}
-                .transaction {{ border: 1px solid #ddd; margin: 10px 0; padding: 10px; border-radius: 5px; }}
-                .in {{ background-color: #e8f5e9; }}
-                .out {{ background-color: #ffebee; }}
-                .info {{ color: #666; font-size: 12px; }}
+                body {{ font-family: 'Arial', 'Microsoft YaHei', sans-serif; background-color: #f5f5f5; padding: 20px; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }}
+                .header h2 {{ margin: 0; font-size: 24px; }}
+                .balance {{ background-color: #f8f9fa; padding: 15px; margin: 15px; border-radius: 8px; text-align: center; }}
+                .balance-value {{ font-size: 28px; font-weight: bold; color: #667eea; }}
+                .transaction {{ border: 1px solid #e0e0e0; margin: 15px; padding: 15px; border-radius: 8px; }}
+                .in {{ background-color: #e8f5e9; border-left: 4px solid #4caf50; }}
+                .out {{ background-color: #ffebee; border-left: 4px solid #f44336; }}
+                .tx-amount {{ font-size: 20px; font-weight: bold; margin-bottom: 10px; }}
+                .tx-info {{ color: #666; font-size: 13px; line-height: 1.6; }}
+                .tx-hash {{ background-color: #f5f5f5; padding: 5px; border-radius: 3px; font-family: monospace; word-break: break-all; }}
+                .footer {{ text-align: center; padding: 15px; color: #999; font-size: 12px; }}
             </style>
         </head>
         <body>
-            <div class="header">
-                <h2>🔔 钱包交易提醒</h2>
-                <p>钱包地址: {WALLET_ADDRESS}</p>
-                <p>检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            </div>
+            <div class="container">
+                <div class="header">
+                    <h2>🔔 钱包交易提醒</h2>
+                    <p style="margin: 5px 0; font-size: 12px;">检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                </div>
+                
+                <div class="balance">
+                    <div style="color: #666; font-size: 14px; margin-bottom: 5px;">当前余额</div>
+                    <div class="balance-value">{trx_balance:.2f} TRX</div>
+                    <div style="color: #999; font-size: 12px; margin-top: 5px;">地址: {WALLET_ADDRESS[:10]}...{WALLET_ADDRESS[-6:]}</div>
+                </div>
         """
         
         if new_transactions.get('usdt'):
-            html += "<h3>💰 新的USDT交易:</h3>"
+            html += '<div style="padding: 0 15px;"><h3 style="color: #333;">💰 新的 USDT 交易</h3></div>'
             for tx in new_transactions['usdt']:
                 direction = "转入 ↓" if tx['type'] == 'in' else "转出 ↑"
+                direction_color = "#4caf50" if tx['type'] == 'in' else "#f44336"
                 css_class = tx['type']
+                counterparty = tx['to'] if tx['type'] == 'out' else tx['from']
+                
                 html += f"""
                 <div class="transaction {css_class}">
-                    <strong>{direction} {tx['value']:.2f} USDT</strong><br>
-                    <span class="info">对方: {tx['to'] if tx['type'] == 'out' else tx['from']}</span><br>
-                    <span class="info">时间: {datetime.fromtimestamp(tx['timestamp']/1000).strftime('%Y-%m-%d %H:%M:%S')}</span><br>
-                    <span class="info">交易哈希: {tx['hash'][:16]}...</span>
+                    <div class="tx-amount" style="color: {direction_color};">{direction} {tx['value']:.2f} USDT</div>
+                    <div class="tx-info">
+                        <strong>对方地址:</strong> {counterparty[:10]}...{counterparty[-6:]}<br>
+                        <strong>交易时间:</strong> {datetime.fromtimestamp(tx['timestamp']/1000).strftime('%Y-%m-%d %H:%M:%S')}<br>
+                        <strong>交易哈希:</strong><br>
+                        <div class="tx-hash">{tx['hash']}</div>
+                    </div>
                 </div>
                 """
         
         if new_transactions.get('trx'):
-            html += "<h3>⚡ 新的TRX交易:</h3>"
+            html += '<div style="padding: 0 15px;"><h3 style="color: #333;">⚡ 新的 TRX 交易</h3></div>'
             for tx in new_transactions['trx']:
                 direction = "转入 ↓" if tx['type'] == 'in' else "转出 ↑"
+                direction_color = "#4caf50" if tx['type'] == 'in' else "#f44336"
                 css_class = tx['type']
+                counterparty = tx['to'] if tx['type'] == 'out' else tx['from']
+                
                 html += f"""
                 <div class="transaction {css_class}">
-                    <strong>{direction} {tx['value']:.2f} TRX</strong><br>
-                    <span class="info">对方: {tx['to'] if tx['type'] == 'out' else tx['from']}</span><br>
-                    <span class="info">时间: {datetime.fromtimestamp(tx['timestamp']/1000).strftime('%Y-%m-%d %H:%M:%S')}</span><br>
-                    <span class="info">交易哈希: {tx['hash'][:16]}...</span>
+                    <div class="tx-amount" style="color: {direction_color};">{direction} {tx['value']:.6f} TRX</div>
+                    <div class="tx-info">
+                        <strong>对方地址:</strong> {counterparty[:10]}...{counterparty[-6:]}<br>
+                        <strong>交易时间:</strong> {datetime.fromtimestamp(tx['timestamp']/1000).strftime('%Y-%m-%d %H:%M:%S')}<br>
+                        <strong>交易哈希:</strong><br>
+                        <div class="tx-hash">{tx['hash']}</div>
+                    </div>
                 </div>
                 """
         
         html += """
+                <div class="footer">
+                    由 TRON 钱包监控系统自动发送<br>
+                    请勿回复此邮件
+                </div>
+            </div>
         </body>
         </html>
         """
@@ -219,8 +291,10 @@ class WalletMonitor:
         # 如果有新交易，发送邮件
         if new_transactions['usdt'] or new_transactions['trx']:
             total_new = len(new_transactions['usdt']) + len(new_transactions['trx'])
-            subject = f"🔔 检测到 {total_new} 笔新交易"
-            body = self.format_transaction_email(new_transactions)
+            account_info = self.get_account_info()
+            
+            subject = f"🔔 检测到 {total_new} 笔新交易 - {datetime.now().strftime('%m/%d %H:%M')}"
+            body = self.format_transaction_email(new_transactions, account_info)
             self.send_email(subject, body)
             
             # 更新缓存
@@ -232,35 +306,67 @@ class WalletMonitor:
     
     def run(self):
         """启动监控"""
-        print("="*50)
-        print("🚀 USDT钱包监控程序启动")
+        print("="*60)
+        print("🚀 TRON 钱包监控程序启动")
+        print("="*60)
         print(f"📍 监控地址: {WALLET_ADDRESS}")
         print(f"📧 通知邮箱: {RECEIVER_EMAIL}")
-        print(f"⏱️  检查间隔: {CHECK_INTERVAL}秒")
-        print("="*50)
+        print(f"⏱️  检查间隔: {CHECK_INTERVAL}秒 ({CHECK_INTERVAL/60:.1f}分钟)")
+        print(f"⚠️  无API Key模式: 可能受到访问限流")
+        print("="*60)
         
         # 首次运行，初始化缓存
         if not self.last_transactions.get('usdt') and not self.last_transactions.get('trx'):
-            print("首次运行，初始化交易记录...")
+            print("📥 首次运行，正在初始化交易记录...")
             self.last_transactions = {
                 'usdt': self.get_usdt_transactions(),
                 'trx': self.get_trx_transactions()
             }
             self.save_cache(self.last_transactions)
-            print("✓ 初始化完成，开始监控...")
+            print(f"✓ 初始化完成，已加载 {len(self.last_transactions['usdt'])} 笔USDT和 {len(self.last_transactions['trx'])} 笔TRX交易")
+            print("🔍 开始监控...\n")
         
         while True:
             try:
                 self.check_for_changes()
                 time.sleep(CHECK_INTERVAL)
             except KeyboardInterrupt:
-                print("\n程序已停止")
+                print("\n⏹️  程序已停止")
                 break
             except Exception as e:
                 print(f"✗ 发生错误: {e}")
+                print(f"⏱️  {CHECK_INTERVAL}秒后重试...")
                 time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
-    # 使用前请先配置邮箱信息
-    monitor = WalletMonitor()
-    monitor.run()
+    print("""
+    ╔══════════════════════════════════════════════════╗
+    ║         TRON 钱包监控系统 v2.0                  ║
+    ║     支持 TRC20-USDT 和 TRX 交易实时监控         ║
+    ╚══════════════════════════════════════════════════╝
+    
+    ⚙️  配置说明:
+    1. 修改脚本顶部的配置变量:
+       - WALLET_ADDRESS: 要监控的钱包地址
+       - SENDER_EMAIL: 发件邮箱
+       - SENDER_PASSWORD: QQ邮箱授权码（非登录密码）
+       - RECEIVER_EMAIL: 收件邮箱
+       - CHECK_INTERVAL: 检查间隔（建议≥900秒）
+    
+    2. 获取QQ邮箱授权码:
+       登录QQ邮箱 → 设置 → 账户 → POP3/SMTP服务 → 生成授权码
+    
+    ⚠️  注意: 
+    - 本脚本未使用API Key，建议检查间隔≥15分钟避免限流
+    - 如需频繁查询，请访问 https://www.trongrid.io 申请API Key
+    - 首次运行会初始化最近20笔交易，不会发送通知
+    """)
+    
+    # input("按回车键开始运行...")
+    
+    try:
+        monitor = WalletMonitor()
+        monitor.run()
+    except Exception as e:
+        print(f"\n❌ 启动失败: {e}")
+        print("请检查配置是否正确")
