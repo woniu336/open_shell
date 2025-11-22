@@ -6,7 +6,7 @@ DOMAIN_LOG="/home/domain/warnfile"
 SERVER_LOG="/home/domain/serverlog"
 
 # 定义钉钉机器人 webhook
-DINGTALK_WEBHOOK="https://oapi.dingtalk.com/robot/send?access_token=ace02fed431c60c0cd60b7026ee27a114ccf23a561612a9749f6efd1c600e292"
+DINGTALK_WEBHOOK=""
 
 # 函数：读取SSL日志并生成报告
 generate_ssl_report() {
