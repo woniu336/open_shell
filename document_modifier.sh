@@ -18,11 +18,10 @@ display_menu() {
     echo "1. 初始化脚本"
     echo "2. 设置 Webhook URL"
     echo "3. 添加需要检查 SSL 证书的域名"
-    echo "4. 添加需要被监控的服务器"
-    echo "5. 添加需要检查到期的域名"
-    echo "6. 添加定时任务"
-    echo "7. 删除定时任务"
-    echo "8. 钉钉通知测试★"
+    echo "4. 添加需要检查到期的域名"
+    echo "5. 添加定时任务"
+    echo "6. 删除定时任务"
+    echo "7. 钉钉通知测试★"
     echo "0. 退出"
     echo "=================================="
 }
@@ -33,7 +32,6 @@ initialize_environment() {
     mkdir -p /home/domain
     touch /home/domain/warnfile
     touch /home/domain/logssl
-    touch /home/domain/serverlog
     touch /home/domain/check_ssl.txt
     touch /home/domain/domains.txt
     sudo apt-get update
@@ -46,7 +44,6 @@ initialize_environment() {
     wget https://raw.githubusercontent.com/woniu336/open_shell/main/warnsrc.py
     wget https://raw.githubusercontent.com/woniu336/open_shell/main/daily_report.sh
     wget https://raw.githubusercontent.com/woniu336/open_shell/main/check_ssl.sh
-    wget https://raw.githubusercontent.com/woniu336/open_shell/main/monitor_server.sh
 
     echo "正在设置权限..."
     chmod -R 755 /home/domain
@@ -74,40 +71,6 @@ add_ssl_check_domains() {
     
     echo "已添加的域名："
     cat /home/domain/check_ssl.txt
-    read -p "按回车键继续..."
-}
-
-# 添加需要被监控的服务器
-add_monitored_servers() {
-    echo "------------------------------------------------------"
-    echo "格式为：IP地址 端口 标签"
-    echo "例如：8.8.8.8 2233 腾讯云"
-    echo "------------------------------------------------------"
-    server_array="declare -A TARGET_SERVERS=(\n"
-    while true; do
-        read -p "输入服务器详情（或输入 done 结束）: " input
-        if [[ "$input" == "done" ]]; then
-            break
-        fi
-        if [[ -n "$input" ]]; then
-            ip=$(echo $input | awk '{print $1}')
-            port=$(echo $input | awk '{print $2}')
-            label=$(echo $input | awk '{print $3}')
-            if [[ -n "$ip" && -n "$port" && -n "$label" ]]; then
-                server_array+="    [\"$ip\"]=\"$port|$label\"\n"
-                echo "已添加: $ip:$port:$label"
-            else
-                echo "输入格式不正确，请重试。"
-            fi
-        fi
-    done
-    server_array+=")"
-    
-    # 替换脚本中的 TARGET_SERVERS 数组
-    sed -i '/declare -A TARGET_SERVERS/,/)/c\'"$server_array" /home/domain/monitor_server.sh
-    
-    echo "已添加的服务器详情："
-    grep -oP '(?<=\[")[^"]+(?="\]).*' /home/domain/monitor_server.sh | sed 's/"]="/:/; s/|/:/g'
     read -p "按回车键继续..."
 }
 
@@ -157,7 +120,6 @@ EOF
 set_webhook_url() {
     read -p "输入 Webhook URL: " webhook_url
     sed -i "s|TOKEN=\".*\"|TOKEN=\"$webhook_url\"|" /home/domain/check_ssl.sh
-    sed -i "s|DINGTALK_WEBHOOK=\".*\"|DINGTALK_WEBHOOK=\"$webhook_url\"|" /home/domain/monitor_server.sh
     sed -i "s|url = '.*'|url = '$webhook_url'|" /home/domain/warnsrc.py
     sed -i "s|DINGTALK_WEBHOOK=\".*\"|DINGTALK_WEBHOOK=\"$webhook_url\"|" /home/domain/daily_report.sh
     echo "Webhook URL 已设置成功。"
@@ -171,7 +133,6 @@ add_cron_jobs() {
     # 检查并添加任务
     add_cron_job "30 2 */3 * * cd /home/domain && ./domain_expiry_reminder.sh >/dev/null 2>&1" "每 3 天的凌晨 2:30 执行域名到期检测任务"
     add_cron_job "10 3 * * * cd /home/domain && ./check_ssl.sh >/dev/null 2>&1" "每天凌晨 3:10 执行SSL 证书检查任务"
-    add_cron_job "*/2 * * * * cd /home/domain && ./monitor_server.sh >/dev/null 2>&1" "每 2 分钟执行服务器监控任务"
     add_cron_job "0 14 * * * cd /home/domain && ./daily_report.sh >/dev/null 2>&1" "每天下午 2 点生成报告发送至钉钉"
 
     echo "定时任务添加成功。"
@@ -209,8 +170,7 @@ notification_test_menu() {
         echo -e "${TECH_BLUE}========== 通知测试子菜单 ===========${NC}"
         echo "1. 证书到期测试"
         echo "2. 域名到期测试"
-        echo "3. 服务器测试"
-        echo "4. 每日报告测试"
+        echo "3. 每日报告测试"
         echo "0. 返回主菜单"
         echo "=================================="
         read -p "请选择测试类型: " choice
@@ -218,8 +178,7 @@ notification_test_menu() {
         case $choice in
             1) ssl_expiry_test ;;
             2) domain_expiry_test ;;
-            3) server_test ;;
-            4) daily_report_test ;;
+            3) daily_report_test ;;
             0) break ;;
             *) echo "无效选项，请重试。"; read -p "按回车键继续..." ;;
         esac
@@ -269,20 +228,18 @@ domain_expiry_test() {
     # 检查域名配置文件是否存在
     if [ ! -f /home/domain/domains.txt ]; then
         echo "错误：域名配置文件 /home/domain/domains.txt 不存在"
-        echo "请先执行菜单选项 5 添加需要检查到期的域名"
+        echo "请先执行菜单选项 4 添加需要检查到期的域名"
         read -p "按回车键继续..."
         return
     fi
     
-
-# 检查配置文件是否有有效域名
-if ! grep -v '^[[:space:]]*#' /home/domain/domains.txt | grep -v '^[[:space:]]*$' | grep -q .; then
-    echo "错误：域名配置文件中没有有效的域名"
-    echo "请先执行菜单选项 5 添加需要检查到期的域名"
-    read -p "按回车键继续..."
-    return
-fi
-
+    # 检查配置文件是否有有效域名
+    if ! grep -v '^[[:space:]]*#' /home/domain/domains.txt | grep -v '^[[:space:]]*$' | grep -q .; then
+        echo "错误：域名配置文件中没有有效的域名"
+        echo "请先执行菜单选项 4 添加需要检查到期的域名"
+        read -p "按回车键继续..."
+        return
+    fi
     
     # 备份整行原始设置
     original_line=$(grep 'if \[ "$expiry_date" -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
@@ -327,21 +284,6 @@ fi
     read -p "按回车键继续..."
 }
 
-# 服务器测试
-server_test() {
-    echo "正在执行服务器测试..."
-    cd /home/domain
-    ./monitor_server.sh
-    # 询问用户是否收到通知
-    read -p "你是否收到了通知？(y/n): " received_notification
-    if [[ $received_notification == "y" ]]; then
-        echo "测试成功！"
-    else
-        echo "测试失败，请检查你的设置。"
-    fi
-    read -p "按回车键继续..."
-}
-
 # 每日报告测试
 daily_report_test() {
     echo "正在执行每日报告测试..."
@@ -366,11 +308,10 @@ while true; do
         1) initialize_environment ;;
         2) set_webhook_url ;;
         3) add_ssl_check_domains ;;
-        4) add_monitored_servers ;;
-        5) add_expiry_check_domains ;;
-        6) add_cron_jobs ;;
-		7) remove_cron_jobs ;;
-        8) notification_test_menu ;;
+        4) add_expiry_check_domains ;;
+        5) add_cron_jobs ;;
+        6) remove_cron_jobs ;;
+        7) notification_test_menu ;;
         0) echo "正在退出..."; exit 0 ;;
         *) echo "无效选项。请重试。"; read -p "按回车键继续..." ;;
     esac
