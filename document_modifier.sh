@@ -274,13 +274,15 @@ domain_expiry_test() {
         return
     fi
     
-    # 检查配置文件是否有有效域名
-    if ! grep -q -v '^#' /home/domain/domains.txt | grep -q -v '^$'; then
-        echo "错误：域名配置文件中没有有效的域名"
-        echo "请先执行菜单选项 5 添加需要检查到期的域名"
-        read -p "按回车键继续..."
-        return
-    fi
+
+# 检查配置文件是否有有效域名
+if ! grep -v '^[[:space:]]*#' /home/domain/domains.txt | grep -v '^[[:space:]]*$' | grep -q .; then
+    echo "错误：域名配置文件中没有有效的域名"
+    echo "请先执行菜单选项 5 添加需要检查到期的域名"
+    read -p "按回车键继续..."
+    return
+fi
+
     
     # 备份整行原始设置
     original_line=$(grep 'if \[ "$expiry_date" -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
