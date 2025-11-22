@@ -35,6 +35,7 @@ initialize_environment() {
     touch /home/domain/logssl
     touch /home/domain/serverlog
     touch /home/domain/check_ssl.txt
+    touch /home/domain/domains.txt
     sudo apt-get update
 	sudo apt-get install whois bc
 	pip install requests
@@ -110,25 +111,45 @@ add_monitored_servers() {
     read -p "按回车键继续..."
 }
 
-# 添加需要检查到期的域名
+# 添加需要检查到期的域名 - 修改为生成配置文件
 add_expiry_check_domains() {
     echo ""
-	echo "提示：输入需要检查到期的域名（每行一个/回车换行）"
-    echo "---------------------------------------------------------"     
-    domains=""
+    echo "提示：输入需要检查到期的域名（每行一个/回车换行）"
+    echo "---------------------------------------------------------"
+    
+    # 清空配置文件
+    > /home/domain/domains.txt
+    
+    # 添加配置文件说明
+    cat > /home/domain/domains.txt << 'EOF'
+# 域名到期监控配置文件
+# 每行一个域名，支持注释（#开头）
+# 示例：
+# example.com
+# test.cc
+
+EOF
+    
+    # 收集域名
     while true; do
         read -p "输入域名（或输入 done 结束）: " domain
         if [[ "$domain" == "done" ]]; then
             break
         fi
         if [[ -n "$domain" ]]; then
-            domains+=" $domain"
+            echo "$domain" >> /home/domain/domains.txt
             echo "已添加: $domain"
         fi
     done
     
-    sed -i "s/for line in .*/for line in$domains/" /home/domain/domain_expiry_reminder.sh
-    echo "已添加的域名：$domains"
+    echo ""
+    echo "配置文件已生成: /home/domain/domains.txt"
+    echo "已添加的域名："
+    echo "-------------------------------------"
+    grep -v '^#' /home/domain/domains.txt | grep -v '^$'
+    echo "-------------------------------------"
+    echo ""
+    echo "提示：您可以随时编辑 /home/domain/domains.txt 文件来添加、删除或注释域名"
     read -p "按回车键继续..."
 }
 
@@ -244,18 +265,45 @@ ssl_expiry_test() {
 domain_expiry_test() {
     echo "正在执行域名到期测试..."
     cd /home/domain
-    # 备份整行原始设置，使用 `sed` 来去除行首行尾的空白字符
-    original_line=$(grep 'if \[ $expiry_date -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    
+    # 检查域名配置文件是否存在
+    if [ ! -f /home/domain/domains.txt ]; then
+        echo "错误：域名配置文件 /home/domain/domains.txt 不存在"
+        echo "请先执行菜单选项 5 添加需要检查到期的域名"
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    # 检查配置文件是否有有效域名
+    if ! grep -q -v '^#' /home/domain/domains.txt | grep -q -v '^$'; then
+        echo "错误：域名配置文件中没有有效的域名"
+        echo "请先执行菜单选项 5 添加需要检查到期的域名"
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    # 备份整行原始设置
+    original_line=$(grep 'if \[ "$expiry_date" -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    if [ -z "$original_line" ]; then
+        # 如果找不到，尝试另一种格式
+        original_line=$(grep 'if \[ \$expiry_date -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+    fi
+    
     # 提取原始天数
     original_value=$(echo "$original_line" | awk '{print $5}' | tr -d ';')
     echo "原始设置为: $original_value 天"
+    
     # 提示用户输入测试值
     read -p "请输入测试的天数（多少天内到期提醒）: " test_days
-    # 修改为测试值
+    
+    # 修改为测试值（兼容两种变量格式）
+    sed -i "s/if \[ \"\$expiry_date\" -lt [0-9]* \];/if [ \"\$expiry_date\" -lt $test_days ];/" domain_expiry_reminder.sh
     sed -i "s/if \[ \$expiry_date -lt [0-9]* \];/if [ \$expiry_date -lt $test_days ];/" domain_expiry_reminder.sh
     echo "已将设置修改为: $test_days 天"
+    
     # 运行测试
     ./domain_expiry_reminder.sh
+    
     # 询问用户是否收到通知
     read -p "你是否收到了通知？(y/n): " received_notification
     if [[ $received_notification == "y" ]]; then
@@ -263,10 +311,12 @@ domain_expiry_test() {
     else
         echo "测试失败，请检查你的设置。"
     fi
+    
     # 询问是否恢复原始设置
     read -p "是否恢复原始设置？(y/n): " restore_settings
     if [[ $restore_settings == "y" ]]; then
         # 使用 sed 的内联编辑模式来精确替换，避免引入额外的空格
+        sed -i "s/^[[:space:]]*if \[ \"\$expiry_date\" -lt [0-9]* \];.*$/$original_line/" domain_expiry_reminder.sh
         sed -i "s/^[[:space:]]*if \[ \$expiry_date -lt [0-9]* \];.*$/$original_line/" domain_expiry_reminder.sh
         echo "已恢复原始设置为: $original_value 天"
     else
@@ -295,7 +345,7 @@ daily_report_test() {
     echo "正在执行每日报告测试..."
     cd /home/domain
     ./daily_report.sh
-    # 询问用户是否收到通知
+    # 询问用户是否收到每日报告
     read -p "你是否收到了每日报告？(y/n): " received_notification
     if [[ $received_notification == "y" ]]; then
         echo "测试成功！"
