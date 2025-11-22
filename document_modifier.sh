@@ -241,24 +241,45 @@ domain_expiry_test() {
         return
     fi
     
-    # 备份整行原始设置
-    original_line=$(grep 'if \[ "$expiry_date" -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-    if [ -z "$original_line" ]; then
-        # 如果找不到，尝试另一种格式
-        original_line=$(grep 'if \[ \$expiry_date -lt [0-9]* \];' domain_expiry_reminder.sh | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-    fi
+    # 提取原始天数 - 修复版
+    original_value=$(grep '^WARN_DAYS=' domain_expiry_reminder.sh | grep -oE '[0-9]+' | head -1)
     
-    # 提取原始天数
-    original_value=$(echo "$original_line" | awk '{print $5}' | tr -d ';')
-    echo "原始设置为: $original_value 天"
+    # 如果找不到就让用户输入
+    if [ -z "$original_value" ]; then
+        echo "无法自动检测原始天数"
+        read -p "请输入当前配置的告警天数: " original_value
+    else
+        echo "原始设置为: $original_value 天"
+    fi
     
     # 提示用户输入测试值
     read -p "请输入测试的天数（多少天内到期提醒）: " test_days
     
-    # 修改为测试值（兼容两种变量格式）
-    sed -i "s/if \[ \"\$expiry_date\" -lt [0-9]* \];/if [ \"\$expiry_date\" -lt $test_days ];/" domain_expiry_reminder.sh
-    sed -i "s/if \[ \$expiry_date -lt [0-9]* \];/if [ \$expiry_date -lt $test_days ];/" domain_expiry_reminder.sh
+    # 验证输入
+    if ! [[ "$test_days" =~ ^[0-9]+$ ]]; then
+        echo "错误：请输入有效的数字"
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    # 创建备份
+    cp domain_expiry_reminder.sh domain_expiry_reminder.sh.bak
+    
+    # 修改 WARN_DAYS 变量（精确匹配，确保等号后有值）
+    sed -i "s/^WARN_DAYS=[0-9]*/WARN_DAYS=$test_days/" domain_expiry_reminder.sh
+    
     echo "已将设置修改为: $test_days 天"
+    
+    # 验证修改是否成功
+    new_value=$(grep '^WARN_DAYS=' domain_expiry_reminder.sh | grep -oE '[0-9]+')
+    if [ "$new_value" = "$test_days" ]; then
+        echo "✓ 修改成功，当前值: $new_value"
+    else
+        echo "✗ 修改失败，恢复备份..."
+        mv domain_expiry_reminder.sh.bak domain_expiry_reminder.sh
+        read -p "按回车键继续..."
+        return
+    fi
     
     # 运行测试
     ./domain_expiry_reminder.sh
@@ -274,11 +295,10 @@ domain_expiry_test() {
     # 询问是否恢复原始设置
     read -p "是否恢复原始设置？(y/n): " restore_settings
     if [[ $restore_settings == "y" ]]; then
-        # 使用 sed 的内联编辑模式来精确替换，避免引入额外的空格
-        sed -i "s/^[[:space:]]*if \[ \"\$expiry_date\" -lt [0-9]* \];.*$/$original_line/" domain_expiry_reminder.sh
-        sed -i "s/^[[:space:]]*if \[ \$expiry_date -lt [0-9]* \];.*$/$original_line/" domain_expiry_reminder.sh
+        mv domain_expiry_reminder.sh.bak domain_expiry_reminder.sh
         echo "已恢复原始设置为: $original_value 天"
     else
+        rm -f domain_expiry_reminder.sh.bak
         echo "保留当前设置为: $test_days 天"
     fi
     read -p "按回车键继续..."

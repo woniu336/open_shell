@@ -6,7 +6,7 @@ DOMAIN_LOG="/home/domain/warnfile"
 SERVER_LOG="/home/domain/serverlog"
 
 # 定义钉钉机器人 webhook
-DINGTALK_WEBHOOK=""
+DINGTALK_WEBHOOK="https://oapi.dingtalk.com/robot/send?access_token=ace02fed431c60c0cd60b7026ee27a114ccf23a561612a9749f6efd1c600e292"
 
 # 函数：读取SSL日志并生成报告
 generate_ssl_report() {
@@ -42,20 +42,6 @@ generate_domain_report() {
     echo -e "域名到期监控:\n$content"
 }
 
-# 函数：读取服务器监控日志并生成报告
-generate_server_report() {
-    local content=""
-    
-    if [ -s "$SERVER_LOG" ]; then
-        while IFS= read -r line; do
-            content+="  $line\n"
-        done < "$SERVER_LOG"
-    else
-        content="  无服务器监控告警信息\n"
-    fi
-    
-    echo -e "服务器监控:\n$content"
-}
 
 # 生成报告
 report="每日监控报告 $(date +"%Y-%m-%d")\n"
@@ -63,8 +49,6 @@ report+="================\n\n"
 report+=$(generate_ssl_report)
 report+="\n----------------\n\n"
 report+=$(generate_domain_report)
-report+="\n----------------\n\n"
-report+=$(generate_server_report)
 
 # 如果所有日志都为空，添加一条信息
 if [ ! -s "$SSL_LOG" ] && [ ! -s "$DOMAIN_LOG" ] && [ ! -s "$SERVER_LOG" ]; then

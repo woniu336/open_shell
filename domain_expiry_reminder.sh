@@ -3,11 +3,12 @@
 # 域名到期监控脚本 - 发送钉钉消息通知
 # 原作者: 路飞博客
 # 博客: https://blog.talimus.eu.org
-# 优化版本: v0.4
+# 优化版本: v0.5
 # 更新日期: 2025/11/22
+# 修复: 告警逻辑和调试输出
 #================================================================
 
-set -euo pipefail  # 启用严格模式
+set -euo pipefail
 
 # 全局变量
 declare -a DOMAINS
@@ -29,11 +30,13 @@ MAX_RETRIES=3
 RETRY_DELAY=3
 WHOIS_DELAY=5
 
+# 调试模式（设置为1启用详细输出）
+DEBUG=1
+
 #----------------------------------------------------------------
 # 函数定义
 #----------------------------------------------------------------
 
-# 日志函数
 log_info() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: $*" >&2
 }
@@ -46,7 +49,12 @@ log_warn() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN: $*" >&2
 }
 
-# 检查并安装依赖
+log_debug() {
+    if [ "$DEBUG" -eq 1 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] DEBUG: $*" >&2
+    fi
+}
+
 check_dependencies() {
     local deps=("whois" "bc" "python3")
     local missing=()
@@ -60,7 +68,6 @@ check_dependencies() {
     if [ ${#missing[@]} -gt 0 ]; then
         log_warn "缺少依赖: ${missing[*]}, 尝试安装..."
         
-        # 检测包管理器
         if command -v apt-get &> /dev/null; then
             sudo apt-get update -qq
             for pkg in "${missing[@]}"; do
@@ -79,7 +86,6 @@ check_dependencies() {
     log_info "所有依赖检查完成"
 }
 
-# 初始化工作目录和文件
 init_files() {
     mkdir -p "$WORK_DIR" 2>/dev/null || true
     
@@ -88,13 +94,9 @@ init_files() {
         exit 1
     fi
     
-    # 检查域名配置文件
     if [ ! -f "$DOMAIN_CONFIG" ]; then
         log_error "域名配置文件不存在: $DOMAIN_CONFIG"
-        log_info "请创建配置文件，每行一个域名，例如："
-        log_info "  111.com"
-        log_info "  222.cc"
-        log_info "  33.cc"
+        log_info "请创建配置文件，每行一个域名"
         exit 1
     fi
     
@@ -107,43 +109,39 @@ init_files() {
     > "$LOG_FILE"
     
     if [ ! -f "$PYTHON_SCRIPT" ]; then
-        log_warn "Python脚本 $PYTHON_SCRIPT 不存在，跳过告警发送"
+        log_warn "Python脚本 $PYTHON_SCRIPT 不存在，告警将只输出到文件"
     fi
 }
 
-# 从whois输出中提取过期时间
 extract_expiry_date() {
     local domain="$1"
     local whois_output="$2"
     local expiry_date=""
     
-    # 尝试多种日期格式
     # 格式1: Expiry Date: 2025-12-31T23:59:59Z
-    expiry_date=$(echo "$whois_output" | grep -i 'Expiry Date' | head -1 | awk '{print $4}' | cut -d 'T' -f 1)
+    expiry_date=$(echo "$whois_output" | grep -iE 'Expiry Date|Registry Expiry Date' | head -1 | awk '{print $NF}' | cut -d 'T' -f 1)
     
     # 格式2: Expiration Time: 2025-12-31
     if [ -z "$expiry_date" ]; then
-        expiry_date=$(echo "$whois_output" | grep -i 'Expiration Time' | head -1 | awk '{print $3}')
+        expiry_date=$(echo "$whois_output" | grep -i 'Expiration Time' | head -1 | awk '{print $NF}')
     fi
     
-    # 格式3: Registry Expiry Date: 2025-12-31
+    # 格式3: Expiration Date: 31-Dec-2025
     if [ -z "$expiry_date" ]; then
-        expiry_date=$(echo "$whois_output" | grep -i 'Registry Expiry Date' | head -1 | awk '{print $4}' | cut -d 'T' -f 1)
-    fi
-    
-    # 格式4: Expiration Date: 31-Dec-2025
-    if [ -z "$expiry_date" ]; then
-        expiry_date=$(echo "$whois_output" | grep -i 'Expiration Date' | head -1 | awk '{print $3}')
-        # 转换日期格式
+        expiry_date=$(echo "$whois_output" | grep -i 'Expiration Date' | head -1 | awk '{print $NF}')
         if [ -n "$expiry_date" ]; then
             expiry_date=$(date -d "$expiry_date" +%Y-%m-%d 2>/dev/null || echo "")
         fi
     fi
     
+    # 格式4: paid-till: 2025-12-31
+    if [ -z "$expiry_date" ]; then
+        expiry_date=$(echo "$whois_output" | grep -i 'paid-till' | head -1 | awk '{print $NF}' | cut -d 'T' -f 1)
+    fi
+    
     echo "$expiry_date"
 }
 
-# 获取域名过期时间
 get_domain_expiry() {
     local domain="$1"
     local retry=0
@@ -153,7 +151,6 @@ get_domain_expiry() {
     while [ $retry -lt $MAX_RETRIES ]; do
         log_info "查询域名 $domain (尝试 $((retry+1))/$MAX_RETRIES)"
         
-        # 获取whois信息
         whois_output=$(whois "$domain" 2>/dev/null || echo "")
         
         if [ -z "$whois_output" ]; then
@@ -163,7 +160,6 @@ get_domain_expiry() {
             continue
         fi
         
-        # 提取过期日期
         expiry_date=$(extract_expiry_date "$domain" "$whois_output")
         
         if [ -n "$expiry_date" ]; then
@@ -180,7 +176,6 @@ get_domain_expiry() {
     return 1
 }
 
-# 计算剩余天数
 calculate_days_remaining() {
     local expiry_date="$1"
     local expiry_timestamp
@@ -200,7 +195,6 @@ calculate_days_remaining() {
     echo "$days_remaining"
 }
 
-# 生成告警信息
 generate_warning() {
     local domain="$1"
     local expiry_date="$2"
@@ -214,12 +208,12 @@ generate_warning() {
 到期日期: ${expiry_date}
 剩余天数: ${days_remaining} 天
 状态: $([ $days_remaining -le 7 ] && echo "紧急" || echo "警告")
+告警阈值: ${WARN_DAYS} 天
 ========================================
 
 EOF
 }
 
-# 记录域名信息
 log_domain_info() {
     local domain="$1"
     local expiry_date="$2"
@@ -229,21 +223,20 @@ log_domain_info() {
 域名: ${domain}
 到期日期: ${expiry_date}
 剩余天数: ${days_remaining} 天
+告警阈值: ${WARN_DAYS} 天
+是否告警: $([ $days_remaining -lt $WARN_DAYS ] && echo "是" || echo "否")
 查询时间: $(date '+%Y-%m-%d %H:%M:%S')
 ----------------------------------------
 
 EOF
 }
 
-# 读取域名配置文件
 read_domains() {
     local -a domains=()
     
     while IFS= read -r line || [ -n "$line" ]; do
-        # 去除首尾空白
         line=$(echo "$line" | xargs)
         
-        # 跳过空行和注释行
         if [ -z "$line" ] || [[ "$line" =~ ^# ]]; then
             continue
         fi
@@ -258,17 +251,14 @@ read_domains() {
     
     log_info "从配置文件读取到 ${#domains[@]} 个域名"
     
-    # 通过全局变量返回数组
     DOMAINS=("${domains[@]}")
 }
 
-# 处理单个域名
 process_domain() {
     local domain="$1"
     local expiry_date
     local days_remaining
     
-    # 获取过期时间
     if ! expiry_date=$(get_domain_expiry "$domain"); then
         cat >> "$WARN_FILE" << EOF
 ========================================
@@ -283,7 +273,6 @@ EOF
         return 1
     fi
     
-    # 计算剩余天数
     if ! days_remaining=$(calculate_days_remaining "$expiry_date"); then
         log_error "域名 $domain 日期计算失败"
         return 1
@@ -291,36 +280,46 @@ EOF
     
     log_info "域名 $domain 剩余 $days_remaining 天"
     
-    # 记录信息
+    # 添加调试输出
+    log_debug "比较: $days_remaining < $WARN_DAYS"
+    
     log_domain_info "$domain" "$expiry_date" "$days_remaining"
     
-    # 生成告警
+    # 关键修复：使用 -lt 进行数值比较
     if [ "$days_remaining" -lt "$WARN_DAYS" ]; then
-        log_warn "域名 $domain 即将过期 ($days_remaining 天)"
+        log_warn "域名 $domain 即将过期 ($days_remaining 天 < $WARN_DAYS 天阈值)"
         generate_warning "$domain" "$expiry_date" "$days_remaining"
+        return 0
+    else
+        log_info "域名 $domain 未达到告警阈值 ($days_remaining 天 >= $WARN_DAYS 天)"
     fi
     
     return 0
 }
 
-# 发送告警
 send_alert() {
     if [ ! -s "$WARN_FILE" ]; then
         log_info "没有需要告警的域名"
         return 0
     fi
     
+    log_info "发现需要告警的域名，告警文件大小: $(wc -c < "$WARN_FILE") 字节"
+    
     if [ ! -f "$PYTHON_SCRIPT" ]; then
-        log_warn "Python告警脚本不存在，跳过发送"
+        log_warn "Python告警脚本不存在，仅输出告警内容："
+        echo "========== 告警内容 =========="
         cat "$WARN_FILE"
+        echo "=============================="
         return 0
     fi
     
     log_info "发送告警通知..."
-    if python3 "$PYTHON_SCRIPT" "$WARN_FILE"; then
+    if python3 "$PYTHON_SCRIPT" "$WARN_FILE" 2>&1 | tee -a "$LOG_FILE"; then
         log_info "告警发送成功"
     else
-        log_error "告警发送失败"
+        log_error "告警发送失败，错误码: $?"
+        log_error "告警内容："
+        cat "$WARN_FILE"
         return 1
     fi
 }
@@ -330,17 +329,12 @@ send_alert() {
 #----------------------------------------------------------------
 main() {
     log_info "============ 域名监控脚本启动 ============"
+    log_info "告警阈值设置: $WARN_DAYS 天"
     
-    # 检查依赖
     check_dependencies
-    
-    # 初始化文件
     init_files
-    
-    # 读取域名列表
     read_domains
     
-    # 处理域名列表
     local total=${#DOMAINS[@]}
     local success=0
     local failed=0
@@ -352,20 +346,21 @@ main() {
             failed=$((failed + 1))
         fi
         
-        # 避免速率限制
         sleep "$WHOIS_DELAY"
     done
     
     log_info "处理完成: 总数=$total, 成功=$success, 失败=$failed"
     
-    # 发送告警
+    # 显示告警文件状态
+    if [ -s "$WARN_FILE" ]; then
+        log_info "告警文件包含 $(grep -c "域名到期提醒" "$WARN_FILE" || echo 0) 条告警"
+    fi
+    
     send_alert
     
     log_info "============ 域名监控脚本结束 ============"
     
-    # 返回状态
     [ $failed -eq 0 ] && return 0 || return 1
 }
 
-# 执行主程序
 main "$@"
