@@ -8,15 +8,19 @@
 # ========== 配置区域 - 根据实际情况修改 ==========
 
 # 本地同步目录（源目录）
-RCLONE_SYNC_PATH="/root/ceshi"
+RCLONE_SYNC_PATH="/home/op"
 
-# RClone远程名称
-# 配置解释: ovh是rclone.conf配置里的名称，/root/ceshi远程服务器路径
-RCLONE_REMOTE="ovh:/root/ceshi"
+# 远程目录
+# 配置解释: ovh 是 rclone.conf 配置里的名称，/home/op 为远程服务器路径
+RCLONE_REMOTE="ovh:/home/op"
 
 # 同步命令（-v 显示详细日志）
 # 警告：sync 会删除远程目录中本地不存在的文件
-RCLONE_CMD="rclone -v sync ${RCLONE_SYNC_PATH} ${RCLONE_REMOTE}"
+RCLONE_CMD="rclone -v sync ${RCLONE_SYNC_PATH} ${RCLONE_REMOTE} \
+    --exclude '.git/**' \
+    --exclude 'node_modules/**' \
+    --exclude '*.tmp' \
+    --exclude '.DS_Store'"
 
 # 监控的文件事件类型
 WATCH_EVENTS="modify,delete,create,move"
