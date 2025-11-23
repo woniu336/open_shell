@@ -15,11 +15,6 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # 无颜色
 
-# 配置变量
-REMOTE_NAME="ovh"
-SYNC_SCRIPT="rclone-sync.sh"
-MANAGE_SCRIPT="rclone_manage.sh"
-
 # 显示横幅
 show_banner() {
     echo -e "${CYAN}"
@@ -143,12 +138,11 @@ create_rclone_config() {
     remote_port=${remote_port:-22}
     read -p "$(echo -e ${CYAN}请输入远程名称 [ovh]: ${NC})" remote_name
     remote_name=${remote_name:-ovh}
-    REMOTE_NAME=$remote_name
     
     mkdir -p ~/.config/rclone
     
     cat > ~/.config/rclone/rclone.conf << EOF
-[$REMOTE_NAME]
+[$remote_name]
 type = sftp
 host = $remote_host
 user = root
