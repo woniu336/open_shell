@@ -134,9 +134,9 @@ create_rclone_config() {
     info "创建 Rclone 配置..."
     
     read -p "$(echo -e ${CYAN}请输入B服务器IP地址: ${NC})" remote_host
-    read -p "$(echo -e ${CYAN}请输入B服务器SSH端口 [22]: ${NC})" remote_port
+    read -p "$(echo -e ${CYAN}请输入B服务器SSH端口: ${NC})" remote_port
     remote_port=${remote_port:-22}
-    read -p "$(echo -e ${CYAN}请输入远程名称 [ovh]: ${NC})" remote_name
+    read -p "$(echo -e ${CYAN}请输入远程名称: ${NC})" remote_name
     remote_name=${remote_name:-ovh}
     
     mkdir -p ~/.config/rclone
