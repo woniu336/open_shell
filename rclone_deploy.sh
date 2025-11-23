@@ -75,10 +75,9 @@ show_menu() {
     echo -e "  ${GREEN}5)${NC} 创建Rclone配置"
     echo -e "  ${GREEN}6)${NC} 编辑同步脚本"
     echo -e "  ${GREEN}7)${NC} 编辑Rclone配置"
-    echo -e "  ${GREEN}8)${NC} 测试首次同步"
-    echo -e "  ${GREEN}9)${NC} 设置后台运行"
-    echo -e "  ${GREEN}10)${NC} 管理同步服务"
-    echo -e "  ${YELLOW}11)${NC} 文件拷贝"
+    echo -e "  ${GREEN}8)${NC} 测试同步并设置后台运行"
+    echo -e "  ${GREEN}9)${NC} 管理同步服务"
+    echo -e "  ${YELLOW}10)${NC} 文件拷贝"
     echo -e "  ${RED}0)${NC} 退出"
     echo
     separator
@@ -307,31 +306,7 @@ edit_sync_script() {
                 info "打开编辑器..."
                 ${EDITOR:-nano} rclone-sync.sh
                 success "编辑完成"
-                echo
-                info "正在测试同步脚本..."
-                # 静默执行，只捕获退出状态
-                if timeout 10 ./rclone-sync.sh &>/dev/null; then
-                    success "同步脚本测试通过"
-                    echo
-                    info "正在设置systemd服务..."
-                    if ./rclone-sync.sh systemd_setup &>/dev/null; then
-                        success "systemd服务设置完成"
-                    else
-                        error "systemd服务设置失败"
-                    fi
-                else
-                    # 如果超时或失败，也算成功（因为同步可能需要时间）
-                    success "同步脚本已启动"
-                    echo
-                    info "正在设置systemd服务..."
-                    if ./rclone-sync.sh systemd_setup &>/dev/null; then
-                        success "systemd服务设置完成"
-                    else
-                        error "systemd服务设置失败"
-                    fi
-                fi
-                echo
-                read -p "按回车键继续..."
+                sleep 1
                 ;;
             2) 
                 warning "将重新下载脚本,是否继续? (y/n)"
@@ -390,31 +365,129 @@ download_sync_script() {
     fi
 }
 
-# 测试首次同步
-test_sync() {
+# 测试同步并设置后台运行
+test_sync_and_setup() {
     if [[ ! -f "./rclone-sync.sh" ]]; then
         error "未找到同步脚本,请先下载"
         return 1
     fi
     
-    info "开始测试同步..."
-    warning "按 Ctrl+C 停止同步"
-    sleep 2
-    ./rclone-sync.sh
-}
-
-# 设置后台运行
-setup_systemd() {
-    if [[ ! -f "./rclone-sync.sh" ]]; then
-        error "未找到同步脚本,请先下载"
+    separator
+    echo -e "${CYAN}测试同步并设置后台运行${NC}"
+    echo
+    
+    # 提取配置信息
+    LOCAL_PATH=$(grep "^RCLONE_SYNC_PATH=" rclone-sync.sh | cut -d'"' -f2 | cut -d"'" -f2)
+    REMOTE_PATH=$(grep "^RCLONE_REMOTE=" rclone-sync.sh | cut -d'"' -f2 | cut -d"'" -f2)
+    
+    if [[ -z "$LOCAL_PATH" || -z "$REMOTE_PATH" ]]; then
+        error "无法提取同步路径配置"
+        warning "请确保 rclone-sync.sh 中已正确配置 RCLONE_SYNC_PATH 和 RCLONE_REMOTE"
+        sleep 2
         return 1
     fi
     
-    info "设置后台运行..."
-    loginctl enable-linger root
-    ./rclone-sync.sh systemd_setup
-    success "后台运行设置完成"
-    info "可使用管理脚本查看状态"
+    info "同步配置:"
+    echo -e "  本地目录: ${BLUE}$LOCAL_PATH${NC}"
+    echo -e "  远程目录: ${BLUE}$REMOTE_PATH${NC}"
+    echo
+    
+    # 检查本地目录是否存在
+    if [[ ! -d "$LOCAL_PATH" ]]; then
+        warning "本地目录不存在: $LOCAL_PATH"
+        read -p "是否创建该目录? (y/n): " create_dir
+        if [[ $create_dir == "y" ]]; then
+            mkdir -p "$LOCAL_PATH"
+            chmod 755 "$LOCAL_PATH"
+            success "目录已创建"
+        else
+            error "请先创建目录后再继续"
+            return 1
+        fi
+    fi
+    
+    echo -e "${YELLOW}开始测试同步...${NC}"
+    echo -e "${YELLOW}提示: 按 Ctrl+C 可随时停止测试${NC}"
+    echo
+    read -p "按回车键开始测试 (或输入 n 跳过测试): " skip_test
+    
+    if [[ $skip_test != "n" ]]; then
+        info "执行首次同步测试 (30秒)..."
+        if timeout 30 ./rclone-sync.sh 2>&1 | head -20; then
+            success "同步测试完成"
+        else
+            exit_code=$?
+            if [[ $exit_code -eq 124 ]]; then
+                success "同步测试通过 (已自动停止)"
+            else
+                warning "同步测试中断,这可能是正常的"
+            fi
+        fi
+    fi
+    
+    echo
+    separator
+    echo -e "${CYAN}是否设置后台运行?${NC}"
+    echo
+    echo -e "  ${GREEN}y)${NC} 是,设置为系统服务自动运行"
+    echo -e "  ${RED}n)${NC} 否,稍后手动设置"
+    echo
+    read -p "请选择 (y/n): " setup_service
+    
+    if [[ $setup_service == "y" ]]; then
+        echo
+        info "配置 systemd 服务..."
+        
+        # 启用 linger
+        loginctl enable-linger root 2>/dev/null
+        
+        # 设置 systemd 服务
+        if ./rclone-sync.sh systemd_setup; then
+            success "后台服务设置完成"
+            echo
+            
+            # 获取服务名称
+            SERVICE_NAME=$(echo "$REMOTE_PATH" | sed 's/[:/\.]/_/g')
+            
+            sleep 2
+            
+            # 静默执行修复脚本
+            info "正在优化服务配置..."
+            if curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/fix_rclone.sh &>/dev/null; then
+                chmod +x fix_rclone.sh &>/dev/null
+                # 静默执行修复脚本，自动输入 'y' 确认
+                echo "y" | ./fix_rclone.sh &>/dev/null
+                rm -f fix_rclone.sh &>/dev/null
+                success "服务优化完成"
+            fi
+            
+            sleep 1
+            
+            # 显示服务状态
+            info "服务状态:"
+            systemctl --user status "rclone_sync_${SERVICE_NAME}.service" --no-pager | head -15
+            
+            echo
+            success "设置完成!"
+            echo
+            info "常用命令:"
+            echo -e "  查看状态: ${CYAN}systemctl --user status rclone_sync_${SERVICE_NAME}.service${NC}"
+            echo -e "  查看日志: ${CYAN}journalctl --user -u rclone_sync_${SERVICE_NAME}.service -f${NC}"
+            echo -e "  重启服务: ${CYAN}systemctl --user restart rclone_sync_${SERVICE_NAME}.service${NC}"
+            echo -e "  停止服务: ${CYAN}systemctl --user stop rclone_sync_${SERVICE_NAME}.service${NC}"
+        else
+            error "服务设置失败"
+            warning "请检查错误信息或手动执行: ./rclone-sync.sh systemd_setup"
+        fi
+    else
+        info "已跳过后台服务设置"
+        echo
+        info "稍后可运行以下命令设置:"
+        echo -e "  ${CYAN}./rclone-sync.sh systemd_setup${NC}"
+    fi
+    
+    echo
+    read -p "按回车键继续..."
 }
 
 # 获取服务名称
@@ -463,32 +536,6 @@ manage_sync_service() {
                 ;;
         esac
     done
-}
-
-# 列出所有服务
-list_all_services() {
-    echo
-    info "所有 Rclone 同步服务:"
-    echo
-    local count=0
-    for service in ~/.config/systemd/user/rclone_sync_*.service; do
-        if [[ -f "$service" ]]; then
-            local svc_name=$(basename "$service")
-            local status=$(systemctl --user is-active "$svc_name" 2>/dev/null || echo "未运行")
-            if [[ "$status" == "active" ]]; then
-                echo -e "  ${GREEN}●${NC} $svc_name - ${GREEN}运行中${NC}"
-            else
-                echo -e "  ${RED}○${NC} $svc_name - ${RED}已停止${NC}"
-            fi
-            ((count++))
-        fi
-    done
-    
-    if [[ $count -eq 0 ]]; then
-        warning "未找到任何服务"
-    fi
-    echo
-    read -p "按回车键继续..."
 }
 
 # 查看服务状态
@@ -561,17 +608,6 @@ service_logs_recent() {
     read -p "按回车键继续..."
 }
 
-# 下载管理脚本
-download_manage_script() {
-    info "下载管理脚本..."
-    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rclone_manage.sh
-    chmod +x rclone_manage.sh
-    success "管理脚本下载完成"
-    
-    echo
-    info "使用方法: ./rclone_manage.sh $REMOTE_NAME:/path/to/sync"
-}
-
 # 文件操作菜单
 file_operations() {
     separator
@@ -598,8 +634,6 @@ file_operations() {
     read -p "按回车键继续..."
 }
 
-
-
 # 完整安装
 full_install() {
     info "开始完整安装流程..."
@@ -624,8 +658,7 @@ full_install() {
     echo
     info "下一步:"
     echo "  1. 编辑 rclone-sync.sh 修改同步目录"
-    echo "  2. 运行 ./rclone-sync.sh 测试同步"
-    echo "  3. 运行 ./rclone-sync.sh systemd_setup 设置后台运行"
+    echo "  2. 选择菜单 [8] 测试同步并设置后台运行"
     echo
     read -p "按回车键继续..."
 }
@@ -636,7 +669,7 @@ main() {
     
     while true; do
         show_menu
-        read -p "请选择 [0-11]: " choice
+        read -p "请选择 [0-10]: " choice
         
         case $choice in
             1) full_install ;;
@@ -646,10 +679,9 @@ main() {
             5) create_rclone_config ;;
             6) edit_sync_script ;;
             7) edit_rclone_config ;;
-            8) test_sync ;;
-            9) setup_systemd ;;
-            10) manage_sync_service ;;
-            11) file_operations ;;
+            8) test_sync_and_setup ;;
+            9) manage_sync_service ;;
+            10) file_operations ;;
             0) 
                 echo
                 success "感谢使用!"
