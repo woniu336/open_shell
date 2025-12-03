@@ -151,29 +151,36 @@ create_service() {
     log_info "创建 systemd 服务文件..."
     
     echo ""
-    log_warn "安全提示: Certimate 默认监听 127.0.0.1:8090 (仅本地访问)"
-    echo -e "${YELLOW}是否允许外网访问? (监听 0.0.0.0:8090)${NC}"
-    echo -e "  ${GREEN}1)${NC} 是 - 允许外网访问 (0.0.0.0:8090)"
-    echo -e "  ${GREEN}2)${NC} 否 - 仅本地访问 (127.0.0.1:8090) [推荐]"
-    echo -e "  ${GREEN}3)${NC} 自定义监听地址"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  网络访问配置"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    read -p "请选择 [1/2/3] (默认: 2): " choice
+    echo "  Certimate 默认仅本地访问 (127.0.0.1:8090)"
+    echo ""
+    echo "  [1] 允许外网访问 (0.0.0.0:8090)"
+    echo "  [2] 仅本地访问 (127.0.0.1:8090) [推荐]"
+    echo "  [3] 自定义监听地址"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    read -p "  请选择 [1/2/3] (默认: 2): " choice
     
     case ${choice} in
         1)
             HTTP_LISTEN="0.0.0.0:8090"
-            log_warn "已设置为允许外网访问: ${HTTP_LISTEN}"
+            echo "  → 已设置为允许外网访问: ${HTTP_LISTEN}"
             ;;
         3)
-            read -p "请输入监听地址 (格式: IP:端口): " custom_listen
+            echo ""
+            read -p "  请输入监听地址 (格式: IP:端口): " custom_listen
             HTTP_LISTEN="${custom_listen}"
-            log_info "已设置自定义监听: ${HTTP_LISTEN}"
+            echo "  → 已设置自定义监听: ${HTTP_LISTEN}"
             ;;
         *)
             HTTP_LISTEN="127.0.0.1:8090"
-            log_info "已设置为仅本地访问: ${HTTP_LISTEN}"
+            echo "  → 已设置为仅本地访问: ${HTTP_LISTEN}"
             ;;
     esac
+    echo ""
     
     cat > "${SERVICE_FILE}" <<EOF
 [Unit]
@@ -226,43 +233,30 @@ cleanup() {
 # 显示完成信息
 show_completion() {
     echo ""
-    echo -e "${GREEN}============================================${NC}"
-    echo -e "${GREEN}   Certimate 安装完成!${NC}"
-    echo -e "${GREEN}============================================${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Certimate 安装完成!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo -e "${YELLOW}访问信息:${NC}"
+    echo "  访问信息:"
     if [[ "${HTTP_LISTEN}" == "0.0.0.0"* ]]; then
         local port=$(echo ${HTTP_LISTEN} | cut -d':' -f2)
-        echo -e "  访问地址: ${GREEN}http://服务器IP:${port}${NC}"
-        echo -e "  ${RED}⚠ 警告: 服务已绑定到所有网络接口，请确保配置防火墙！${NC}"
+        echo "  访问地址: http://服务器IP:${port}"
+        echo "  ⚠ 警告: 服务已绑定到所有网络接口，请确保配置防火墙！"
     elif [[ "${HTTP_LISTEN}" == "127.0.0.1"* ]]; then
-        echo -e "  访问地址: ${GREEN}http://127.0.0.1:8090${NC}"
-        echo -e "  ${YELLOW}注意: 当前仅支持本地访问${NC}"
-        echo -e "  ${YELLOW}如需外网访问，请修改服务配置或使用 Nginx 反向代理${NC}"
+        echo "  访问地址: http://127.0.0.1:8090"
+        echo "  注意: 当前仅支持本地访问"
     else
-        echo -e "  访问地址: ${GREEN}http://${HTTP_LISTEN}${NC}"
+        echo "  访问地址: http://${HTTP_LISTEN}"
     fi
     echo ""
-    echo -e "${YELLOW}管理员登录信息:${NC}"
+    echo "  管理员登录信息:"
     echo -e "  账号: ${GREEN}admin@certimate.fun${NC}"
     echo -e "  密码: ${GREEN}1234567890${NC}"
     echo ""
-    echo -e "${YELLOW}常用命令:${NC}"
-    echo -e "  查看服务状态: ${GREEN}systemctl status certimate${NC}"
-    echo -e "  停止服务:     ${GREEN}systemctl stop certimate${NC}"
-    echo -e "  重启服务:     ${GREEN}systemctl restart certimate${NC}"
-    echo -e "  查看日志:     ${GREEN}journalctl -u certimate -f${NC}"
-    echo -e "  修改监听地址: ${GREEN}vi /etc/systemd/system/certimate.service${NC}"
-    echo -e "                ${GREEN}systemctl daemon-reload && systemctl restart certimate${NC}"
+    echo "  安全提醒:"
+    echo "  请在首次登录后立即修改默认密码！"
     echo ""
-    echo -e "${YELLOW}安全提醒:${NC}"
-    echo -e "  ${RED}1. 请在首次登录后立即修改默认密码！${NC}"
-    if [[ "${HTTP_LISTEN}" == "0.0.0.0"* ]]; then
-        echo -e "  ${RED}2. 建议配置防火墙限制访问来源${NC}"
-        echo -e "  ${RED}3. 生产环境建议使用 Nginx 反向代理并配置 HTTPS${NC}"
-    fi
-    echo ""
-    echo -e "${GREEN}============================================${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
 # 主函数
