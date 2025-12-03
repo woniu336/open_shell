@@ -147,7 +147,8 @@ remove_program_files() {
 check_remaining_process() {
     log_info "检查残留进程..."
     
-    local pids=$(pgrep -f "certimate" || true)
+    # 排除当前脚本进程，只查找 certimate 二进制进程
+    local pids=$(pgrep -f "/usr/sbin/certimate/certimate" || true)
     
     if [ -n "$pids" ]; then
         log_warn "发现残留进程: $pids"
