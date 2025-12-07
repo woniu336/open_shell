@@ -193,7 +193,7 @@ def block_asn():
     print("封禁ASN")
     print("=" * 60)
     
-    asn_input = input("请输入要封禁的ASN（多个用空格分隔，如: AS13335 AS15169）: ").strip()
+    asn_input = input("请输入要封禁的ASN（多个用空格分隔，如: AS135377 AS398722）: ").strip()
     if not asn_input:
         print("✗ 未输入ASN")
         return
