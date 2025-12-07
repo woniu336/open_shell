@@ -193,7 +193,7 @@ def block_asn():
     print("封禁ASN")
     print("=" * 60)
     
-    asn_input = input("请输入要封禁的ASN（多个用空格分隔，如: AS135377 AS398722）: ").strip()
+    asn_input = input("请输入要封禁的ASN（多个用空格分隔，如: AS13335 AS15169）: ").strip()
     if not asn_input:
         print("✗ 未输入ASN")
         return
@@ -385,30 +385,59 @@ def remove_block():
     except ValueError:
         print("✗ 请输入有效的数字")
 
-def export_config():
-    """导出配置"""
+def view_block_statistics():
+    """查看封禁统计（包含拦截数量）"""
     print("\n" + "=" * 60)
-    print("导出配置")
+    print("封禁统计 - 实时拦截数据")
     print("=" * 60)
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    print("\nIPv4 封禁规则统计:")
+    print("─" * 60)
+    success, output = run_command("iptables -L INPUT -n -v | grep match-set")
+    if success and output.strip():
+        print(f"{'数据包数':<12} {'字节数':<12} {'集合名称':<30}")
+        print("─" * 60)
+        for line in output.strip().split('\n'):
+            parts = line.split()
+            if len(parts) >= 8:
+                pkts = parts[0]
+                bytes_val = parts[1]
+                # 查找包含 blocked_asn 的部分
+                set_name = "未知"
+                for part in parts:
+                    if 'blocked_asn' in part:
+                        set_name = part
+                        break
+                print(f"{pkts:<12} {bytes_val:<12} {set_name:<30}")
+    else:
+        print("  (无)")
     
-    # 导出ipset
-    filename = f"ipset_backup_{timestamp}.conf"
-    success, _ = run_command(f"ipset save > {filename}")
-    if success:
-        print(f"✓ ipset配置已导出到: {filename}")
+    print("\nIPv6 封禁规则统计:")
+    print("─" * 60)
+    success, output = run_command("ip6tables -L INPUT -n -v | grep match-set")
+    if success and output.strip():
+        print(f"{'数据包数':<12} {'字节数':<12} {'集合名称':<30}")
+        print("─" * 60)
+        for line in output.strip().split('\n'):
+            parts = line.split()
+            if len(parts) >= 8:
+                pkts = parts[0]
+                bytes_val = parts[1]
+                # 查找包含 blocked_asn 的部分
+                set_name = "未知"
+                for part in parts:
+                    if 'blocked_asn' in part:
+                        set_name = part
+                        break
+                print(f"{pkts:<12} {bytes_val:<12} {set_name:<30}")
+    else:
+        print("  (无)")
     
-    # 导出iptables
-    filename_v4 = f"iptables_backup_{timestamp}.rules"
-    success, _ = run_command(f"iptables-save > {filename_v4}")
-    if success:
-        print(f"✓ iptables规则已导出到: {filename_v4}")
-    
-    filename_v6 = f"ip6tables_backup_{timestamp}.rules"
-    success, _ = run_command(f"ip6tables-save > {filename_v6}")
-    if success:
-        print(f"✓ ip6tables规则已导出到: {filename_v6}")
+    print("\n" + "=" * 60)
+    print("💡 提示:")
+    print("  - 数据包数：已拦截的数据包数量")
+    print("  - 字节数：已拦截的流量大小（字节）")
+    print("=" * 60)
 
 def save_config():
     """保存配置"""
@@ -478,7 +507,7 @@ def show_menu():
     print()
     print("  ┌─ 系统功能 " + "─" * 44 + "┐")
     print("  │                                                          │")
-    print("  │  [8] 💾 导出配置备份                                     │")
+    print("  │  [8] 📈 查看封禁统计（拦截数据）                         │")
     print("  │  [0] 👋 退出程序                                         │")
     print("  │                                                          │")
     print("  └" + "─" * 58 + "┘")
@@ -509,7 +538,7 @@ def main():
         elif choice == '7':
             test_ip()
         elif choice == '8':
-            export_config()
+            view_block_statistics()
         elif choice == '0':
             print("\n  👋 再见！感谢使用。\n")
             break
