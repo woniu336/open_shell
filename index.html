@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP滥用检查系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            padding-top: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .search-box {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-group button {
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .input-group button:hover {
+            transform: translateY(-2px);
+        }
+
+        .input-group button:active {
+            transform: translateY(0);
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #result {
+            display: none;
+        }
+
+        .report-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .report-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+        }
+
+        .report-header h2 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .report-header .ip-address {
+            font-size: 1.3em;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+
+        .confidence-section {
+            padding: 30px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .confidence-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .progress-bar {
+            height: 40px;
+            background: #f0f0f0;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: width 1s ease;
+        }
+
+        .danger { background: linear-gradient(90deg, #f43f5e, #dc2626); }
+        .warning { background: linear-gradient(90deg, #f59e0b, #d97706); }
+        .safe { background: linear-gradient(90deg, #10b981, #059669); }
+
+        .info-grid {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-item label {
+            display: block;
+            color: #666;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-item .value {
+            color: #333;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        .alert-box {
+            margin: 20px 30px 30px;
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            align-items: start;
+            gap: 15px;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            color: #92400e;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            color: #1e40af;
+        }
+
+        .alert-icon {
+            font-size: 1.5em;
+            flex-shrink: 0;
+        }
+
+        .categories {
+            padding: 30px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .categories h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .category-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .reports-summary {
+            padding: 30px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .reports-summary h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .report-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #667eea;
+        }
+
+        .report-meta {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ IP滥用检查系统</h1>
+            <p>检查IP地址的滥用报告和信誉评分</p>
+        </div>
+
+        <div class="search-box">
+            <form id="checkForm">
+                <div class="input-group">
+                    <input type="text" id="ipInput" placeholder="输入IP地址，例如：52.70.209.13" required>
+                    <button type="submit">检查</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>正在查询中，请稍候...</p>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        document.getElementById('checkForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const ip = document.getElementById('ipInput').value.trim();
+            const loading = document.getElementById('loading');
+            const result = document.getElementById('result');
+            
+            // 显示加载状态
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            
+            try {
+                const response = await fetch('check_ip.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'ip=' + encodeURIComponent(ip)
+                });
+                
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                if (data.success) {
+                    displayReport(data.data);
+                } else {
+                    displayError(data.message || '查询失败，请稍后重试');
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                displayError('网络错误，请检查连接后重试');
+            }
+        });
+
+        function displayReport(data) {
+            const result = document.getElementById('result');
+            
+            // 确定置信度等级
+            const confidence = parseInt(data.abuseConfidenceScore);
+            let confidenceClass = 'safe';
+            let confidenceText = '低风险';
+            
+            if (confidence >= 75) {
+                confidenceClass = 'danger';
+                confidenceText = '高风险';
+            } else if (confidence >= 25) {
+                confidenceClass = 'warning';
+                confidenceText = '中风险';
+            }
+            
+            // 生成分类标签
+            let categoriesHtml = '';
+            if (data.categories && data.categories.length > 0) {
+                categoriesHtml = `
+                    <div class="categories">
+                        <h3>📊 报告类别</h3>
+                        <div class="category-tags">
+                            ${data.categories.map(cat => `<span class="tag">${cat}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 生成报告摘要
+            let reportsHtml = '';
+            if (data.reports && data.reports.length > 0) {
+                reportsHtml = `
+                    <div class="reports-summary">
+                        <h3>📝 最近报告摘要</h3>
+                        ${data.reports.map(report => `
+                            <div class="report-item">
+                                <div class="report-meta">🌍 ${report.country} | ⏰ ${report.time}</div>
+                                <div>${report.comment}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            // 生成警告信息
+            let alertHtml = '';
+            if (data.hasRecentReports) {
+                alertHtml = `
+                    <div class="alert-box alert-warning">
+                        <div class="alert-icon">⚠️</div>
+                        <div>
+                            <strong>最近活跃警告：</strong> 此IP地址在过去一周内有滥用活动报告，可能仍在进行恶意行为。
+                        </div>
+                    </div>
+                `;
+            } else if (data.totalReports > 0) {
+                alertHtml = `
+                    <div class="alert-box alert-info">
+                        <div class="alert-icon">ℹ️</div>
+                        <div>此IP地址历史上曾被报告过滥用行为。</div>
+                    </div>
+                `;
+            }
+            
+            result.innerHTML = `
+                <div class="report-card">
+                    <div class="report-header">
+                        <h2>检查报告</h2>
+                        <div class="ip-address">${data.ipAddress}</div>
+                    </div>
+                    
+                    <div class="confidence-section">
+                        <div class="confidence-label">
+                            <span>滥用置信度</span>
+                            <span>${confidenceText} - ${confidence}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill ${confidenceClass}" style="width: ${confidence}%">
+                                ${confidence}%
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; color: #666; font-size: 0.95em;">
+                            已被报告 <strong>${data.totalReports}</strong> 次，来自 <strong>${data.numDistinctUsers}</strong> 个不同来源
+                        </div>
+                    </div>
+                    
+                    ${alertHtml}
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>🏢 ISP</label>
+                            <div class="value">${data.isp || '未知'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>💼 用途类型</label>
+                            <div class="value">${data.usageType || '未知'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>🔢 ASN</label>
+                            <div class="value">${data.asn || '未知'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>📍 位置</label>
+                            <div class="value">${data.country || '未知'}${data.city ? ' - ' + data.city : ''}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>🌐 域名</label>
+                            <div class="value">${data.domain || '未知'}</div>
+                        </div>
+                        <div class="info-item">
+                            <label>🖥️ 主机名</label>
+                            <div class="value">${data.hostname || '未知'}</div>
+                        </div>
+                    </div>
+                    
+                    ${categoriesHtml}
+                    ${reportsHtml}
+                </div>
+            `;
+            
+            result.style.display = 'block';
+        }
+
+        function displayError(message) {
+            const result = document.getElementById('result');
+            result.innerHTML = `
+                <div class="report-card">
+                    <div class="error-message">
+                        <h3>❌ 查询失败</h3>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
+            result.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
