@@ -2,6 +2,7 @@
 
 # IP黑名单管理脚本
 # 使用ipset高效管理大量IP封禁规则
+# 使用rc.local方式实现规则持久化
 
 set -e
 
@@ -45,6 +46,7 @@ install_ipset() {
     
     if command -v ipset &> /dev/null; then
         echo -e "${GREEN}✓ ipset已安装${NC}"
+        setup_rc_local
         return 0
     fi
     
@@ -53,7 +55,8 @@ install_ipset() {
     case $system in
         debian)
             apt-get update
-            apt-get install -y ipset iptables-persistent
+            apt-get install -y ipset
+            setup_rc_local
             ;;
         redhat)
             yum install -y ipset iptables-services
@@ -65,6 +68,59 @@ install_ipset() {
     esac
     
     echo -e "${GREEN}✓ ipset安装完成${NC}"
+}
+
+# 设置rc.local自动加载规则
+setup_rc_local() {
+    echo -e "${YELLOW}正在配置rc.local自动加载规则...${NC}"
+    
+    # 创建或更新rc.local
+    cat << 'RCEOF' | tee /etc/rc.local > /dev/null
+#!/bin/bash
+
+# 恢复ipset规则
+if [ -f /etc/ipset.conf ]; then
+    ipset restore -f /etc/ipset.conf
+fi
+
+# 恢复iptables规则
+if [ -f /etc/iptables.rules ]; then
+    iptables-restore < /etc/iptables.rules
+fi
+
+exit 0
+RCEOF
+    
+    # 添加执行权限
+    chmod +x /etc/rc.local
+    
+    # 启用systemd服务（如果系统使用systemd）
+    if [ -d /etc/systemd/system ]; then
+        # 检查rc-local服务是否存在
+        if [ ! -f /etc/systemd/system/rc-local.service ]; then
+            cat > /etc/systemd/system/rc-local.service << 'SERVICEEOF'
+[Unit]
+Description=/etc/rc.local Compatibility
+ConditionPathExists=/etc/rc.local
+
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+StandardOutput=tty
+RemainAfterExit=yes
+SysVStartPriority=99
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+        fi
+        
+        systemctl daemon-reload 2>/dev/null
+        systemctl enable rc-local.service 2>/dev/null || true
+    fi
+    
+    echo -e "${GREEN}✓ rc.local配置完成${NC}"
 }
 
 # 初始化ipset集合
@@ -242,6 +298,82 @@ clear_blacklist() {
     fi
 }
 
+# 屏蔽AmazonBot爬虫
+block_amazonbot() {
+    echo -e "${YELLOW}正在从GitHub下载AmazonBot IP列表...${NC}"
+    
+    local url="https://raw.githubusercontent.com/woniu336/open_shell/main/amazonbot_ips.txt"
+    local temp_file="/tmp/amazonbot_ips.txt"
+    
+    # 下载IP列表
+    if command -v curl &> /dev/null; then
+        curl -sSL "$url" -o "$temp_file"
+    elif command -v wget &> /dev/null; then
+        wget -q "$url" -O "$temp_file"
+    else
+        echo -e "${RED}错误: 系统中未找到curl或wget，请先安装${NC}"
+        return 1
+    fi
+    
+    if [[ ! -f "$temp_file" ]]; then
+        echo -e "${RED}错误: 下载失败${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}✓ 下载完成${NC}"
+    echo -e "${YELLOW}正在批量封禁AmazonBot IP...${NC}"
+    
+    local total=0
+    local success_count=0
+    local skip_count=0
+    local fail_count=0
+    
+    # 读取并处理每个IP
+    while IFS= read -r ip || [[ -n "$ip" ]]; do
+        # 跳过空行和注释
+        [[ -z "$ip" || "$ip" =~ ^[[:space:]]*# ]] && continue
+        
+        # 去除首尾空格
+        ip=$(echo "$ip" | xargs)
+        
+        total=$((total + 1))
+        
+        # 验证IP格式
+        if ! validate_ip "$ip"; then
+            echo -e "${RED}✗ 无效的IP: $ip${NC}"
+            fail_count=$((fail_count + 1))
+            continue
+        fi
+        
+        # 检查IP是否已存在
+        if ipset test "$BLACKLIST_NAME" "$ip" 2>/dev/null; then
+            skip_count=$((skip_count + 1))
+            continue
+        fi
+        
+        # 添加IP
+        if ipset add "$BLACKLIST_NAME" "$ip" 2>/dev/null; then
+            success_count=$((success_count + 1))
+        else
+            fail_count=$((fail_count + 1))
+        fi
+    done < "$temp_file"
+    
+    # 删除临时文件
+    rm -f "$temp_file"
+    
+    echo ""
+    echo -e "${BLUE}总计: $total 个IP${NC}"
+    echo -e "${GREEN}✓ 成功封禁: $success_count${NC}"
+    echo -e "${YELLOW}⚠ 已存在跳过: $skip_count${NC}"
+    echo -e "${RED}✗ 失败: $fail_count${NC}"
+    
+    if [ $success_count -gt 0 ]; then
+        save_rules
+        echo -e "${GREEN}✓ AmazonBot爬虫已屏蔽${NC}"
+    fi
+}
+
 # 显示菜单
 show_menu() {
     clear
@@ -253,6 +385,7 @@ show_menu() {
     echo "2. 从黑名单删除IP"
     echo "3. 查看黑名单"
     echo "4. 清空黑名单"
+    echo "5. 屏蔽AmazonBot爬虫"
     echo "0. 退出"
     echo ""
     echo -e "${BLUE}================================${NC}"
@@ -267,7 +400,7 @@ main() {
     
     while true; do
         show_menu
-        echo -e "${BLUE}请选择操作 [0-4]:${NC}"
+        echo -e "${BLUE}请选择操作 [0-5]:${NC}"
         read -r choice
         
         case $choice in
@@ -282,6 +415,9 @@ main() {
                 ;;
             4)
                 clear_blacklist
+                ;;
+            5)
+                block_amazonbot
                 ;;
             0)
                 echo -e "${GREEN}再见!${NC}"
