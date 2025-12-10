@@ -2,6 +2,7 @@
 
 # IP黑名单管理脚本
 # 使用ipset高效管理大量IP封禁规则
+# 支持CIDR网段格式
 # 使用rc.local方式实现规则持久化
 
 set -e
@@ -132,8 +133,8 @@ init_ipset() {
     fi
     
     echo -e "${YELLOW}正在创建黑名单集合...${NC}"
-    ipset create "$BLACKLIST_NAME" hash:ip timeout 0
-    echo -e "${GREEN}✓ 黑名单集合创建完成${NC}"
+    ipset create "$BLACKLIST_NAME" hash:net timeout 0
+    echo -e "${GREEN}✓ 黑名单集合创建完成（支持CIDR网段）${NC}"
 }
 
 # 初始化iptables规则
@@ -149,10 +150,32 @@ init_iptables() {
     echo -e "${GREEN}✓ iptables规则添加完成${NC}"
 }
 
-# 验证IP地址格式
+# 验证IP地址或CIDR网段格式
 validate_ip() {
     local ip=$1
-    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+    
+    # 检查是否包含CIDR格式
+    if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+        # CIDR格式验证
+        local addr_part="${ip%/*}"
+        local cidr_part="${ip#*/}"
+        
+        # 验证CIDR位数 (0-32)
+        if [ "$cidr_part" -lt 0 ] || [ "$cidr_part" -gt 32 ]; then
+            return 1
+        fi
+        
+        # 验证IP部分
+        local IFS='.'
+        local -a octets=($addr_part)
+        for octet in "${octets[@]}"; do
+            if [ $octet -gt 255 ]; then
+                return 1
+            fi
+        done
+        return 0
+    elif [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        # 单个IP地址验证
         local IFS='.'
         local -a octets=($ip)
         for octet in "${octets[@]}"; do
@@ -167,11 +190,12 @@ validate_ip() {
 
 # 添加IP到黑名单
 add_ips() {
-    echo -e "${BLUE}请输入要封禁的IP地址（多个IP用空格分隔）:${NC}"
+    echo -e "${BLUE}请输入要封禁的IP地址或CIDR网段（多个用空格分隔）:${NC}"
+    echo -e "${YELLOW}示例: 192.168.1.100 或 10.0.0.0/8${NC}"
     read -r ip_input
     
     if [[ -z "$ip_input" ]]; then
-        echo -e "${RED}错误: 未输入任何IP地址${NC}"
+        echo -e "${RED}错误: 未输入任何IP地址或网段${NC}"
         return 1
     fi
     
@@ -180,14 +204,14 @@ add_ips() {
     
     for ip in $ip_input; do
         if ! validate_ip "$ip"; then
-            echo -e "${RED}✗ 无效的IP地址: $ip${NC}"
+            echo -e "${RED}✗ 无效的IP地址或CIDR网段: $ip${NC}"
             fail_count=$((fail_count + 1))
             continue
         fi
         
         # 检查IP是否已存在
         if ipset test "$BLACKLIST_NAME" "$ip" 2>/dev/null; then
-            echo -e "${YELLOW}⚠ IP已在黑名单中: $ip${NC}"
+            echo -e "${YELLOW}⚠ 已在黑名单中: $ip${NC}"
             continue
         fi
         
@@ -211,11 +235,12 @@ add_ips() {
 
 # 删除IP从黑名单
 remove_ips() {
-    echo -e "${BLUE}请输入要解封的IP地址（多个IP用空格分隔）:${NC}"
+    echo -e "${BLUE}请输入要解封的IP地址或CIDR网段（多个用空格分隔）:${NC}"
+    echo -e "${YELLOW}示例: 192.168.1.100 或 10.0.0.0/8${NC}"
     read -r ip_input
     
     if [[ -z "$ip_input" ]]; then
-        echo -e "${RED}错误: 未输入任何IP地址${NC}"
+        echo -e "${RED}错误: 未输入任何IP地址或网段${NC}"
         return 1
     fi
     
@@ -224,14 +249,14 @@ remove_ips() {
     
     for ip in $ip_input; do
         if ! validate_ip "$ip"; then
-            echo -e "${RED}✗ 无效的IP地址: $ip${NC}"
+            echo -e "${RED}✗ 无效的IP地址或CIDR网段: $ip${NC}"
             fail_count=$((fail_count + 1))
             continue
         fi
         
         # 检查IP是否存在
         if ! ipset test "$BLACKLIST_NAME" "$ip" 2>/dev/null; then
-            echo -e "${YELLOW}⚠ IP不在黑名单中: $ip${NC}"
+            echo -e "${YELLOW}⚠ 不在黑名单中: $ip${NC}"
             continue
         fi
         
@@ -257,14 +282,15 @@ remove_ips() {
 view_blacklist() {
     echo -e "${BLUE}======== 当前黑名单 ========${NC}"
     
-    local count=$(ipset list "$BLACKLIST_NAME" | grep -c "^[0-9]" || echo 0)
+    local count=$(ipset list "$BLACKLIST_NAME" 2>/dev/null | grep -E "^[0-9]" | wc -l)
+    count=${count:-0}
     
     if [[ $count -eq 0 ]]; then
         echo -e "${YELLOW}黑名单为空${NC}"
     else
-        echo -e "${GREEN}共有 $count 个IP被封禁:${NC}"
+        echo -e "${GREEN}共有 $count 个IP/网段被封禁:${NC}"
         echo ""
-        ipset list "$BLACKLIST_NAME" | grep "^[0-9]" | nl
+        ipset list "$BLACKLIST_NAME" | grep -E "^[0-9]" | nl
     fi
     
     echo -e "${BLUE}============================${NC}"
@@ -285,7 +311,7 @@ save_rules() {
 
 # 清空黑名单
 clear_blacklist() {
-    echo -e "${RED}警告: 此操作将清空所有黑名单IP!${NC}"
+    echo -e "${RED}警告: 此操作将清空所有黑名单IP/网段!${NC}"
     echo -e "${YELLOW}确认清空? (yes/no):${NC}"
     read -r confirm
     
@@ -296,6 +322,45 @@ clear_blacklist() {
     else
         echo -e "${YELLOW}操作已取消${NC}"
     fi
+}
+
+# 屏蔽GPTBot爬虫
+block_gptbot() {
+    echo -e "${YELLOW}正在从GitHub下载GPTBot封禁脚本...${NC}"
+    
+    local script_url="https://raw.githubusercontent.com/woniu336/open_shell/main/block_gptbot.sh"
+    local temp_script="/tmp/block_gptbot.sh"
+    
+    # 下载脚本
+    if command -v curl &> /dev/null; then
+        curl -sSL "$script_url" -o "$temp_script"
+    elif command -v wget &> /dev/null; then
+        wget -q "$script_url" -O "$temp_script"
+    else
+        echo -e "${RED}错误: 系统中未找到curl或wget，请先安装${NC}"
+        return 1
+    fi
+    
+    if [[ ! -f "$temp_script" ]]; then
+        echo -e "${RED}错误: 下载失败${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}✓ 下载完成${NC}"
+    
+    # 添加执行权限
+    chmod +x "$temp_script"
+    
+    # 执行脚本
+    echo -e "${YELLOW}正在执行GPTBot封禁脚本...${NC}"
+    echo ""
+    bash "$temp_script"
+    
+    # 删除临时文件
+    rm -f "$temp_script"
+    
+    echo ""
+    echo -e "${GREEN}✓ GPTBot封禁脚本执行完成${NC}"
 }
 
 # 屏蔽AmazonBot爬虫
@@ -340,7 +405,7 @@ block_amazonbot() {
         
         # 验证IP格式
         if ! validate_ip "$ip"; then
-            echo -e "${RED}✗ 无效的IP: $ip${NC}"
+            echo -e "${RED}✗ 无效的IP/网段: $ip${NC}"
             fail_count=$((fail_count + 1))
             continue
         fi
@@ -363,7 +428,7 @@ block_amazonbot() {
     rm -f "$temp_file"
     
     echo ""
-    echo -e "${BLUE}总计: $total 个IP${NC}"
+    echo -e "${BLUE}总计: $total 个IP/网段${NC}"
     echo -e "${GREEN}✓ 成功封禁: $success_count${NC}"
     echo -e "${YELLOW}⚠ 已存在跳过: $skip_count${NC}"
     echo -e "${RED}✗ 失败: $fail_count${NC}"
@@ -379,13 +444,15 @@ show_menu() {
     clear
     echo -e "${BLUE}================================${NC}"
     echo -e "${GREEN}    IP黑名单管理工具${NC}"
+    echo -e "${YELLOW}    (支持CIDR网段)${NC}"
     echo -e "${BLUE}================================${NC}"
     echo ""
-    echo "1. 添加IP到黑名单"
-    echo "2. 从黑名单删除IP"
+    echo "1. 添加IP/网段到黑名单"
+    echo "2. 从黑名单删除IP/网段"
     echo "3. 查看黑名单"
     echo "4. 清空黑名单"
     echo "5. 屏蔽AmazonBot爬虫"
+    echo "6. 屏蔽GPTBot爬虫"
     echo "0. 退出"
     echo ""
     echo -e "${BLUE}================================${NC}"
@@ -400,7 +467,7 @@ main() {
     
     while true; do
         show_menu
-        echo -e "${BLUE}请选择操作 [0-5]:${NC}"
+        echo -e "${BLUE}请选择操作 [0-6]:${NC}"
         read -r choice
         
         case $choice in
@@ -418,6 +485,9 @@ main() {
                 ;;
             5)
                 block_amazonbot
+                ;;
+            6)
+                block_gptbot
                 ;;
             0)
                 echo -e "${GREEN}再见!${NC}"

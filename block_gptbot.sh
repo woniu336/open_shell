@@ -145,5 +145,12 @@ if ipset list "blacklist" >/dev/null 2>&1; then
 fi
 
 echo ""
-echo -e "${BLUE}查看 GPTBot 黑名单: ${NC}ipset list $IPSET_NAME"
-echo -e "${BLUE}删除 GPTBot 黑名单: ${NC}ipset destroy $IPSET_NAME"
+echo -e "${BLUE}================================${NC}"
+echo -e "${YELLOW}常用管理命令:${NC}"
+echo -e "${BLUE}查看 GPTBot 黑名单:${NC}"
+echo "  ipset list $IPSET_NAME"
+echo ""
+echo -e "${BLUE}删除 GPTBot 黑名单:${NC}"
+echo "  iptables -D INPUT -m set --match-set $IPSET_NAME src -j DROP"
+echo "  ipset destroy $IPSET_NAME"
+echo -e "${BLUE}================================${NC}"
