@@ -147,6 +147,8 @@ configure_jail() {
 [DEFAULT]
 # 白名单 IP
 ignoreip = 127.0.0.1/8 192.168.0.0/16 10.0.0.0/8
+# IPv6处理
+allowipv6 = auto
 # 默认封禁时间：1 小时
 bantime  = 1h
 # 查找时间窗口：10 分钟
