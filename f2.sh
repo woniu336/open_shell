@@ -115,16 +115,30 @@ configure_nginx_filters() {
     # 1. 防恶意扫描过滤器
     cat > /etc/fail2ban/filter.d/nginx-bad-request.conf << 'EOF'
 [Definition]
-failregex = ^<HOST> - - .* "(GET|POST|HEAD) .*\.(php|asp|aspx|jsp|cgi|env|git|yml|sql|bak|tar|gz|zip|rar|sh) HTTP.*" (400|401|403|404) .*$
-            ^<HOST> - - .* "(GET|POST|HEAD) .*/(phpmyadmin|admin|setup|manager|dashboard|wp-login|xmlrpc).* HTTP.*" (400|401|403|404) .*$
-ignoreregex =
+failregex = ^<HOST> - - \[.*\] "(GET|POST|HEAD) .*\.(php|asp|aspx|jsp|cgi|env|git|yml|sql|bak|tar|gz|zip|rar|sh) HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "(GET|POST|HEAD) .*/(phpmyadmin|admin|setup|manager|dashboard|wp-login|xmlrpc).* HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "(GET|POST) .*/\.\.\/.* HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "(POST) .*(php://input).* HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "PROPFIND .* HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "(GET|POST) .*(%%2e|%%2f|%%25).* HTTP.*" (400|401|403|404|444)
+           ^<HOST> - - \[.*\] "CONNECT .*:\d+ HTTP.*" (400|444)
+           ^<HOST> - - \[.*\] "GET .* HTTP.*" (400|401|403|404|444) .*"(zgrab|Nuclei|nikto|sqlmap|wpscan|Wfuzz)"
+           ^<HOST> - - \[.*\] "[^[:print:]]{3,}" (400|444)
+           ^<HOST> - - \[.*\] "\xA0\x05\x00.*HTTP.*" 400
+           ^<HOST> - - \[.*\] "^[^A-Za-z]" (400|444)
+
+datepattern = ^[^\[]*\[({DATE})
+{DAY} {MON} {YEAR} {HOUR}:{MIN}:{SEC} {TZ}
+
+ignoreregex = ^<HOST> - - \[.*\] ".*" 200
 EOF
     
     # 2. 防CC攻击过滤器
     cat > /etc/fail2ban/filter.d/nginx-cc.conf << 'EOF'
 [Definition]
 failregex = ^<HOST> - - .* "(GET|POST|HEAD).*HTTP.*" .*$
-ignoreregex = \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|mp4|webm) HTTP
+
+ignoreregex = \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|mp4|webm) HTTP|.*Nginx-UI.*$
 EOF
     
     log_info "Nginx过滤器配置完成"
@@ -147,16 +161,11 @@ configure_jail() {
 [DEFAULT]
 # 白名单 IP
 ignoreip = 127.0.0.1/8 192.168.0.0/16 10.0.0.0/8
-# IPv6处理
 allowipv6 = auto
-# 默认封禁时间：1 小时
 bantime  = 1h
-# 查找时间窗口：10 分钟
 findtime = 10m
-# 最大尝试次数：5 次
 maxretry = 5
-# 使用iptables
-banaction = iptables-multiport
+banaction = ufw
 
 # ==========================================
 # Nginx 规则 1：防止恶意扫描
@@ -192,7 +201,7 @@ port = 22
 maxretry = 3
 findtime = 300
 bantime = -1
-banaction = iptables-multiport
+banaction = ufw
 logpath = /var/log/auth.log
 EOF
     
