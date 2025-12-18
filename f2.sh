@@ -136,9 +136,8 @@ EOF
     # 2. 防CC攻击过滤器
     cat > /etc/fail2ban/filter.d/nginx-cc.conf << 'EOF'
 [Definition]
-failregex = ^<HOST> - - .* "(GET|POST|HEAD).*HTTP.*" .*$
-
-ignoreregex = \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|mp4|webm) HTTP|.*Nginx-UI.*$
+failregex = ^<HOST> .* HTTP.* (403|429) .*$ 
+ignoreregex = ^.*(\/(?:robots\.txt|favicon\.ico|.*\.(?:jpg|png|gif|jpeg|svg|webp|bmp|tiff|css|js|woff|woff2|eot|ttf|otf))$)
 EOF
     
     log_info "Nginx过滤器配置完成"
@@ -159,12 +158,10 @@ configure_jail() {
     # 创建基础jail.local配置
     cat > /etc/fail2ban/jail.local << 'EOF'
 [DEFAULT]
-# 白名单 IP
 ignoreip = 127.0.0.1/8 192.168.0.0/16 10.0.0.0/8
-allowipv6 = auto
 bantime  = 1h
-findtime = 10m
-maxretry = 5
+findtime = 15m
+maxretry = 10
 banaction = ufw
 
 # ==========================================
@@ -183,11 +180,11 @@ bantime  = 24h
 # ==========================================
 [nginx-cc]
 enabled  = true
+port     = 80,443
 logpath  = /var/log/nginx/access.log
 filter   = nginx-cc
-port     = 80,443
-findtime = 60
-maxretry = 120
+findtime = 300
+maxretry = 10
 bantime  = 2h
 
 # ==========================================
