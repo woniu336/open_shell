@@ -172,7 +172,7 @@ enabled  = true
 logpath  = /var/log/nginx/access.log
 filter   = nginx-bad-request
 port     = 80,443
-maxretry = 3
+maxretry = 5
 bantime  = 24h
 
 # ==========================================
