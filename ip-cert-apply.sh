@@ -34,10 +34,45 @@ KEY_FILE="${LEGO_DIR}/certificates/${IP_ADDRESS}.key"
 
 echo "=== 开始申请 ${IP_ADDRESS} 的SSL证书 ==="
 
-# 停止nginx服务释放80端口
+# 检查并停止nginx-ui服务
+NGINX_UI_RUNNING=false
+echo "检查nginx-ui服务状态..."
+if systemctl list-units --type=service --all | grep -q nginx-ui; then
+    echo "发现nginx-ui服务，正在停止..."
+    sudo systemctl stop nginx-ui 2>/dev/null && NGINX_UI_RUNNING=true
+    echo "nginx-ui服务已停止"
+elif ps aux | grep -q "[n]ginx-ui"; then
+    echo "发现nginx-ui进程，正在停止..."
+    sudo pkill -f nginx-ui 2>/dev/null && NGINX_UI_RUNNING=true
+    echo "nginx-ui进程已停止"
+fi
+
+# 停止nginx服务
 echo "停止nginx服务..."
 sudo systemctl stop nginx 2>/dev/null || true
-echo "继续执行证书申请..."
+
+# 确保所有nginx相关进程都停止
+echo "清理nginx相关进程..."
+sudo pkill -9 nginx 2>/dev/null || true
+
+# 短暂等待
+sleep 2
+
+# 检查80端口是否已释放
+echo "检查80端口状态..."
+if ss -tuln 2>/dev/null | grep -q ":80 "; then
+    echo "警告: 端口80仍被占用，尝试强制释放..."
+    sudo fuser -k 80/tcp 2>/dev/null || true
+    sleep 2
+    
+    if ss -tuln 2>/dev/null | grep -q ":80 "; then
+        echo "错误: 无法释放80端口，请手动检查"
+        echo "运行: sudo ss -tulnp | grep :80"
+        exit 1
+    fi
+fi
+
+echo "✓ 80端口已释放，继续申请证书..."
 
 # 申请证书
 echo "正在申请证书..."
@@ -85,13 +120,17 @@ else
     exit 1
 fi
 
-# 启动nginx服务
-echo "启动nginx服务..."
-sudo systemctl start nginx 2>/dev/null || echo "提示: nginx服务启动失败或未安装"
+# 重新启动nginx服务
+echo "重新启动nginx服务..."
+sudo systemctl start nginx 2>/dev/null || echo "警告: nginx启动失败"
+
+# 重新启动nginx-ui服务（如果之前运行的话）
+if [ "$NGINX_UI_RUNNING" = true ]; then
+    echo "重新启动nginx-ui服务..."
+    sudo systemctl start nginx-ui 2>/dev/null || echo "警告: nginx-ui启动失败"
+fi
 
 echo "=== 证书申请完成 ==="
 echo "公网IP: ${IP_ADDRESS}"
 echo "证书文件: ${NGINX_SSL_DIR}/${IP_ADDRESS}.crt"
 echo "私钥文件: ${NGINX_SSL_DIR}/${IP_ADDRESS}.key"
-echo ""
-echo "请配置nginx使用以上证书文件"

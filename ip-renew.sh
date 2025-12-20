@@ -47,20 +47,41 @@ date
 # 检查证书文件是否存在
 if [[ ! -f "${CERT_FILE}" || ! -f "${KEY_FILE}" ]]; then
     echo "错误: 未找到证书文件，尝试重新申请..."
-    echo "证书文件路径: ${CERT_FILE}"
-    echo "私钥文件路径: ${KEY_FILE}"
-    
-    # 调用首次申请脚本
     /root/ip-cert-apply.sh
     exit $?
+fi
+
+# 检查并停止nginx-ui服务
+NGINX_UI_RUNNING=false
+echo "检查nginx-ui服务状态..."
+if systemctl list-units --type=service --all | grep -q nginx-ui; then
+    echo "发现nginx-ui服务，正在停止..."
+    sudo systemctl stop nginx-ui 2>/dev/null && NGINX_UI_RUNNING=true
+    echo "nginx-ui服务已停止"
+elif ps aux | grep -q "[n]ginx-ui"; then
+    echo "发现nginx-ui进程，正在停止..."
+    sudo pkill -f nginx-ui 2>/dev/null && NGINX_UI_RUNNING=true
+    echo "nginx-ui进程已停止"
 fi
 
 # 停止nginx服务
 echo "停止nginx服务..."
 sudo systemctl stop nginx 2>/dev/null || true
-echo "继续执行证书续期..."
 
-# 续期证书
+# 清理nginx相关进程
+echo "清理nginx相关进程..."
+sudo pkill -9 nginx 2>/dev/null || true
+sleep 2
+
+# 检查80端口
+echo "检查80端口状态..."
+if ss -tuln 2>/dev/null | grep -q ":80 "; then
+    echo "释放80端口..."
+    sudo fuser -k 80/tcp 2>/dev/null || true
+    sleep 2
+fi
+
+# 续期证书（设置为提前30天续期）
 echo "执行证书续期..."
 docker run --rm \
   -v "${LEGO_DIR}":/.lego \
@@ -86,17 +107,20 @@ if [[ -f "${CERT_FILE}" && -f "${KEY_FILE}" ]]; then
     echo "✓ 证书文件已更新"
 else
     echo "✗ 证书续期失败！"
-    echo "检查证书文件..."
-    
-    # 尝试重新申请
     echo "尝试重新申请证书..."
     /root/ip-cert-apply.sh
     exit $?
 fi
 
-# 启动nginx服务
-echo "启动nginx服务..."
-sudo systemctl start nginx 2>/dev/null || echo "提示: nginx服务启动失败或未安装"
+# 重新启动nginx服务
+echo "重新启动nginx服务..."
+sudo systemctl start nginx 2>/dev/null || echo "警告: nginx启动失败"
+
+# 重新启动nginx-ui服务（如果之前运行的话）
+if [ "$NGINX_UI_RUNNING" = true ]; then
+    echo "重新启动nginx-ui服务..."
+    sudo systemctl start nginx-ui 2>/dev/null || echo "警告: nginx-ui启动失败"
+fi
 
 echo "=== 证书续期完成 ==="
 echo "续期时间: $(date)"
