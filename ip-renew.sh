@@ -114,12 +114,12 @@ fi
 
 # 重新启动nginx服务
 echo "重新启动nginx服务..."
-sudo systemctl start nginx 2>/dev/null || echo "警告: nginx启动失败"
+sudo systemctl restart nginx 2>/dev/null || echo "警告: nginx启动失败"
 
 # 重新启动nginx-ui服务（如果之前运行的话）
 if [ "$NGINX_UI_RUNNING" = true ]; then
     echo "重新启动nginx-ui服务..."
-    sudo systemctl start nginx-ui 2>/dev/null || echo "警告: nginx-ui启动失败"
+    sudo systemctl restart nginx-ui 2>/dev/null || echo "警告: nginx-ui启动失败"
 fi
 
 echo "=== 证书续期完成 ==="
