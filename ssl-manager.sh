@@ -154,7 +154,7 @@ install_lego() {
     esac
     
     # 最新版本URL
-    LEGO_VERSION="v4.12.3"
+    LEGO_VERSION="v4.30.1"
     LEGO_URL="https://github.com/go-acme/lego/releases/download/${LEGO_VERSION}/lego_${LEGO_VERSION}_linux_${ARCH}.tar.gz"
     
     # 下载并安装
