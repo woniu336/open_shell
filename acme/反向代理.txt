@@ -1,0 +1,80 @@
+# ===== WebSocket 判断 =====
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+# ===== HTTP → HTTPS =====
+server {
+    listen 80;
+    listen [::]:80;
+	
+    server_name b.1234.cc;
+	
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# ===== HTTPS 443 =====
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+	
+    server_name b.1234.cc;
+	
+    access_log /var/log/nginx/b.1234.cc-access.log main buffer=64k flush=10s;
+    error_log /var/log/nginx/b.1234.cc-error.log warn;
+    
+	acme_certificate letsencrypt;
+    ssl_certificate $acme_certificate;
+    ssl_certificate_key $acme_certificate_key;
+    ssl_certificate_cache max=2;
+    
+	location / {
+        proxy_http_version 1.1;
+		
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+		
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+		proxy_set_header X-Forwarded-Port $server_port;
+		
+        proxy_pass http://127.0.0.1:80;
+    }
+    
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|bmp|swf|eot|svg|ttf|woff|woff2|webp)$ {
+        proxy_pass http://127.0.0.1:80;
+
+        proxy_set_header Host               $host;
+        proxy_set_header X-Real-IP          $remote_addr;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Port   $server_port;
+
+        proxy_http_version 1.1;
+
+        # 代理静态缓存
+        proxy_cache my_proxy_cache;
+        proxy_cache_lock on;
+        proxy_cache_background_update on;
+        proxy_cache_use_stale  error timeout invalid_header updating http_500 http_502 http_503 http_504;
+        proxy_cache_methods GET HEAD;
+
+        # 浏览器缓存
+        expires 30d;
+        etag on;
+
+        # 高并发优化
+        aio           threads;
+        log_not_found off;
+        access_log    off;
+    }
+}
