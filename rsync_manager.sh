@@ -11,14 +11,17 @@ CONFIG_FILE="$CONFIG_DIR/tasks.conf"
 KEY_DIR="$CONFIG_DIR/keys"
 LOG_DIR="$CONFIG_DIR/logs"
 LOG_FILE="$LOG_DIR/rsync_$(date +%Y%m%d).log"
+MONITOR_DIR="$CONFIG_DIR/monitors"
+MONITOR_PID_FILE="$MONITOR_DIR/monitor.pid"
 
 # 初始化目录结构
 init_dirs() {
-    mkdir -p "$CONFIG_DIR" "$KEY_DIR" "$LOG_DIR"
+    mkdir -p "$CONFIG_DIR" "$KEY_DIR" "$LOG_DIR" "$MONITOR_DIR"
     touch "$CONFIG_FILE"
     chmod 700 "$CONFIG_DIR"
     chmod 600 "$CONFIG_FILE"
     chmod 700 "$KEY_DIR"
+    chmod 700 "$MONITOR_DIR"
 }
 
 # 日志函数
@@ -581,6 +584,11 @@ check_dependencies() {
         fi
     fi
     
+    # 检查inotifywait（如果用户要使用监控功能）
+    if ! command -v inotifywait &> /dev/null; then
+        missing_deps+=("inotify-tools")
+    fi
+    
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         show_warning "缺少以下依赖: ${missing_deps[*]}"
         echo "安装命令:"
@@ -594,6 +602,10 @@ check_dependencies() {
                 sshpass)
                     echo "  Ubuntu/Debian: sudo apt install sshpass"
                     echo "  CentOS/RHEL: sudo yum install sshpass"
+                    ;;
+                inotify-tools)
+                    echo "  Ubuntu/Debian: sudo apt install inotify-tools"
+                    echo "  CentOS/RHEL: sudo yum install inotify-tools"
                     ;;
             esac
         done
@@ -706,6 +718,287 @@ restore_config() {
     rm -f "$temp_backup"
 }
 
+# ============================================
+# 实时监控功能
+# ============================================
+
+# 检查inotifywait依赖
+check_inotify_dependency() {
+    if ! command -v inotifywait &> /dev/null; then
+        show_error "未安装 inotify-tools，请先安装:"
+        show_info "Ubuntu/Debian: sudo apt install inotify-tools"
+        show_info "CentOS/RHEL: sudo yum install inotify-tools"
+        return 1
+    fi
+    return 0
+}
+
+# 启动实时监控
+start_monitor() {
+    log "INFO" "开始启动实时监控"
+    
+    if [[ ! -s "$CONFIG_FILE" ]]; then
+        show_error "暂无同步任务可监控"
+        return
+    fi
+    
+    # 检查依赖
+    if ! check_inotify_dependency; then
+        return
+    fi
+    
+    list_tasks
+    read -e -p "请输入要监控的任务编号: " num
+    
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        show_error "请输入有效的数字编号！"
+        return
+    fi
+    
+    local task=$(sed -n "${num}p" "$CONFIG_FILE")
+    if [[ -z "$task" ]]; then
+        show_error "未找到对应的任务！"
+        return
+    fi
+    
+    IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
+    
+    # 检查本地目录是否存在
+    if [[ ! -d "$local_path" ]]; then
+        show_error "本地目录不存在: $local_path"
+        return
+    fi
+    
+    # 检查是否已经在监控
+    if [[ -f "$MONITOR_PID_FILE" ]]; then
+        local pid=$(cat "$MONITOR_PID_FILE")
+        if kill -0 "$pid" 2>/dev/null; then
+            show_warning "监控进程已在运行 (PID: $pid)"
+            read -e -p "是否停止现有监控并启动新的？(y/N): " confirm
+            if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+                show_info "取消操作"
+                return
+            fi
+            stop_monitor
+        fi
+    fi
+    
+    # 创建监控脚本
+    local monitor_script="$MONITOR_DIR/monitor_$num.sh"
+    
+    cat > "$monitor_script" << EOF
+#!/bin/bash
+# 实时监控脚本
+# 任务编号: $num
+# 任务名称: $name
+# 监控目录: $local_path
+
+CONFIG_FILE="$CONFIG_FILE"
+LOG_FILE="$LOG_DIR/rsync_monitor_\$(date +%Y%m%d).log"
+DELAY_SECONDS=10
+
+log_monitor() {
+    local level="\$1"
+    local message="\$2"
+    local timestamp=\$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[\$timestamp] [\$level] \$message" | tee -a "\$LOG_FILE"
+}
+
+log_monitor "INFO" "启动实时监控: 任务 '$name', 目录: $local_path"
+
+# 读取任务配置
+task=\$(sed -n "${num}p" "\$CONFIG_FILE")
+if [[ -z "\$task" ]]; then
+    log_monitor "ERROR" "任务不存在: $num"
+    exit 1
+fi
+
+IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "\$task"
+
+# 构建rsync命令
+build_rsync_cmd() {
+    local ssh_options="-p $port -o StrictHostKeyChecking=no -o ConnectTimeout=30"
+    
+    if [[ "$auth_method" == "password" ]]; then
+        echo "sshpass -p '$password_or_key' rsync $options -e 'ssh \$ssh_options' \"$local_path\" \"$remote:$remote_path\""
+    else
+        echo "rsync $options -e 'ssh -i \"$password_or_key\" \$ssh_options' \"$local_path\" \"$remote:$remote_path\""
+    fi
+}
+
+# 执行同步函数（带延迟）
+perform_sync() {
+    local event="\$1"
+    local file="\$2"
+    
+    log_monitor "INFO" "检测到变化: \$event - \$file，等待 \${DELAY_SECONDS}秒后同步..."
+    sleep \$DELAY_SECONDS
+    
+    local rsync_cmd=\$(build_rsync_cmd)
+    log_monitor "INFO" "开始同步: \$rsync_cmd"
+    
+    eval \$rsync_cmd
+    local exit_code=\$?
+    
+    if [[ \$exit_code -eq 0 ]]; then
+        log_monitor "INFO" "同步成功"
+    else
+        log_monitor "ERROR" "同步失败，退出码: \$exit_code"
+    fi
+}
+
+# 设置退出信号处理
+trap 'log_monitor "INFO" "监控进程停止"; exit 0' INT TERM
+
+# 开始监控
+log_monitor "INFO" "开始监控目录: $local_path"
+log_monitor "INFO" "监控事件: 创建、修改、移动、删除"
+log_monitor "INFO" "延迟时间: \${DELAY_SECONDS}秒"
+
+# 使用inotifywait监控目录
+inotifywait -m -r "$local_path" \
+    -e create \
+    -e modify \
+    -e moved_to \
+    -e moved_from \
+    -e delete \
+    --format '%e %w%f' \
+    --timefmt '%Y-%m-%d %H:%M:%S' | \
+while read -r event file
+do
+    # 过滤掉一些不需要同步的文件（如临时文件）
+    if [[ "\$file" =~ \.(swp|swx|tmp|temp)$ ]] || [[ "\$file" =~ ~\$ ]]; then
+        continue
+    fi
+    
+    # 记录事件但不立即同步（用于调试）
+    log_monitor "DEBUG" "事件: \$event - \$file"
+    
+    # 在后台执行同步（避免阻塞监控）
+    perform_sync "\$event" "\$file" &
+done
+
+log_monitor "INFO" "监控进程异常退出"
+EOF
+    
+    chmod +x "$monitor_script"
+    
+    # 启动监控进程（后台运行）
+    nohup bash "$monitor_script" > "$LOG_DIR/monitor_$num.log" 2>&1 &
+    local monitor_pid=$!
+    
+    # 保存PID
+    echo "$monitor_pid" > "$MONITOR_PID_FILE"
+    echo "$num" > "$MONITOR_DIR/monitor_task_$monitor_pid"
+    
+    show_success "实时监控已启动！"
+    show_info "监控进程 PID: $monitor_pid"
+    show_info "监控目录: $local_path"
+    show_info "延迟时间: 10秒"
+    show_info "日志文件: $LOG_DIR/monitor_$num.log"
+    show_info "监控脚本: $monitor_script"
+    
+    log "INFO" "启动实时监控: 任务 $name (PID: $monitor_pid)"
+}
+
+# 停止实时监控
+stop_monitor() {
+    log "INFO" "开始停止实时监控"
+    
+    if [[ ! -f "$MONITOR_PID_FILE" ]]; then
+        show_warning "没有正在运行的监控进程"
+        return
+    fi
+    
+    local pid=$(cat "$MONITOR_PID_FILE")
+    
+    if kill -0 "$pid" 2>/dev/null; then
+        kill -TERM "$pid"
+        
+        # 等待进程结束
+        local wait_count=0
+        while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 10 ]]; do
+            sleep 1
+            ((wait_count++))
+        done
+        
+        if kill -0 "$pid" 2>/dev/null; then
+            show_warning "监控进程未正常退出，强制终止..."
+            kill -9 "$pid"
+        fi
+        
+        rm -f "$MONITOR_PID_FILE"
+        rm -f "$MONITOR_DIR/monitor_task_$pid"
+        
+        show_success "监控进程已停止 (PID: $pid)"
+        log "INFO" "停止实时监控: PID $pid"
+    else
+        show_warning "监控进程不存在或已停止 (PID: $pid)"
+        rm -f "$MONITOR_PID_FILE"
+        rm -f "$MONITOR_DIR/monitor_task_$pid"
+    fi
+}
+
+# 查看监控状态
+view_monitor_status() {
+    echo "实时监控状态:"
+    echo "========================================="
+    
+    if [[ ! -f "$MONITOR_PID_FILE" ]]; then
+        show_warning "没有正在运行的监控进程"
+        return
+    fi
+    
+    local pid=$(cat "$MONITOR_PID_FILE")
+    local task_file="$MONITOR_DIR/monitor_task_$pid"
+    
+    if [[ -f "$task_file" ]]; then
+        local task_num=$(cat "$task_file")
+        local task=$(sed -n "${task_num}p" "$CONFIG_FILE" 2>/dev/null)
+        
+        if [[ -n "$task" ]]; then
+            IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
+            
+            echo "监控进程信息:"
+            echo "-----------------------------------------"
+            echo "进程 PID: $pid"
+            echo "任务编号: $task_num"
+            echo "任务名称: $name"
+            echo "监控目录: $local_path"
+            echo "远程目标: $remote:$remote_path"
+            echo "-----------------------------------------"
+            
+            # 检查进程是否在运行
+            if kill -0 "$pid" 2>/dev/null; then
+                show_success "监控进程正在运行"
+                
+                # 显示最近的日志
+                local monitor_log="$LOG_DIR/monitor_$task_num.log"
+                if [[ -f "$monitor_log" ]]; then
+                    echo ""
+                    echo "最近日志 (最后10行):"
+                    echo "-----------------------------------------"
+                    tail -10 "$monitor_log"
+                    echo "-----------------------------------------"
+                    echo "完整日志: $monitor_log"
+                fi
+            else
+                show_warning "监控进程已停止 (PID: $pid)"
+                # 清理残留文件
+                rm -f "$MONITOR_PID_FILE" "$task_file"
+            fi
+        else
+            show_error "任务配置不存在或已被删除"
+            rm -f "$MONITOR_PID_FILE" "$task_file"
+        fi
+    else
+        show_error "监控任务文件不存在"
+        rm -f "$MONITOR_PID_FILE"
+    fi
+    
+    echo "========================================="
+}
+
 # 主菜单
 main_menu() {
     init_dirs
@@ -713,7 +1006,8 @@ main_menu() {
     while true; do
         clear
         echo "========================================="
-        echo "      RSYNC 远程同步管理工具 v1.0"
+        echo "      RSYNC 远程同步管理工具 v1.1"
+        echo "      新增：实时监控同步功能"
         echo "========================================="
         echo ""
         
@@ -734,16 +1028,21 @@ main_menu() {
         echo "  7. 查看定时任务"
         echo "  8. 删除定时任务"
         echo ""
+        echo "实时监控:"
+        echo "  9. 启动实时监控"
+        echo "  10. 停止实时监控"
+        echo "  11. 查看监控状态"
+        echo ""
         echo "系统管理:"
-        echo "  9. 检查依赖"
-        echo "  10. 清理旧日志"
-        echo "  11. 备份配置"
-        echo "  12. 恢复配置"
+        echo "  12. 检查依赖"
+        echo "  13. 清理旧日志"
+        echo "  14. 备份配置"
+        echo "  15. 恢复配置"
         echo ""
         echo "  0. 退出"
         echo "========================================="
         
-        read -e -p "请选择操作 (0-12): " choice
+        read -e -p "请选择操作 (0-15): " choice
         
         case $choice in
             1) list_tasks ;;
@@ -766,10 +1065,13 @@ main_menu() {
             6) schedule_task ;;
             7) view_schedules ;;
             8) delete_schedule ;;
-            9) check_dependencies ;;
-            10) cleanup_logs ;;
-            11) backup_config ;;
-            12) restore_config ;;
+            9) start_monitor ;;
+            10) stop_monitor ;;
+            11) view_monitor_status ;;
+            12) check_dependencies ;;
+            13) cleanup_logs ;;
+            14) backup_config ;;
+            15) restore_config ;;
             0)
                 echo ""
                 show_info "感谢使用 RSYNC 管理工具！"
@@ -788,25 +1090,31 @@ main_menu() {
 
 # 脚本入口点
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "RSYNC 远程同步管理工具"
+    echo "RSYNC 远程同步管理工具 v1.1"
     echo ""
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
-    echo "  -h, --help     显示帮助信息"
-    echo "  -v, --version  显示版本信息"
-    echo "  --run-task N   执行指定编号的任务 (push)"
-    echo "  --pull-task N  执行指定编号的任务 (pull)"
-    echo "  --list         列出所有任务"
-    echo "  --add          添加新任务"
+    echo "  -h, --help         显示帮助信息"
+    echo "  -v, --version      显示版本信息"
+    echo "  --run-task N       执行指定编号的任务 (push)"
+    echo "  --pull-task N      执行指定编号的任务 (pull)"
+    echo "  --list             列出所有任务"
+    echo "  --add              添加新任务"
+    echo "  --start-monitor N  启动指定任务的实时监控"
+    echo "  --stop-monitor     停止实时监控"
+    echo "  --monitor-status   查看监控状态"
     echo ""
     echo "示例:"
-    echo "  $0              # 启动交互式菜单"
-    echo "  $0 --list       # 列出所有任务"
-    echo "  $0 --run-task 1 # 执行任务1的推送同步"
+    echo "  $0                      # 启动交互式菜单"
+    echo "  $0 --list               # 列出所有任务"
+    echo "  $0 --run-task 1         # 执行任务1的推送同步"
+    echo "  $0 --start-monitor 1    # 启动任务1的实时监控"
+    echo "  $0 --stop-monitor       # 停止实时监控"
     exit 0
 elif [[ "$1" == "--version" || "$1" == "-v" ]]; then
-    echo "RSYNC 远程同步管理工具 v1.0"
+    echo "RSYNC 远程同步管理工具 v1.1"
+    echo "新增功能：基于inotifywait的实时监控同步"
     exit 0
 elif [[ "$1" == "--list" ]]; then
     init_dirs
@@ -824,6 +1132,26 @@ elif [[ "$1" == "--add" ]]; then
     init_dirs
     add_task
     exit 0
+elif [[ "$1" == "--start-monitor" && -n "$2" ]]; then
+    init_dirs
+    # 检查inotifywait依赖
+    if ! command -v inotifywait &> /dev/null; then
+        echo "错误：未安装 inotify-tools"
+        echo "安装命令:"
+        echo "  Ubuntu/Debian: sudo apt install inotify-tools"
+        echo "  CentOS/RHEL: sudo yum install inotify-tools"
+        exit 1
+    fi
+    start_monitor "$2"
+    exit $?
+elif [[ "$1" == "--stop-monitor" ]]; then
+    init_dirs
+    stop_monitor
+    exit $?
+elif [[ "$1" == "--monitor-status" ]]; then
+    init_dirs
+    view_monitor_status
+    exit $?
 else
     # 启动主菜单
     main_menu
