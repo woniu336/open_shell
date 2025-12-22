@@ -1,0 +1,830 @@
+#!/bin/bash
+
+# ============================================
+# RSYNC 远程同步管理工具
+# 功能：任务管理、双向同步、定时任务、密钥管理
+# ============================================
+
+# 配置变量
+CONFIG_DIR="$HOME/.rsync_manager"
+CONFIG_FILE="$CONFIG_DIR/tasks.conf"
+KEY_DIR="$CONFIG_DIR/keys"
+LOG_DIR="$CONFIG_DIR/logs"
+LOG_FILE="$LOG_DIR/rsync_$(date +%Y%m%d).log"
+
+# 初始化目录结构
+init_dirs() {
+    mkdir -p "$CONFIG_DIR" "$KEY_DIR" "$LOG_DIR"
+    touch "$CONFIG_FILE"
+    chmod 700 "$CONFIG_DIR"
+    chmod 600 "$CONFIG_FILE"
+    chmod 700 "$KEY_DIR"
+}
+
+# 日志函数
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 显示消息函数
+show_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+show_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+show_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+show_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# ============================================
+# 核心功能函数
+# ============================================
+
+# 显示任务列表
+list_tasks() {
+    if [[ ! -s "$CONFIG_FILE" ]]; then
+        show_warning "暂无同步任务"
+        return
+    fi
+    
+    echo "已保存的同步任务:"
+    echo "========================================="
+    printf "%-4s %-20s %-30s %-30s\n" "编号" "任务名称" "本地目录" "远程目录"
+    echo "-----------------------------------------"
+    
+    local count=1
+    while IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key; do
+        printf "%-4s %-20s %-30s %-30s\n" "$count" "$name" "$local_path" "$remote:$remote_path"
+        ((count++))
+    done < "$CONFIG_FILE"
+    
+    echo "========================================="
+}
+
+# 添加新任务
+add_task() {
+    log "INFO" "开始添加新任务"
+    
+    echo "创建新同步任务："
+    echo "---------------------------------"
+    
+    # 输入验证函数
+    validate_input() {
+        local prompt="$1"
+        local var_name="$2"
+        local required="${3:-true}"
+        
+        while true; do
+            read -e -p "$prompt: " input
+            
+            if [[ "$required" == "true" && -z "$input" ]]; then
+                show_error "此项为必填项！"
+                continue
+            fi
+            
+            if [[ -z "$input" && "$required" == "false" ]]; then
+                break
+            fi
+            
+            eval "$var_name=\"$input\""
+            break
+        done
+    }
+    
+    # 收集任务信息
+    validate_input "请输入任务名称" "name"
+    validate_input "请输入本地目录" "local_path"
+    validate_input "请输入远程用户@IP (如: user@192.168.1.100)" "remote"
+    validate_input "请输入远程目录" "remote_path"
+    
+    read -e -p "请输入 SSH 端口 (默认 22): " port
+    port=${port:-22}
+    
+    # 选择身份验证方式
+    echo "请选择身份验证方式:"
+    echo "1. 密码认证"
+    echo "2. 密钥认证"
+    
+    while true; do
+        read -e -p "请选择 (1/2): " auth_choice
+        case $auth_choice in
+            1)
+                read -s -p "请输入密码: " password
+                echo
+                auth_method="password"
+                password_or_key="$password"
+                break
+                ;;
+            2)
+                echo "请选择密钥来源:"
+                echo "1. 粘贴密钥内容"
+                echo "2. 指定密钥文件路径"
+                read -e -p "请选择 (1/2): " key_source
+                
+                case $key_source in
+                    1)
+                        echo "请粘贴私钥内容 (以空行结束):"
+                        local key_content=""
+                        while IFS= read -r line; do
+                            if [[ -z "$line" && "$key_content" == *"-----BEGIN"* ]]; then
+                                break
+                            fi
+                            if [[ -n "$line" || "$key_content" == *"-----BEGIN"* ]]; then
+                                key_content+="${line}"$'\n'
+                            fi
+                        done
+                        
+                        if [[ "$key_content" == *"-----BEGIN"* && "$key_content" == *"PRIVATE KEY-----"* ]]; then
+                            local key_file="$KEY_DIR/${name}_$(date +%s).key"
+                            echo -n "$key_content" > "$key_file"
+                            chmod 600 "$key_file"
+                            password_or_key="$key_file"
+                            auth_method="key"
+                            show_success "密钥已保存到: $key_file"
+                        else
+                            show_error "无效的密钥格式！"
+                            return
+                        fi
+                        ;;
+                    2)
+                        read -e -p "请输入密钥文件路径: " key_path
+                        if [[ -f "$key_path" ]]; then
+                            # 复制密钥到安全目录
+                            local key_file="$KEY_DIR/${name}_$(basename "$key_path")"
+                            cp "$key_path" "$key_file"
+                            chmod 600 "$key_file"
+                            password_or_key="$key_file"
+                            auth_method="key"
+                            show_success "密钥已复制到: $key_file"
+                        else
+                            show_error "密钥文件不存在: $key_path"
+                            return
+                        fi
+                        ;;
+                    *)
+                        show_error "无效的选择！"
+                        return
+                        ;;
+                esac
+                break
+                ;;
+            *)
+                show_error "无效的选择！"
+                ;;
+        esac
+    done
+    
+    # 选择同步模式
+    echo "请选择同步模式:"
+    echo "1. 标准模式 (-avz)"
+    echo "2. 归档模式 (-a)"
+    echo "3. 带删除的模式 (-avz --delete)"
+    echo "4. 自定义选项"
+    
+    read -e -p "请选择 (1-4): " mode_choice
+    case $mode_choice in
+        1) options="-avz" ;;
+        2) options="-a" ;;
+        3) options="-avz --delete" ;;
+        4)
+            read -e -p "请输入自定义rsync选项: " custom_options
+            options="$custom_options"
+            ;;
+        *)
+            show_warning "无效选择，使用默认选项 -avz"
+            options="-avz"
+            ;;
+    esac
+    
+    # 保存任务
+    echo "$name|$local_path|$remote|$remote_path|$port|$options|$auth_method|$password_or_key" >> "$CONFIG_FILE"
+    
+    # 检查依赖
+    check_dependencies
+    
+    show_success "任务 '$name' 已保存！"
+    log "INFO" "添加新任务: $name"
+}
+
+# 删除任务
+delete_task() {
+    log "INFO" "开始删除任务"
+    
+    if [[ ! -s "$CONFIG_FILE" ]]; then
+        show_warning "暂无同步任务可删除"
+        return
+    fi
+    
+    list_tasks
+    read -e -p "请输入要删除的任务编号: " num
+    
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        show_error "请输入有效的数字编号！"
+        return
+    fi
+    
+    local task=$(sed -n "${num}p" "$CONFIG_FILE")
+    if [[ -z "$task" ]]; then
+        show_error "未找到对应的任务！"
+        return
+    fi
+    
+    IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
+    
+    # 确认删除
+    read -e -p "确认删除任务 '$name' 吗？(y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        show_info "取消删除"
+        return
+    fi
+    
+    # 如果任务使用的是密钥文件，则删除该密钥文件
+    if [[ "$auth_method" == "key" && -f "$password_or_key" ]]; then
+        rm -f "$password_or_key"
+        show_info "已删除密钥文件: $password_or_key"
+    fi
+    
+    # 从配置文件中删除任务
+    sed -i "${num}d" "$CONFIG_FILE"
+    
+    show_success "任务 '$name' 已删除！"
+    log "INFO" "删除任务: $name"
+}
+
+# 执行同步任务
+run_task() {
+    local direction="$1"
+    local num="$2"
+    
+    if [[ ! -s "$CONFIG_FILE" ]]; then
+        show_error "暂无同步任务可执行"
+        return
+    fi
+    
+    # 如果没有传入任务编号，提示用户输入
+    if [[ -z "$num" ]]; then
+        list_tasks
+        read -e -p "请输入要执行的任务编号: " num
+    fi
+    
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        show_error "请输入有效的数字编号！"
+        return
+    fi
+    
+    local task=$(sed -n "${num}p" "$CONFIG_FILE")
+    if [[ -z "$task" ]]; then
+        show_error "未找到对应的任务！"
+        return
+    fi
+    
+    IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
+    
+    # 根据同步方向调整源和目标路径
+    local source=""
+    local destination=""
+    
+    if [[ "$direction" == "pull" ]]; then
+        show_info "执行拉取同步: 从远程到本地"
+        source="$remote:$local_path"
+        destination="$remote_path"
+        log "INFO" "开始拉取任务: $name (远程 -> 本地)"
+    else
+        show_info "执行推送同步: 从本地到远程"
+        source="$local_path"
+        destination="$remote:$remote_path"
+        log "INFO" "开始推送任务: $name (本地 -> 远程)"
+    fi
+    
+    # 检查目录是否存在
+    if [[ "$direction" != "pull" && ! -d "$local_path" ]]; then
+        show_error "本地目录不存在: $local_path"
+        return
+    fi
+    
+    # SSH 连接选项
+    local ssh_options="-p $port -o StrictHostKeyChecking=no -o ConnectTimeout=30"
+    
+    # 执行同步
+    show_info "开始同步任务: $name"
+    show_info "选项: $options"
+    show_info "源: $source"
+    show_info "目标: $destination"
+    
+    echo "---------------------------------"
+    
+    local rsync_cmd=""
+    
+    if [[ "$auth_method" == "password" ]]; then
+        # 检查 sshpass
+        if ! command -v sshpass &> /dev/null; then
+            show_error "未安装 sshpass，请先安装:"
+            show_info "Ubuntu/Debian: sudo apt install sshpass"
+            show_info "CentOS/RHEL: sudo yum install sshpass"
+            return
+        fi
+        
+        rsync_cmd="sshpass -p '$password_or_key' rsync $options -e 'ssh $ssh_options' \"$source\" \"$destination\""
+    else
+        # 密钥认证
+        if [[ ! -f "$password_or_key" ]]; then
+            show_error "密钥文件不存在: $password_or_key"
+            return
+        fi
+        
+        # 检查密钥权限
+        if [[ "$(stat -c %a "$password_or_key" 2>/dev/null)" != "600" ]]; then
+            show_warning "修复密钥文件权限..."
+            chmod 600 "$password_or_key"
+        fi
+        
+        rsync_cmd="rsync $options -e 'ssh -i \"$password_or_key\" $ssh_options' \"$source\" \"$destination\""
+    fi
+    
+    # 显示执行的命令
+    show_info "执行命令:"
+    echo "$rsync_cmd"
+    echo "---------------------------------"
+    
+    # 执行命令
+    eval $rsync_cmd
+    local exit_code=$?
+    
+    if [[ $exit_code -eq 0 ]]; then
+        show_success "同步完成！"
+        log "INFO" "任务 $name 同步成功"
+    else
+        show_error "同步失败！退出码: $exit_code"
+        log "ERROR" "任务 $name 同步失败，退出码: $exit_code"
+        
+        # 提供故障排除建议
+        echo ""
+        show_warning "故障排除建议:"
+        echo "1. 检查网络连接"
+        echo "2. 验证远程主机可访问性"
+        echo "3. 检查认证信息"
+        echo "4. 确认目录权限"
+        echo "5. 查看详细日志: $LOG_FILE"
+    fi
+}
+
+# 创建定时任务
+schedule_task() {
+    log "INFO" "开始创建定时任务"
+    
+    if [[ ! -s "$CONFIG_FILE" ]]; then
+        show_error "暂无同步任务可定时"
+        return
+    fi
+    
+    list_tasks
+    read -e -p "请输入要定时同步的任务编号: " num
+    
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        show_error "请输入有效的数字编号！"
+        return
+    fi
+    
+    # 验证任务存在
+    local task=$(sed -n "${num}p" "$CONFIG_FILE")
+    if [[ -z "$task" ]]; then
+        show_error "未找到对应的任务！"
+        return
+    fi
+    
+    IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
+    
+    echo "请选择定时执行间隔："
+    echo "1) 每小时执行一次"
+    echo "2) 每天执行一次"
+    echo "3) 每周执行一次"
+    echo "4) 每月执行一次"
+    echo "5) 自定义cron表达式"
+    
+    read -e -p "请输入选项 (1-5): " interval
+    
+    local cron_time=""
+    local random_minute=$(shuf -i 0-59 -n 1)
+    
+    case "$interval" in
+        1)
+            cron_time="$random_minute * * * *"
+            show_info "设置为每小时的第 $random_minute 分钟执行"
+            ;;
+        2)
+            local random_hour=$(shuf -i 0-23 -n 1)
+            cron_time="$random_minute $random_hour * * *"
+            show_info "设置为每天 $random_hour:$random_minute 执行"
+            ;;
+        3)
+            cron_time="$random_minute 0 * * 1"
+            show_info "设置为每周一 00:$random_minute 执行"
+            ;;
+        4)
+            cron_time="$random_minute 0 1 * *"
+            show_info "设置为每月1日 00:$random_minute 执行"
+            ;;
+        5)
+            read -e -p "请输入cron表达式 (分 时 日 月 周): " custom_cron
+            cron_time="$custom_cron"
+            ;;
+        *)
+            show_error "无效的选项！"
+            return
+            ;;
+    esac
+    
+    # 创建包装脚本
+    local wrapper_script="$CONFIG_DIR/rsync_wrapper_$num.sh"
+    
+    cat > "$wrapper_script" << EOF
+#!/bin/bash
+# 自动生成的rsync定时任务包装脚本
+# 任务编号: $num
+# 任务名称: $name
+
+CONFIG_FILE="$CONFIG_FILE"
+LOG_FILE="$LOG_DIR/rsync_cron_\$(date +%Y%m%d).log"
+
+# 读取任务配置
+task=\$(sed -n "${num}p" "\$CONFIG_FILE")
+if [[ -z "\$task" ]]; then
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') [ERROR] 任务不存在: $num" >> "\$LOG_FILE"
+    exit 1
+fi
+
+IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "\$task"
+
+# 执行同步
+if [[ "\$auth_method" == "password" ]]; then
+    sshpass -p "\$password_or_key" rsync $options -e "ssh -p $port -o StrictHostKeyChecking=no" "\$local_path" "\$remote:\$remote_path"
+else
+    rsync $options -e "ssh -i \"\$password_or_key\" -p $port -o StrictHostKeyChecking=no" "\$local_path" "\$remote:\$remote_path"
+fi
+
+exit_code=\$?
+if [[ \$exit_code -eq 0 ]]; then
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') [INFO] 任务执行成功: $name" >> "\$LOG_FILE"
+else
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') [ERROR] 任务执行失败: $name (退出码: \$exit_code)" >> "\$LOG_FILE"
+fi
+EOF
+    
+    chmod +x "$wrapper_script"
+    
+    # 创建cron任务
+    local cron_job="$cron_time $wrapper_script >> $LOG_DIR/cron.log 2>&1"
+    
+    # 检查是否已存在相同任务
+    if crontab -l 2>/dev/null | grep -q "$wrapper_script"; then
+        show_warning "该任务已存在定时任务，是否更新？(y/N): "
+        read -e confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            # 删除旧的定时任务
+            crontab -l 2>/dev/null | grep -v "$wrapper_script" | crontab -
+        else
+            show_info "取消创建定时任务"
+            return
+        fi
+    fi
+    
+    # 添加到crontab
+    (crontab -l 2>/dev/null; echo "$cron_job") | crontab -
+    
+    if [[ $? -eq 0 ]]; then
+        show_success "定时任务创建成功！"
+        show_info "Cron表达式: $cron_time"
+        show_info "包装脚本: $wrapper_script"
+        log "INFO" "创建定时任务: $name (cron: $cron_time)"
+    else
+        show_error "定时任务创建失败！"
+        log "ERROR" "创建定时任务失败: $name"
+    fi
+}
+
+# 查看定时任务
+view_schedules() {
+    echo "当前的定时任务:"
+    echo "========================================="
+    
+    local cron_list=$(crontab -l 2>/dev/null)
+    if [[ -z "$cron_list" ]]; then
+        show_warning "暂无定时任务"
+        return
+    fi
+    
+    # 显示所有rsync相关的定时任务
+    echo "$cron_list" | grep -E "(rsync_wrapper_|rsync.*\.sh)" | while read -r line; do
+        echo "$line"
+    done
+    
+    echo "========================================="
+    
+    # 显示包装脚本列表
+    echo "包装脚本列表:"
+    echo "-----------------------------------------"
+    ls -la "$CONFIG_DIR"/rsync_wrapper_*.sh 2>/dev/null | while read -r file; do
+        echo "$file"
+    done
+    echo "========================================="
+}
+
+# 删除定时任务
+delete_schedule() {
+    log "INFO" "开始删除定时任务"
+    
+    view_schedules
+    
+    read -e -p "请输入要删除的定时任务对应的任务编号: " num
+    
+    if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+        show_error "请输入有效的数字编号！"
+        return
+    fi
+    
+    local wrapper_script="$CONFIG_DIR/rsync_wrapper_$num.sh"
+    
+    if [[ ! -f "$wrapper_script" ]]; then
+        show_error "未找到对应的包装脚本: $wrapper_script"
+        return
+    fi
+    
+    # 从crontab中删除
+    crontab -l 2>/dev/null | grep -v "$wrapper_script" | crontab -
+    
+    # 删除包装脚本
+    rm -f "$wrapper_script"
+    
+    show_success "定时任务已删除！"
+    log "INFO" "删除定时任务: 任务编号 $num"
+}
+
+# 检查依赖
+check_dependencies() {
+    local missing_deps=()
+    
+    # 检查rsync
+    if ! command -v rsync &> /dev/null; then
+        missing_deps+=("rsync")
+    fi
+    
+    # 检查sshpass（如果使用密码认证）
+    if grep -q "password" "$CONFIG_FILE" 2>/dev/null; then
+        if ! command -v sshpass &> /dev/null; then
+            missing_deps+=("sshpass")
+        fi
+    fi
+    
+    if [[ ${#missing_deps[@]} -gt 0 ]]; then
+        show_warning "缺少以下依赖: ${missing_deps[*]}"
+        echo "安装命令:"
+        
+        for dep in "${missing_deps[@]}"; do
+            case $dep in
+                rsync)
+                    echo "  Ubuntu/Debian: sudo apt install rsync"
+                    echo "  CentOS/RHEL: sudo yum install rsync"
+                    ;;
+                sshpass)
+                    echo "  Ubuntu/Debian: sudo apt install sshpass"
+                    echo "  CentOS/RHEL: sudo yum install sshpass"
+                    ;;
+            esac
+        done
+        
+        read -e -p "是否立即安装？(y/N): " install_choice
+        if [[ "$install_choice" == "y" || "$install_choice" == "Y" ]]; then
+            for dep in "${missing_deps[@]}"; do
+                show_info "正在安装 $dep..."
+                if command -v apt &> /dev/null; then
+                    sudo apt update && sudo apt install -y "$dep"
+                elif command -v yum &> /dev/null; then
+                    sudo yum install -y "$dep"
+                else
+                    show_error "无法确定包管理器，请手动安装 $dep"
+                fi
+            done
+        fi
+    fi
+}
+
+# 显示系统信息
+show_system_info() {
+    echo "系统信息:"
+    echo "-----------------------------------------"
+    echo "主机名: $(hostname)"
+    echo "系统: $(uname -s) $(uname -r)"
+    echo "用户: $(whoami)"
+    echo "家目录: $HOME"
+    echo "配置目录: $CONFIG_DIR"
+    echo "密钥目录: $KEY_DIR"
+    echo "日志目录: $LOG_DIR"
+    echo "-----------------------------------------"
+}
+
+# 清理旧日志
+cleanup_logs() {
+    local days_to_keep=30
+    show_info "清理 $days_to_keep 天前的日志文件..."
+    
+    find "$LOG_DIR" -name "rsync_*.log" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    find "$LOG_DIR" -name "rsync_cron_*.log" -type f -mtime +$days_to_keep -delete 2>/dev/null
+    
+    show_success "日志清理完成！"
+    log "INFO" "清理旧日志文件"
+}
+
+# 备份配置
+backup_config() {
+    local backup_dir="$CONFIG_DIR/backups"
+    local backup_file="$backup_dir/rsync_backup_$(date +%Y%m%d_%H%M%S).tar.gz"
+    
+    mkdir -p "$backup_dir"
+    
+    tar -czf "$backup_file" -C "$CONFIG_DIR" . 2>/dev/null
+    
+    if [[ $? -eq 0 ]]; then
+        show_success "配置备份完成: $backup_file"
+        log "INFO" "配置备份: $backup_file"
+    else
+        show_error "配置备份失败！"
+    fi
+}
+
+# 恢复配置
+restore_config() {
+    local backup_dir="$CONFIG_DIR/backups"
+    
+    if [[ ! -d "$backup_dir" ]]; then
+        show_error "备份目录不存在: $backup_dir"
+        return
+    fi
+    
+    echo "可用的备份文件:"
+    echo "-----------------------------------------"
+    ls -la "$backup_dir"/*.tar.gz 2>/dev/null | while read -r file; do
+        echo "$file"
+    done
+    echo "-----------------------------------------"
+    
+    read -e -p "请输入要恢复的备份文件路径: " backup_file
+    
+    if [[ ! -f "$backup_file" ]]; then
+        show_error "备份文件不存在: $backup_file"
+        return
+    fi
+    
+    read -e -p "确认恢复配置吗？这将覆盖当前配置。(y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+        show_info "取消恢复"
+        return
+    fi
+    
+    # 备份当前配置
+    local temp_backup="$CONFIG_DIR/temp_backup_$(date +%s).tar.gz"
+    tar -czf "$temp_backup" -C "$CONFIG_DIR" . 2>/dev/null
+    
+    # 恢复配置
+    tar -xzf "$backup_file" -C "$CONFIG_DIR" 2>/dev/null
+    
+    if [[ $? -eq 0 ]]; then
+        show_success "配置恢复完成！"
+        log "INFO" "配置恢复: $backup_file"
+    else
+        show_error "配置恢复失败！"
+        # 尝试恢复备份
+        tar -xzf "$temp_backup" -C "$CONFIG_DIR" 2>/dev/null
+        show_info "已恢复原始配置"
+    fi
+    
+    rm -f "$temp_backup"
+}
+
+# 主菜单
+main_menu() {
+    init_dirs
+    
+    while true; do
+        clear
+        echo "========================================="
+        echo "      RSYNC 远程同步管理工具 v1.0"
+        echo "========================================="
+        echo ""
+        
+        show_system_info
+        
+        echo ""
+        echo "任务管理:"
+        echo "  1. 查看所有任务"
+        echo "  2. 添加新任务"
+        echo "  3. 删除任务"
+        echo ""
+        echo "同步执行:"
+        echo "  4. 执行推送同步 (本地 → 远程)"
+        echo "  5. 执行拉取同步 (远程 → 本地)"
+        echo ""
+        echo "定时任务:"
+        echo "  6. 创建定时任务"
+        echo "  7. 查看定时任务"
+        echo "  8. 删除定时任务"
+        echo ""
+        echo "系统管理:"
+        echo "  9. 检查依赖"
+        echo "  10. 清理旧日志"
+        echo "  11. 备份配置"
+        echo "  12. 恢复配置"
+        echo ""
+        echo "  0. 退出"
+        echo "========================================="
+        
+        read -e -p "请选择操作 (0-12): " choice
+        
+        case $choice in
+            1) list_tasks ;;
+            2) add_task ;;
+            3) delete_task ;;
+            4) 
+                list_tasks
+                if [[ -s "$CONFIG_FILE" ]]; then
+                    read -e -p "请输入任务编号: " num
+                    run_task "push" "$num"
+                fi
+                ;;
+            5)
+                list_tasks
+                if [[ -s "$CONFIG_FILE" ]]; then
+                    read -e -p "请输入任务编号: " num
+                    run_task "pull" "$num"
+                fi
+                ;;
+            6) schedule_task ;;
+            7) view_schedules ;;
+            8) delete_schedule ;;
+            9) check_dependencies ;;
+            10) cleanup_logs ;;
+            11) backup_config ;;
+            12) restore_config ;;
+            0)
+                echo ""
+                show_info "感谢使用 RSYNC 管理工具！"
+                echo ""
+                exit 0
+                ;;
+            *)
+                show_error "无效的选择，请重试！"
+                ;;
+        esac
+        
+        echo ""
+        read -e -p "按回车键继续..."
+    done
+}
+
+# 脚本入口点
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "RSYNC 远程同步管理工具"
+    echo ""
+    echo "用法: $0 [选项]"
+    echo ""
+    echo "选项:"
+    echo "  -h, --help     显示帮助信息"
+    echo "  -v, --version  显示版本信息"
+    echo "  --run-task N   执行指定编号的任务 (push)"
+    echo "  --pull-task N  执行指定编号的任务 (pull)"
+    echo "  --list         列出所有任务"
+    echo "  --add          添加新任务"
+    echo ""
+    echo "示例:"
+    echo "  $0              # 启动交互式菜单"
+    echo "  $0 --list       # 列出所有任务"
+    echo "  $0 --run-task 1 # 执行任务1的推送同步"
+    exit 0
+elif [[ "$1" == "--version" || "$1" == "-v" ]]; then
+    echo "RSYNC 远程同步管理工具 v1.0"
+    exit 0
+elif [[ "$1" == "--list" ]]; then
+    init_dirs
+    list_tasks
+    exit 0
+elif [[ "$1" == "--run-task" && -n "$2" ]]; then
+    init_dirs
+    run_task "push" "$2"
+    exit $?
+elif [[ "$1" == "--pull-task" && -n "$2" ]]; then
+    init_dirs
+    run_task "pull" "$2"
+    exit $?
+elif [[ "$1" == "--add" ]]; then
+    init_dirs
+    add_task
+    exit 0
+else
+    # 启动主菜单
+    main_menu
+fi
