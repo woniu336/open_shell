@@ -132,7 +132,7 @@ add_task() {
                 
                 case $key_source in
                     1)
-                        echo "请粘贴私钥内容 (以空行结束):"
+                        echo "请粘贴私钥内容 (粘贴完成后按两次回车):"
                         local key_content=""
                         while IFS= read -r line; do
                             if [[ -z "$line" && "$key_content" == *"-----BEGIN"* ]]; then
