@@ -518,10 +518,29 @@ test_and_reload() {
     fi
 }
 
+# 停止 Nginx
+stop_nginx() {
+    print_msg "停止 Nginx..."
+    
+    # 检查是否有 systemd 服务
+    if systemctl is-active nginx >/dev/null 2>&1; then
+        systemctl stop nginx
+    else
+        ${NGINX_SBIN_PATH} -s stop
+    fi
+    
+    if [ $? -eq 0 ]; then
+        print_msg "Nginx 已停止"
+    else
+        print_error "Nginx 停止失败"
+    fi
+}
+
+
 # 卸载 Nginx
 uninstall_nginx() {
-    echo -e "\n${RED}========================================${NC}"
-    echo -e "${RED}          警告：卸载操作              ${NC}"
+    echo -e "${RED}========================================${NC}"
+    echo -e "${RED} 警告：卸载操作${NC}"
     echo -e "${RED}========================================${NC}"
     echo ""
     echo "此操作将删除："
@@ -543,9 +562,7 @@ uninstall_nginx() {
     fi
     
     # 停止 Nginx
-    print_msg "停止 Nginx 服务..."
-    systemctl stop nginx 2>/dev/null
-    pkill -9 nginx 2>/dev/null
+    stop_nginx
     sleep 2
     
     # 删除安装目录
@@ -554,10 +571,6 @@ uninstall_nginx() {
         print_msg "Nginx 安装目录已删除"
     fi
     
-    # 删除配置文件（保留备份）
-    print_msg "清理配置文件..."
-    rm -rf ${NGINX_CONF_DIR} ${NGINX_LOG_DIR} ${NGINX_CACHE_DIR}
-    
     # 删除源码编译目录
     if [ -d "${BUILD_DIR}" ]; then
         rm -rf ${BUILD_DIR}
@@ -565,12 +578,12 @@ uninstall_nginx() {
     fi
     
     # 删除 systemd 服务
-    systemctl disable nginx 2>/dev/null
+    systemctl disable nginx
     rm -f /etc/systemd/system/nginx.service
     systemctl daemon-reload
     
-    print_success "卸载完成！"
-    echo -e "${YELLOW}提示：备份文件仍保留在 /root/nginx_backups/${NC}"
+    print_msg "卸载完成！"
+	echo -e "${YELLOW}提示：备份文件仍保留在 /root/nginx_backups/${NC}"
 }
 
 # ---------------- 业务接入功能 ----------------
