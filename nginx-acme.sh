@@ -539,8 +539,8 @@ stop_nginx() {
 
 # 卸载 Nginx
 uninstall_nginx() {
-    echo -e "${RED}========================================${NC}"
-    echo -e "${RED} 警告：卸载操作${NC}"
+    echo -e "\n${RED}========================================${NC}"
+    echo -e "${RED}          警告：卸载操作              ${NC}"
     echo -e "${RED}========================================${NC}"
     echo ""
     echo "此操作将删除："
@@ -571,6 +571,10 @@ uninstall_nginx() {
         print_msg "Nginx 安装目录已删除"
     fi
     
+    # 删除配置文件（保留备份）
+    print_msg "清理配置文件..."
+    rm -rf ${NGINX_CONF_DIR} ${NGINX_LOG_DIR} ${NGINX_CACHE_DIR}
+    
     # 删除源码编译目录
     if [ -d "${BUILD_DIR}" ]; then
         rm -rf ${BUILD_DIR}
@@ -578,12 +582,12 @@ uninstall_nginx() {
     fi
     
     # 删除 systemd 服务
-    systemctl disable nginx
+    systemctl disable nginx 2>/dev/null
     rm -f /etc/systemd/system/nginx.service
     systemctl daemon-reload
     
-    print_msg "卸载完成！"
-	echo -e "${YELLOW}提示：备份文件仍保留在 /root/nginx_backups/${NC}"
+    print_success "卸载完成！"
+    echo -e "${YELLOW}提示：备份文件仍保留在 /root/nginx_backups/${NC}"
 }
 
 # ---------------- 业务接入功能 ----------------
