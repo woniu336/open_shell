@@ -16,7 +16,7 @@ git config --global core.autocrlf true
 1. 生成一个Gitee用的SSH-Key
 
 ```
-ssh-keygen -q -t ed25519 -C "2761282805@qq.com" -N "" -f ~/.ssh/gitee_id_rsa
+ssh-keygen -q -t ed25519 -C "111111@qq.com" -N "" -f ~/.ssh/gitee_id_rsa
 ```
 
 2. 添加公钥地址：
