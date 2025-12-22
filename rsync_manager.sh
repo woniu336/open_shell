@@ -253,11 +253,52 @@ delete_task() {
         show_info "已删除密钥文件: $password_or_key"
     fi
     
+    # 清理定时任务相关文件
+    local wrapper_script="$CONFIG_DIR/rsync_wrapper_$num.sh"
+    if [[ -f "$wrapper_script" ]]; then
+        # 从crontab中删除定时任务
+        crontab -l 2>/dev/null | grep -v "$wrapper_script" | crontab -
+        # 删除包装脚本
+        rm -f "$wrapper_script"
+        show_info "已删除定时任务包装脚本: $wrapper_script"
+    fi
+    
+    # 清理监控相关文件
+    local monitor_script="$MONITOR_DIR/monitor_$num.sh"
+    if [[ -f "$monitor_script" ]]; then
+        rm -f "$monitor_script"
+        show_info "已删除监控脚本: $monitor_script"
+    fi
+    
+    # 清理监控日志文件
+    local monitor_log="$LOG_DIR/monitor_$num.log"
+    if [[ -f "$monitor_log" ]]; then
+        rm -f "$monitor_log"
+        show_info "已删除监控日志: $monitor_log"
+    fi
+    
+    # 清理监控PID文件（如果这个任务正在被监控）
+    if [[ -f "$MONITOR_PID_FILE" ]]; then
+        local pid=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
+        local task_file="$MONITOR_DIR/monitor_task_$pid"
+        if [[ -f "$task_file" ]]; then
+            local monitored_task_num=$(cat "$task_file" 2>/dev/null)
+            if [[ "$monitored_task_num" == "$num" ]]; then
+                # 停止监控进程
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -TERM "$pid" 2>/dev/null
+                    show_info "已停止监控进程 (PID: $pid)"
+                fi
+                rm -f "$MONITOR_PID_FILE" "$task_file"
+            fi
+        fi
+    fi
+    
     # 从配置文件中删除任务
     sed -i "${num}d" "$CONFIG_FILE"
     
     show_success "任务 '$name' 已删除！"
-    log "INFO" "删除任务: $name"
+    log "INFO" "删除任务: $name，并清理了相关文件"
 }
 
 # 执行同步任务
@@ -455,14 +496,20 @@ schedule_task() {
 CONFIG_FILE="$CONFIG_FILE"
 LOG_FILE="$LOG_DIR/rsync_cron_\$(date +%Y%m%d).log"
 
-# 读取任务配置
-task=\$(sed -n "${num}p" "\$CONFIG_FILE")
+# 通过任务名称查找任务配置
+task=\$(grep "^$name|" "\$CONFIG_FILE" | head -1)
 if [[ -z "\$task" ]]; then
-    echo "\$(date '+%Y-%m-%d %H:%M:%S') [ERROR] 任务不存在: $num" >> "\$LOG_FILE"
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') [ERROR] 任务不存在: $name" >> "\$LOG_FILE"
     exit 1
 fi
 
 IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "\$task"
+
+# 检查密钥文件是否存在（如果是密钥认证）
+if [[ "\$auth_method" == "key" && ! -f "\$password_or_key" ]]; then
+    echo "\$(date '+%Y-%m-%d %H:%M:%S') [ERROR] 密钥文件不存在: \$password_or_key" >> "\$LOG_FILE"
+    exit 1
+fi
 
 # 执行同步
 if [[ "\$auth_method" == "password" ]]; then
@@ -806,23 +853,29 @@ log_monitor() {
 
 log_monitor "INFO" "启动实时监控: 任务 '$name', 目录: $local_path"
 
-# 读取任务配置
-task=\$(sed -n "${num}p" "\$CONFIG_FILE")
+# 通过任务名称查找任务配置
+task=\$(grep "^$name|" "\$CONFIG_FILE" | head -1)
 if [[ -z "\$task" ]]; then
-    log_monitor "ERROR" "任务不存在: $num"
+    log_monitor "ERROR" "任务不存在: $name"
     exit 1
 fi
 
 IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "\$task"
 
+# 检查密钥文件是否存在（如果是密钥认证）
+if [[ "\$auth_method" == "key" && ! -f "\$password_or_key" ]]; then
+    log_monitor "ERROR" "密钥文件不存在: \$password_or_key"
+    exit 1
+fi
+
 # 构建rsync命令
 build_rsync_cmd() {
     local ssh_options="-p $port -o StrictHostKeyChecking=no -o ConnectTimeout=30"
     
-    if [[ "$auth_method" == "password" ]]; then
-        echo "sshpass -p '$password_or_key' rsync $options -e 'ssh \$ssh_options' \"$local_path\" \"$remote:$remote_path\""
+    if [[ "\$auth_method" == "password" ]]; then
+        echo "sshpass -p '\$password_or_key' rsync $options -e 'ssh \$ssh_options' \"\$local_path\" \"\$remote:\$remote_path\""
     else
-        echo "rsync $options -e 'ssh -i \"$password_or_key\" \$ssh_options' \"$local_path\" \"$remote:$remote_path\""
+        echo "rsync $options -e 'ssh -i \"\$password_or_key\" \$ssh_options' \"\$local_path\" \"\$remote:\$remote_path\""
     fi
 }
 
@@ -851,12 +904,12 @@ perform_sync() {
 trap 'log_monitor "INFO" "监控进程停止"; exit 0' INT TERM
 
 # 开始监控
-log_monitor "INFO" "开始监控目录: $local_path"
+log_monitor "INFO" "开始监控目录: \$local_path"
 log_monitor "INFO" "监控事件: 创建、修改、移动、删除"
 log_monitor "INFO" "延迟时间: \${DELAY_SECONDS}秒"
 
 # 使用inotifywait监控目录
-inotifywait -m -r "$local_path" \
+inotifywait -m -r "\$local_path" \
     -e create \
     -e modify \
     -e moved_to \
@@ -954,7 +1007,26 @@ view_monitor_status() {
     
     if [[ -f "$task_file" ]]; then
         local task_num=$(cat "$task_file")
+        
+        # 尝试通过行号查找任务（向后兼容）
         local task=$(sed -n "${task_num}p" "$CONFIG_FILE" 2>/dev/null)
+        
+        # 如果通过行号找不到，尝试查找所有任务并匹配
+        if [[ -z "$task" ]]; then
+            # 读取所有任务，查找可能匹配的任务
+            while IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key; do
+                # 检查是否有监控脚本存在
+                local monitor_script="$MONITOR_DIR/monitor_$task_num.sh"
+                if [[ -f "$monitor_script" ]]; then
+                    # 从监控脚本中提取任务名称
+                    local script_name=$(grep -o "任务名称: [^ ]*" "$monitor_script" 2>/dev/null | head -1 | cut -d' ' -f2)
+                    if [[ -n "$script_name" && "$script_name" == "$name" ]]; then
+                        task="$name|$local_path|$remote|$remote_path|$port|$options|$auth_method|$password_or_key"
+                        break
+                    fi
+                fi
+            done < "$CONFIG_FILE"
+        fi
         
         if [[ -n "$task" ]]; then
             IFS='|' read -r name local_path remote remote_path port options auth_method password_or_key <<< "$task"
@@ -989,6 +1061,14 @@ view_monitor_status() {
             fi
         else
             show_error "任务配置不存在或已被删除"
+            # 尝试从监控脚本获取任务名称
+            local monitor_script="$MONITOR_DIR/monitor_$task_num.sh"
+            if [[ -f "$monitor_script" ]]; then
+                local script_name=$(grep -o "任务名称: [^ ]*" "$monitor_script" 2>/dev/null | head -1 | cut -d' ' -f2)
+                if [[ -n "$script_name" ]]; then
+                    echo "监控脚本中的任务名称: $script_name"
+                fi
+            fi
             rm -f "$MONITOR_PID_FILE" "$task_file"
         fi
     else
