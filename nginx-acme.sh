@@ -939,7 +939,7 @@ server {
     }
 
     location / {
-        return 301 https://\$host\$request_uri;
+        return 301 https://${TARGET_DOMAIN}\$request_uri;
     }
 }
 
