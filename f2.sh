@@ -73,6 +73,28 @@ check_root() {
     fi
 }
 
+# 获取SSH端口号
+get_ssh_port() {
+    # 尝试从sshd_config获取端口
+    if [ -f /etc/ssh/sshd_config ]; then
+        local ssh_port=$(grep -E "^Port\s+" /etc/ssh/sshd_config | awk '{print $2}' | head -1)
+        if [ -n "$ssh_port" ] && [[ "$ssh_port" =~ ^[0-9]+$ ]]; then
+            echo "$ssh_port"
+            return
+        fi
+    fi
+    
+    # 尝试从netstat获取正在监听的SSH端口
+    local ssh_port=$(ss -tlnp | grep sshd | awk '{print $4}' | awk -F: '{print $NF}' | head -1)
+    if [ -n "$ssh_port" ] && [[ "$ssh_port" =~ ^[0-9]+$ ]]; then
+        echo "$ssh_port"
+        return
+    fi
+    
+    # 默认端口
+    echo "22"
+}
+
 # 安装Fail2Ban
 install_fail2ban() {
     if command -v fail2ban-server &> /dev/null; then
@@ -149,14 +171,25 @@ configure_jail() {
     echo -e "${CYAN}${BOLD}配置Jail规则${RESET}"
     print_separator
     
+    # 获取SSH端口
+    local ssh_port=$(get_ssh_port)
+    log_info "检测到SSH端口: $ssh_port"
+    
+    # 静默检查/创建nginx日志文件
+    if [ ! -f /var/log/nginx/access.log ]; then
+        mkdir -p /var/log/nginx
+        touch /var/log/nginx/access.log
+        chown www-data:www-data /var/log/nginx/access.log 2>/dev/null || true
+        chmod 644 /var/log/nginx/access.log
+    fi
+    
     # 备份原有配置
     if [ -f /etc/fail2ban/jail.local ]; then
         cp /etc/fail2ban/jail.local /etc/fail2ban/jail.local.bak.$(date +%Y%m%d%H%M%S)
-        log_info "已备份原有 jail.local 配置"
     fi
     
     # 创建基础jail.local配置
-    cat > /etc/fail2ban/jail.local << 'EOF'
+    cat > /etc/fail2ban/jail.local << EOF
 [DEFAULT]
 ignoreip = 127.0.0.1/8 192.168.0.0/16 10.0.0.0/8
 bantime  = 1h
@@ -168,7 +201,7 @@ banaction = ufw
 # Nginx 规则 1：防止恶意扫描
 # ==========================================
 [nginx-bad-request]
-enabled  = true
+enabled  = false
 logpath  = /var/log/nginx/access.log
 filter   = nginx-bad-request
 port     = 80,443
@@ -179,7 +212,7 @@ bantime  = 24h
 # Nginx 规则 2：防止 CC 攻击
 # ==========================================
 [nginx-cc]
-enabled  = true
+enabled  = false
 port     = 80,443
 logpath  = /var/log/nginx/access.log
 filter   = nginx-cc
@@ -194,7 +227,7 @@ bantime  = 2h
 ignoreip = 127.0.0.1/8
 enabled = true
 filter = sshd
-port = 22
+port = $ssh_port
 maxretry = 3
 findtime = 300
 bantime = -1
@@ -203,10 +236,8 @@ logpath = /var/log/auth.log
 EOF
     
     echo ""
-    log_info "Jail规则配置完成"
-    
-    # 简单的SSH端口提示
-    echo -e "${YELLOW}提示：SSH端口默认为22，如需修改请在安装后编辑配置文件${NC}"
+    log_info "SSH端口已自动设置为: $ssh_port"
+    log_info "Nginx监狱默认状态: 已关闭 (需要时手动开启)"
     
     press_any_key
 }
@@ -324,8 +355,9 @@ edit_jail_config() {
     print_separator
     
     echo -e "${YELLOW}提示：${NC}"
-    echo "1. 修改SSH端口：找到 [sshd] 段的 port = 22，改为您的实际端口"
-    echo "2. 保存后需要重启Fail2Ban服务"
+    echo "1. 可以修改各监狱的 enabled 状态 (true/false)"
+    echo "2. 可以调整封禁时间、最大尝试次数等参数"
+    echo "3. 保存后需要重启Fail2Ban服务"
     echo ""
     
     read -p "按回车键开始编辑或按Ctrl+C取消..."
@@ -528,6 +560,7 @@ view_banned_ips() {
     done
 }
 
+
 # 一键安装配置
 auto_install() {
     print_header
@@ -551,11 +584,6 @@ auto_install() {
     echo -e "${GREEN}✓${NC} SSH暴力破解防护"
     echo -e "${GREEN}✓${NC} Nginx恶意文件扫描防护"
     echo -e "${GREEN}✓${NC} Nginx CC攻击防护"
-    echo ""
-    
-    # 简洁的SSH端口提示
-    echo -e "${YELLOW}提示：${NC}"
-    echo "SSH端口默认为22，如需修改请使用菜单选项2编辑配置文件"
     echo ""
     
     echo -e "${YELLOW}常用命令：${NC}"
