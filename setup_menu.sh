@@ -234,6 +234,42 @@ install_common_tools() {
 # 安装Docker
 install_docker() {
     show_header "安装Docker"
+    
+    # 检查是否已安装Docker
+    if command -v docker &> /dev/null; then
+        docker_version=$(docker --version 2>/dev/null)
+        show_info "Docker已安装: ${docker_version}"
+    else
+        docker_version="未安装"
+    fi
+    
+    # 检查是否已安装Docker Compose
+    if command -v docker-compose &> /dev/null || docker compose version &> /dev/null; then
+        if command -v docker-compose &> /dev/null; then
+            compose_version=$(docker-compose --version 2>/dev/null)
+        else
+            compose_version=$(docker compose version 2>/dev/null | head -n1)
+        fi
+        show_info "Docker Compose已安装: ${compose_version}"
+    else
+        compose_version="未安装"
+    fi
+    
+    # 如果两者都已安装，则跳过安装
+    if [[ "$docker_version" != "未安装" ]] && [[ "$compose_version" != "未安装" ]]; then
+        show_success "Docker和Docker Compose均已安装，跳过安装步骤！"
+        return 0
+    fi
+    
+    # 如果只有部分安装或都未安装，继续安装
+    if [[ "$docker_version" != "未安装" ]]; then
+        show_warning "Docker已安装，但Docker Compose未安装或版本不匹配，继续安装Docker Compose..."
+    elif [[ "$compose_version" != "未安装" ]]; then
+        show_warning "Docker Compose已安装，但Docker未安装，继续安装Docker..."
+    else
+        show_info "开始安装Docker和Docker Compose..."
+    fi
+    
     curl -fsSL https://get.docker.com -o get-docker.sh
     if [[ -f get-docker.sh ]]; then
         sh get-docker.sh
@@ -398,6 +434,123 @@ setup_node() {
     
     bash <(wget -qO- -o- https://github.com/233boy/sing-box/raw/main/install.sh)
     [[ $? -eq 0 ]] && show_success "节点搭建完成！" || show_error "节点搭建失败！"
+}
+
+# rsync远程同步工具
+setup_rsync_manager() {
+    show_header "rsync远程同步工具"
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/rsync_manager.sh
+    if [[ -f rsync_manager.sh ]]; then
+        chmod +x rsync_manager.sh
+        ./rsync_manager.sh
+    else
+        show_error "rsync管理器脚本下载失败！"
+    fi
+}
+
+# SSL证书申请
+setup_ssl_manager() {
+    show_header "SSL证书申请"
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/ssl-manager.sh
+    if [[ -f ssl-manager.sh ]]; then
+        chmod +x ssl-manager.sh
+        ./ssl-manager.sh
+    else
+        show_error "SSL管理器脚本下载失败！"
+    fi
+}
+
+# IP证书申请教程
+show_ip_cert_tutorial() {
+    show_header "IP证书申请教程"
+    show_info "IP证书申请教程地址: https://woniu336.github.io/p/508/"
+    show_info "请在浏览器中打开以上链接查看详细教程"
+    echo ""
+    read -e -p "按回车键返回..."
+}
+
+# Caddy工具
+setup_caddy_manager() {
+    show_header "Caddy工具"
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/caddy_manager.sh
+    if [[ -f caddy_manager.sh ]]; then
+        chmod +x caddy_manager.sh
+        ./caddy_manager.sh
+    else
+        show_error "Caddy管理器脚本下载失败！"
+    fi
+}
+
+# HAProxy转发
+setup_haproxy_manager() {
+    show_header "HAProxy转发"
+    curl -sS -O https://raw.githubusercontent.com/woniu336/open_shell/main/haproxy_manager.sh
+    if [[ -f haproxy_manager.sh ]]; then
+        chmod +x haproxy_manager.sh
+        ./haproxy_manager.sh
+    else
+        show_error "HAProxy管理器脚本下载失败！"
+    fi
+}
+
+# Realm转发
+setup_realm_forward() {
+    show_header "Realm转发"
+    show_info "正在安装Realm端口转发工具..."
+    bash <(curl -sL https://raw.githubusercontent.com/Chil30/port-forward/main/port_forward.sh)
+    [[ $? -eq 0 ]] && show_success "Realm转发工具安装完成！" || show_error "Realm转发工具安装失败！"
+}
+
+# Kejilion工具
+setup_kejilion() {
+    show_header "Kejilion工具"
+    show_info "正在安装Kejilion工具..."
+    bash <(curl -sL kejilion.sh)
+    [[ $? -eq 0 ]] && show_success "Kejilion工具安装完成！" || show_error "Kejilion工具安装失败！"
+}
+
+# 黑科技工具菜单
+black_tech_tools_menu() {
+    while true; do
+        clear
+        show_title
+        echo -e "${PURPLE}║            🔧 黑科技工具菜单            ║${NC}"
+        show_title
+        echo ""
+        
+        echo -e "${CYAN}🛠️ 黑科技工具${NC}"
+        show_separator
+        show_menu_item " 1. rsync远程同步工具"
+        show_menu_item " 2. SSL证书申请"
+        show_menu_item " 3. IP证书申请教程"
+        show_menu_item " 4. Caddy工具"
+        show_menu_item " 5. HAProxy转发"
+        show_menu_item " 6. Realm转发"
+        show_menu_item " 7. Kejilion工具"
+        
+        echo ""
+        echo -e "${YELLOW}════════════════════════════════════════${NC}"
+        show_menu_item " 0. 返回主菜单"
+        
+        echo ""
+        echo -e "${YELLOW}════════════════════════════════════════${NC}"
+        read -e -p "请选择操作 (0-7): " choice
+        
+        case $choice in
+            1) setup_rsync_manager; read -e -p "按回车键继续..." ;;
+            2) setup_ssl_manager; read -e -p "按回车键继续..." ;;
+            3) show_ip_cert_tutorial; read -e -p "按回车键继续..." ;;
+            4) setup_caddy_manager; read -e -p "按回车键继续..." ;;
+            5) setup_haproxy_manager; read -e -p "按回车键继续..." ;;
+            6) setup_realm_forward; read -e -p "按回车键继续..." ;;
+            7) setup_kejilion; read -e -p "按回车键继续..." ;;
+            0) return ;;
+            *) 
+                show_error "无效的选择，请重新输入！"
+                sleep 2
+                ;;
+        esac
+    done
 }
 
 # 字节格式化函数（不依赖bc命令）
@@ -656,12 +809,17 @@ main_menu() {
         show_menu_item "21. 节点搭建 (sing-box)"
         
         echo ""
+        echo -e "${CYAN}🔧 黑科技工具${NC}"
+        show_separator
+        show_menu_item "22. 黑科技工具菜单"
+        
+        echo ""
         echo -e "${YELLOW}════════════════════════════════════════${NC}"
         show_menu_item " 0. 退出脚本"
         
         echo ""
         echo -e "${YELLOW}════════════════════════════════════════${NC}"
-        read -e -p "请选择操作 (0-21): " choice
+        read -e -p "请选择操作 (0-22): " choice
         
         case $choice in
             1) show_system_info ;;
@@ -685,6 +843,7 @@ main_menu() {
             19) setup_docker_whitelist; read -e -p "按回车键继续..." ;;
             20) setup_origin_restriction; read -e -p "按回车键继续..." ;;
             21) setup_node; read -e -p "按回车键继续..." ;;
+            22) black_tech_tools_menu ;;
             0) 
                 clear
                 show_title
