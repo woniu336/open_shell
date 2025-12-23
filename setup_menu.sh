@@ -438,6 +438,11 @@ get_isp() {
   curl -s ipinfo.io/org | awk -F' ' '{$1=""; print substr($0,2)}' | sed 's/ Co., Ltd./ Co. Ltd./g'
 }
 
+# 获取 IPv4 地址
+get_ipv4_address() {
+  curl -s ipv4.ip.sb
+}
+
 # 系统信息显示
 show_system_info() {
     clear
@@ -446,103 +451,90 @@ show_system_info() {
     show_title
     echo ""
     
-    # 主机名
-    echo -e "${CYAN}📋 主机信息${NC}"
-    show_separator
-    echo -e "${WHITE}  主机名: ${GREEN}$(hostname)${NC}"
+    echo -e "${CYAN}系统信息查询${NC}"
+    echo -e "${GRAY}-------------${NC}"
+    
+    # 基础系统信息
+    echo -e "${WHITE}基础系统信息${NC}"
+    echo -e "${WHITE}主机名: ${GREEN}$(hostname)${NC}"
     
     # 系统版本
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
-        echo -e "${WHITE}  系统版本: ${GREEN}$PRETTY_NAME${NC}"
+        echo -e "${WHITE}系统版本: ${GREEN}$PRETTY_NAME${NC}"
     else
-        echo -e "${WHITE}  系统版本: ${GREEN}$(uname -s)${NC}"
+        echo -e "${WHITE}系统版本: ${GREEN}$(uname -s)${NC}"
     fi
     
     # Linux内核版本
-    echo -e "${WHITE}  Linux内核版本: ${GREEN}$(uname -r)${NC}"
+    echo -e "${WHITE}Linux版本: ${GREEN}$(uname -r)${NC}"
+    
+    echo -e "${GRAY}-------------${NC}"
+    
+    # CPU信息
+    echo -e "${WHITE}CPU 信息${NC}"
     
     # CPU架构
-    echo -e "${WHITE}  CPU架构: ${GREEN}$(uname -m)${NC}"
+    echo -e "${WHITE}CPU架构: ${GREEN}$(uname -m)${NC}"
     
     # CPU型号
     cpu_model=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^[ \t]*//')
-    echo -e "${WHITE}  CPU型号: ${GREEN}${cpu_model:-未知}${NC}"
+    echo -e "${WHITE}CPU型号: ${GREEN}${cpu_model:-未知}${NC}"
     
     # CPU核心数
     cpu_cores=$(nproc)
-    echo -e "${WHITE}  CPU核心数: ${GREEN}${cpu_cores}${NC}"
+    echo -e "${WHITE}CPU核心数: ${GREEN}${cpu_cores}${NC}"
     
     # CPU频率
     cpu_freq=$(grep -m1 "cpu MHz" /proc/cpuinfo | cut -d: -f2 | sed 's/^[ \t]*//')
     if [[ -n "$cpu_freq" ]]; then
-        echo -e "${WHITE}  CPU频率: ${GREEN}${cpu_freq} MHz${NC}"
+        echo -e "${WHITE}CPU频率: ${GREEN}${cpu_freq} MHz${NC}"
+    else
+        echo -e "${WHITE}CPU频率: ${GREEN}未知${NC}"
     fi
+    
+    echo -e "${GRAY}-------------${NC}"
+    
+    # 系统资源使用
+    echo -e "${WHITE}系统资源使用${NC}"
     
     # CPU占用率
     cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
-    echo -e "${WHITE}  CPU占用率: ${GREEN}${cpu_usage}%${NC}"
+    echo -e "${WHITE}CPU占用: ${GREEN}${cpu_usage}%${NC}"
     
     # 系统负载
     loadavg=$(cat /proc/loadavg)
     load1=$(echo $loadavg | awk '{print $1}')
     load5=$(echo $loadavg | awk '{print $2}')
     load15=$(echo $loadavg | awk '{print $3}')
-    echo -e "${WHITE}  系统负载 (1/5/15分钟): ${GREEN}${load1} / ${load5} / ${load15}${NC}"
+    echo -e "${WHITE}系统负载: ${GREEN}${load1} ${load5} ${load15}${NC}"
     
     # 物理内存
     mem_total=$(free -h | awk '/^Mem:/ {print $2}')
     mem_used=$(free -h | awk '/^Mem:/ {print $3}')
-    mem_free=$(free -h | awk '/^Mem:/ {print $4}')
     mem_usage=$(free | awk '/^Mem:/ {printf "%.1f", $3/$2*100}')
-    echo -e "${WHITE}  物理内存: ${GREEN}${mem_used} / ${mem_total} (使用率: ${mem_usage}%)${NC}"
-    echo -e "${WHITE}  可用内存: ${GREEN}${mem_free}${NC}"
+    echo -e "${WHITE}物理内存: ${GREEN}${mem_used} / ${mem_total} (${mem_usage}%)${NC}"
     
     # 虚拟内存
     swap_total=$(free -h | awk '/^Swap:/ {print $2}')
     swap_used=$(free -h | awk '/^Swap:/ {print $3}')
-    swap_free=$(free -h | awk '/^Swap:/ {print $4}')
     if [[ "$swap_total" != "0B" ]]; then
         swap_usage=$(free | awk '/^Swap:/ {printf "%.1f", $3/$2*100}')
-        echo -e "${WHITE}  虚拟内存: ${GREEN}${swap_used} / ${swap_total} (使用率: ${swap_usage}%)${NC}"
-        echo -e "${WHITE}  可用虚拟内存: ${GREEN}${swap_free}${NC}"
+        echo -e "${WHITE}虚拟内存: ${GREEN}${swap_used} / ${swap_total} (${swap_usage}%)${NC}"
     else
-        echo -e "${WHITE}  虚拟内存: ${YELLOW}未启用${NC}"
+        echo -e "${WHITE}虚拟内存: ${GREEN}未启用${NC}"
     fi
     
     # 硬盘占用
     disk_usage=$(df -h / | awk 'NR==2 {print $5}')
     disk_used=$(df -h / | awk 'NR==2 {print $3}')
     disk_total=$(df -h / | awk 'NR==2 {print $2}')
-    echo -e "${WHITE}  硬盘占用: ${GREEN}${disk_used} / ${disk_total} (${disk_usage})${NC}"
+    echo -e "${WHITE}硬盘占用: ${GREEN}${disk_used} / ${disk_total} (${disk_usage})${NC}"
     
-    # 公网IP地址
-    echo ""
-    echo -e "${CYAN}🌐 网络信息${NC}"
-    show_separator
-    echo -e "${WHITE}  正在获取公网IP地址...${NC}"
-    public_ip=$(curl -s --max-time 5 ip.sb 2>/dev/null || echo "获取失败")
-    echo -e "${WHITE}  公网IP地址: ${GREEN}${public_ip}${NC}"
+    echo -e "${GRAY}-------------${NC}"
     
-    # 地理位置信息
-    if [[ "$public_ip" != "获取失败" ]]; then
-        geo_info=$(get_geolocation)
-        if [[ -n "$geo_info" ]]; then
-            echo -e "${WHITE}  地理位置: ${GREEN}${geo_info}${NC}"
-        fi
-    fi
-    
-    # DNS地址
-    dns_address=$(get_dns_address)
-    if [[ -n "$dns_address" ]]; then
-        echo -e "${WHITE}  DNS地址: ${GREEN}${dns_address}${NC}"
-    fi
-    
-    # 运营商信息
-    isp_info=$(get_isp)
-    if [[ -n "$isp_info" ]]; then
-        echo -e "${WHITE}  运营商: ${GREEN}${isp_info}${NC}"
-    fi
+    # 网络流量
+    echo -e "${WHITE}网络流量${NC}"
     
     # 网络流量统计
     rx_bytes=0
@@ -558,16 +550,66 @@ show_system_info() {
     rx_formatted=$(format_bytes $rx_bytes)
     tx_formatted=$(format_bytes $tx_bytes)
     
-    echo -e "${WHITE}  总接收数据: ${GREEN}${rx_formatted}${NC}"
-    echo -e "${WHITE}  总发送数据: ${GREEN}${tx_formatted}${NC}"
+    echo -e "${WHITE}总接收: ${GREEN}${rx_formatted}${NC}"
+    echo -e "${WHITE}总发送: ${GREEN}${tx_formatted}${NC}"
+    
+    echo -e "${GRAY}-------------${NC}"
+    
+    # 网络信息
+    echo -e "${WHITE}网络信息${NC}"
+    
+    # 网络算法 (检查BBR是否启用)
+    current_cc=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk '{print $3}')
+    if [[ "$current_cc" == "bbr" ]]; then
+        echo -e "${WHITE}网络算法: ${GREEN}BBR${NC}"
+    else
+        echo -e "${WHITE}网络算法: ${GREEN}${current_cc:-默认}${NC}"
+    fi
+    
+    # 运营商信息
+    isp_info=$(get_isp)
+    if [[ -n "$isp_info" ]]; then
+        echo -e "${WHITE}运营商: ${GREEN}${isp_info}${NC}"
+    else
+        echo -e "${WHITE}运营商: ${GREEN}未知${NC}"
+    fi
+    
+    # IPv4地址
+    ipv4_address=$(get_ipv4_address 2>/dev/null || echo "获取失败")
+    echo -e "${WHITE}IPv4地址: ${GREEN}${ipv4_address}${NC}"
+    
+    # DNS地址
+    dns_address=$(get_dns_address)
+    if [[ -n "$dns_address" ]]; then
+        echo -e "${WHITE}DNS地址: ${GREEN}${dns_address}${NC}"
+    else
+        echo -e "${WHITE}DNS地址: ${GREEN}未知${NC}"
+    fi
+    
+    # 地理位置信息
+    if [[ "$ipv4_address" != "获取失败" ]]; then
+        geo_info=$(get_geolocation)
+        if [[ -n "$geo_info" ]]; then
+            echo -e "${WHITE}地理位置: ${GREEN}${geo_info}${NC}"
+        else
+            echo -e "${WHITE}地理位置: ${GREEN}未知${NC}"
+        fi
+    else
+        echo -e "${WHITE}地理位置: ${GREEN}未知${NC}"
+    fi
+    
+    # 系统时间
+    current_time=$(date "+%Y-%m-%d %H:%M:%S %Z")
+    echo -e "${WHITE}系统时间: ${GREEN}${current_time}${NC}"
+    
+    echo -e "${GRAY}-------------${NC}"
+    
+    # 运行状态
+    echo -e "${WHITE}运行状态${NC}"
     
     # 系统运行时间（以天数、小时、分钟显示）
-    runtime=$(cat /proc/uptime | awk -F. '{run_days=int($1 / 86400);run_hours=int(($1 % 86400) / 3600);run_minutes=int(($1 % 3600) / 60); if (run_days > 0) printf("%d天 ", run_days); if (run_hours > 0) printf("%d时 ", run_hours); printf("%d分\n", run_minutes)}')
-    echo -e "${WHITE}  系统运行时间: ${GREEN}${runtime}${NC}"
-    
-    # 当前登录用户
-    logged_users=$(who | wc -l)
-    echo -e "${WHITE}  当前登录用户: ${GREEN}${logged_users}${NC}"
+    runtime=$(cat /proc/uptime | awk -F. '{run_days=int($1 / 86400);run_hours=int(($1 % 86400) / 3600);run_minutes=int(($1 % 3600) / 60); if (run_days > 0) printf("%d天 ", run_days); if (run_hours > 0) printf("%d时 ", run_hours); printf("%d分", run_minutes)}')
+    echo -e "${WHITE}运行时长: ${GREEN}${runtime}${NC}"
     
     echo ""
     echo -e "${YELLOW}════════════════════════════════════════${NC}"
