@@ -613,11 +613,12 @@ main_menu() {
         echo -e "${GREEN}[5]${NC} 手动解封IP"
         echo -e "${GREEN}[6]${NC} 重启Fail2Ban"
         echo -e "${GREEN}[7]${NC} 查看Fail2Ban日志"
-        echo -e "${RED}[8]${NC} 卸载Fail2Ban"
+        echo -e "${GREEN}[8]${NC} 查看运行状态"
+        echo -e "${RED}[9]${NC} 卸载Fail2Ban"
         echo -e "${RED}[0]${NC} 退出"
         echo ""
         
-        read -p "请输入选项 [0-8]: " choice
+        read -p "请输入选项 [0-9]: " choice
         
         case $choice in
             1)
@@ -656,6 +657,14 @@ main_menu() {
                 press_any_key
                 ;;
             8)
+                print_header
+                echo -e "${CYAN}${BOLD}查看Fail2Ban运行状态${RESET}"
+                print_separator
+                echo -e "${YELLOW}Fail2Ban服务状态：${NC}"
+                sudo systemctl status fail2ban
+                press_any_key
+                ;;
+            9)
                 uninstall_fail2ban
                 ;;
             0)
