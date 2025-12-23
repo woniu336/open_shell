@@ -816,23 +816,51 @@ start_monitor() {
         return
     fi
     
-    # 检查是否已经在监控
-    if [[ -f "$MONITOR_PID_FILE" ]]; then
-        local pid=$(cat "$MONITOR_PID_FILE")
-        if kill -0 "$pid" 2>/dev/null; then
-            show_warning "监控进程已在运行 (PID: $pid)"
-            read -e -p "是否停止现有监控并启动新的？(y/N): " confirm
+    # 检查是否已经有相同任务的监控在运行
+    local monitor_script="$MONITOR_DIR/monitor_$num.sh"
+    if [[ -f "$monitor_script" ]]; then
+        # 检查是否有该监控脚本的进程在运行
+        local existing_pids=$(pgrep -f "monitor_$num.sh" 2>/dev/null)
+        if [[ -n "$existing_pids" ]]; then
+            show_warning "任务 $name 的监控已经在运行！"
+            read -e -p "是否停止现有监控并重新启动？(y/N): " confirm
             if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
                 show_info "取消操作"
                 return
             fi
-            stop_monitor
+            # 停止该任务的监控
+            stop_all_monitor_processes "$num"
+            # 清理残留文件
+            rm -f "$MONITOR_PID_FILE" "$MONITOR_DIR/monitor_task_*" 2>/dev/null
+            sleep 2
+        fi
+    fi
+    
+    # 检查是否有其他监控进程在运行
+    local any_monitor_pids=$(pgrep -f "monitor_[0-9]+\.sh" 2>/dev/null)
+    if [[ -n "$any_monitor_pids" ]]; then
+        show_warning "发现其他监控进程正在运行"
+        read -e -p "是否停止所有监控进程并启动新的？(y/N): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            # 停止所有监控进程
+            for monitor_script_file in "$MONITOR_DIR"/monitor_*.sh; do
+                if [[ -f "$monitor_script_file" ]]; then
+                    local task_num=$(echo "$monitor_script_file" | grep -o "monitor_[0-9]\+" | grep -o "[0-9]\+")
+                    if [[ -n "$task_num" ]]; then
+                        stop_all_monitor_processes "$task_num"
+                    fi
+                fi
+            done
+            # 清理所有监控文件
+            rm -f "$MONITOR_PID_FILE" "$MONITOR_DIR"/monitor_task_* 2>/dev/null
+            sleep 2
+        else
+            show_info "取消操作"
+            return
         fi
     fi
     
     # 创建监控脚本
-    local monitor_script="$MONITOR_DIR/monitor_$num.sh"
-    
     cat > "$monitor_script" << EOF
 #!/bin/bash
 # 实时监控脚本
@@ -843,6 +871,10 @@ start_monitor() {
 CONFIG_FILE="$CONFIG_FILE"
 LOG_FILE="$LOG_DIR/rsync_monitor_\$(date +%Y%m%d).log"
 DELAY_SECONDS=10
+MONITOR_PID_FILE="$MONITOR_PID_FILE"
+
+# 设置进程组ID，便于停止所有子进程
+set -m
 
 log_monitor() {
     local level="\$1"
@@ -900,8 +932,16 @@ perform_sync() {
     fi
 }
 
+# 清理函数
+cleanup() {
+    log_monitor "INFO" "监控进程停止，清理子进程..."
+    # 杀死进程组中的所有进程
+    kill -- -\$(ps -o pgid= \$PID | grep -o '[0-9]*') 2>/dev/null
+    exit 0
+}
+
 # 设置退出信号处理
-trap 'log_monitor "INFO" "监控进程停止"; exit 0' INT TERM
+trap cleanup INT TERM EXIT
 
 # 开始监控
 log_monitor "INFO" "开始监控目录: \$local_path"
@@ -937,8 +977,10 @@ EOF
     chmod +x "$monitor_script"
     
     # 启动监控进程（后台运行）
-    nohup bash "$monitor_script" > "$LOG_DIR/monitor_$num.log" 2>&1 &
+    nohup bash "$monitor_script" > "$LOG_DIR/monitor_$num.log" 2>&1 </dev/null &
     local monitor_pid=$!
+    # 使用disown使shell不再跟踪这个作业，避免显示"Killed"消息
+    disown $monitor_pid 2>/dev/null || true
     
     # 保存PID
     echo "$monitor_pid" > "$MONITOR_PID_FILE"
@@ -954,41 +996,151 @@ EOF
     log "INFO" "启动实时监控: 任务 $name (PID: $monitor_pid)"
 }
 
+# 停止所有监控相关进程
+stop_all_monitor_processes() {
+    local task_num="$1"
+    
+    # 停止监控脚本进程
+    if [[ -f "$MONITOR_PID_FILE" ]]; then
+        local pid=$(cat "$MONITOR_PID_FILE" 2>/dev/null)
+        if [[ -n "$pid" ]]; then
+            # 停止主监控进程
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -TERM "$pid" 2>/dev/null
+                # 等待进程结束
+                local wait_count=0
+                while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 5 ]]; do
+                    sleep 1
+                    ((wait_count++))
+                done
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill -9 "$pid" 2>/dev/null
+                fi
+            fi
+        fi
+    fi
+    
+    # 停止inotifywait进程（监控脚本的子进程）
+    local inotify_pids=$(pgrep -f "inotifywait.*$MONITOR_DIR/monitor_$task_num.sh" 2>/dev/null)
+    if [[ -n "$inotify_pids" ]]; then
+        for inotify_pid in $inotify_pids; do
+            if kill -0 "$inotify_pid" 2>/dev/null; then
+                kill -TERM "$inotify_pid" 2>/dev/null
+                sleep 1
+                if kill -0 "$inotify_pid" 2>/dev/null; then
+                    kill -9 "$inotify_pid" 2>/dev/null
+                fi
+            fi
+        done
+    fi
+    
+    # 停止所有与监控脚本相关的进程
+    local monitor_pids=$(pgrep -f "monitor_$task_num.sh" 2>/dev/null)
+    if [[ -n "$monitor_pids" ]]; then
+        for monitor_pid in $monitor_pids; do
+            if kill -0 "$monitor_pid" 2>/dev/null; then
+                kill -TERM "$monitor_pid" 2>/dev/null
+                sleep 1
+                if kill -0 "$monitor_pid" 2>/dev/null; then
+                    kill -9 "$monitor_pid" 2>/dev/null
+                fi
+            fi
+        done
+    fi
+    
+    # 停止所有与监控目录相关的bash进程
+    local bash_pids=$(pgrep -f "bash.*$MONITOR_DIR/monitor_$task_num.sh" 2>/dev/null)
+    if [[ -n "$bash_pids" ]]; then
+        for bash_pid in $bash_pids; do
+            if kill -0 "$bash_pid" 2>/dev/null; then
+                kill -TERM "$bash_pid" 2>/dev/null
+                sleep 1
+                if kill -0 "$bash_pid" 2>/dev/null; then
+                    kill -9 "$bash_pid" 2>/dev/null
+                fi
+            fi
+        done
+    fi
+    
+    return 0
+}
+
 # 停止实时监控
 stop_monitor() {
     log "INFO" "开始停止实时监控"
     
+    # 如果没有PID文件，检查是否有监控进程在运行
     if [[ ! -f "$MONITOR_PID_FILE" ]]; then
-        show_warning "没有正在运行的监控进程"
-        return
+        # 检查是否有任何监控进程在运行
+        local any_monitor_pids=$(pgrep -f "monitor_[0-9]+\.sh" 2>/dev/null)
+        if [[ -z "$any_monitor_pids" ]]; then
+            show_warning "没有正在运行的监控进程"
+            return
+        else
+            show_warning "发现未记录的监控进程，尝试停止所有监控进程..."
+            # 获取所有监控任务编号
+            for monitor_script in "$MONITOR_DIR"/monitor_*.sh; do
+                if [[ -f "$monitor_script" ]]; then
+                    local task_num=$(echo "$monitor_script" | grep -o "monitor_[0-9]\+" | grep -o "[0-9]\+")
+                    if [[ -n "$task_num" ]]; then
+                        stop_all_monitor_processes "$task_num"
+                    fi
+                fi
+            done
+            
+            # 清理所有监控文件
+            rm -f "$MONITOR_PID_FILE" "$MONITOR_DIR"/monitor_task_* 2>/dev/null
+            show_success "已停止所有监控进程"
+            log "INFO" "停止所有未记录的监控进程"
+            return
+        fi
     fi
     
     local pid=$(cat "$MONITOR_PID_FILE")
+    local task_file="$MONITOR_DIR/monitor_task_$pid"
+    local task_num=""
     
-    if kill -0 "$pid" 2>/dev/null; then
-        kill -TERM "$pid"
-        
-        # 等待进程结束
-        local wait_count=0
-        while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 10 ]]; do
-            sleep 1
-            ((wait_count++))
-        done
-        
-        if kill -0 "$pid" 2>/dev/null; then
-            show_warning "监控进程未正常退出，强制终止..."
-            kill -9 "$pid"
-        fi
-        
-        rm -f "$MONITOR_PID_FILE"
-        rm -f "$MONITOR_DIR/monitor_task_$pid"
-        
-        show_success "监控进程已停止 (PID: $pid)"
-        log "INFO" "停止实时监控: PID $pid"
+    if [[ -f "$task_file" ]]; then
+        task_num=$(cat "$task_file" 2>/dev/null)
+    fi
+    
+    # 停止所有监控相关进程
+    if [[ -n "$task_num" ]]; then
+        stop_all_monitor_processes "$task_num"
     else
-        show_warning "监控进程不存在或已停止 (PID: $pid)"
-        rm -f "$MONITOR_PID_FILE"
-        rm -f "$MONITOR_DIR/monitor_task_$pid"
+        # 如果没有任务编号，尝试停止PID进程
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid" 2>/dev/null
+            local wait_count=0
+            while kill -0 "$pid" 2>/dev/null && [[ $wait_count -lt 5 ]]; do
+                sleep 1
+                ((wait_count++))
+            done
+            if kill -0 "$pid" 2>/dev/null; then
+                kill -9 "$pid" 2>/dev/null
+            fi
+        fi
+    fi
+    
+    # 清理文件
+    rm -f "$MONITOR_PID_FILE" "$task_file" 2>/dev/null
+    
+    # 再次检查是否还有相关进程
+    if [[ -n "$task_num" ]]; then
+        local remaining_pids=$(pgrep -f "monitor_$task_num.sh" 2>/dev/null)
+        if [[ -n "$remaining_pids" ]]; then
+            show_warning "仍有监控进程残留，强制清理..."
+            for remaining_pid in $remaining_pids; do
+                kill -9 "$remaining_pid" 2>/dev/null
+            done
+        fi
+    fi
+    
+    show_success "监控进程已停止"
+    if [[ -n "$task_num" ]]; then
+        log "INFO" "停止实时监控: 任务编号 $task_num"
+    else
+        log "INFO" "停止实时监控: PID $pid"
     fi
 }
 
