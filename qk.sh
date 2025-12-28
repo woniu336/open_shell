@@ -8,8 +8,8 @@ cache_dir="/var/www/cache/$domain"
 mkdir -p "$cache_dir"
 
 # 下载文件
-zip_file="/tmp/catt_$(date +%s).zip"
-download_url="https://github.com/jimugou/jimugou.github.io/releases/download/v1.0.0/catt.zip"
+zip_file="/tmp/qk_$(date +%s).zip"
+download_url="https://github.com/jimugou/jimugou.github.io/releases/download/v1.0.0/qk.zip"
 
 if command -v wget &> /dev/null; then
     wget -q "$download_url" -O "$zip_file"
