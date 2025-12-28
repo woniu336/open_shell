@@ -58,7 +58,7 @@ check_root() {
 install_dependencies() {
     print_msg "正在更新系统并安装编译环境..."
     apt update && apt install -y build-essential libpcre3-dev zlib1g-dev libssl-dev \
-        pkg-config libclang-dev git wget curl tree tar jq
+        pkg-config libclang-dev git wget curl tree tar jq cmake
     [ $? -eq 0 ] || { print_error "依赖安装失败"; exit 1; }
     print_success "系统依赖安装完成"
 }
@@ -125,6 +125,19 @@ download_sources() {
         print_warning "ACME 模块已存在，跳过下载"
     fi
     
+    # 下载 Nginx Brotli 模块
+    if [ ! -d "ngx_brotli" ]; then
+        print_msg "克隆 Nginx Brotli 模块..."
+        git clone https://github.com/google/ngx_brotli.git
+        [ $? -eq 0 ] || { print_error "Brotli 模块下载失败"; exit 1; }
+        cd ngx_brotli
+        git submodule update --init
+        cd ${BUILD_DIR}
+        print_success "Brotli 模块下载并初始化完成"
+    else
+        print_warning "Brotli 模块已存在，跳过下载"
+    fi
+    
     # 下载 Nginx 源码
     if [ ! -f "nginx-${NGINX_VERSION}.tar.gz" ]; then
         print_msg "下载 Nginx v${NGINX_VERSION}..."
@@ -142,10 +155,41 @@ download_sources() {
     print_success "源码下载完成"
 }
 
-# 5. 编译与安装
+# 5. 编译 Brotli 库
+compile_brotli_libs() {
+    print_msg "编译 Brotli 库..."
+    cd ${BUILD_DIR}/ngx_brotli/deps/brotli
+    
+    # 清理之前的构建
+    rm -rf out
+    
+    # 创建构建目录
+    mkdir -p out && cd out
+    
+    # 配置和编译
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+    [ $? -eq 0 ] || { print_error "Brotli CMake 配置失败"; exit 1; }
+    
+    make -j$(nproc)
+    [ $? -eq 0 ] || { print_error "Brotli 库编译失败"; exit 1; }
+    
+    # 安装库文件到系统路径
+    make install
+    [ $? -eq 0 ] || { print_error "Brotli 库安装失败"; exit 1; }
+    
+    # 确保库文件在标准库路径中
+    ldconfig
+    
+    print_success "Brotli 库编译安装完成"
+}
+
+# 6. 编译与安装 Nginx
 compile_nginx() {
     print_msg "开始编译 Nginx (大约需要 5 分钟)..."
     cd ${BUILD_DIR}/nginx-${NGINX_VERSION}
+    
+    # 设置 Brotli 库路径
+    BROTLI_LIB_PATH="${BUILD_DIR}/ngx_brotli/deps/brotli/out"
     
     ./configure \
         --prefix=${NGINX_PREFIX} \
@@ -175,8 +219,9 @@ compile_nginx() {
         --with-stream \
         --with-stream_ssl_module \
         --with-cc-opt='-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -fPIC' \
-        --with-ld-opt='-Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie' \
-        --add-dynamic-module=${BUILD_DIR}/nginx-acme
+        --with-ld-opt="-Wl,-z,relro -Wl,-z,now -Wl,--as-needed -pie -L${BROTLI_LIB_PATH}" \
+        --add-dynamic-module=${BUILD_DIR}/nginx-acme \
+        --add-module=${BUILD_DIR}/ngx_brotli
     
     [ $? -eq 0 ] || { print_error "配置失败"; exit 1; }
     
@@ -602,10 +647,10 @@ add_proxy_site() {
     read -p "后端端口: " B_PORT
     
     cat > ${NGINX_SITES_AVAILABLE_DIR}/${DOMAIN} << EOF
-# ===== WebSocket 判断 =====
+# ===== WebSocket 智能判断 =====
 map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    '' close;
+    default      "";       
+    websocket    "upgrade"; 
 }
 
 # ===== HTTP → HTTPS =====
@@ -639,47 +684,72 @@ server {
     ssl_certificate_key \$acme_certificate_key;
     ssl_certificate_cache max=2;
     
-    location / {
+    gzip on;
+    gzip_min_length 1024;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript 
+              application/json application/javascript application/xml 
+              application/rss+xml image/svg+xml;
+    
+    brotli on;
+    brotli_comp_level 6;
+    brotli_types text/plain text/css text/xml text/javascript 
+                 application/json application/javascript application/xml 
+                 application/rss+xml image/svg+xml;
+    
+    # ===== 静态资源 =====
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|bmp|swf|eot|svg|ttf|woff|woff2|webp)\$ {
+        proxy_pass http://${B_IP}:${B_PORT};
+        
+        # HTTP/1.1 持久连接
         proxy_http_version 1.1;
+        proxy_set_header Connection "";
         
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \$connection_upgrade;
+        # 获取原始文件（禁用后端压缩）
+        proxy_set_header Accept-Encoding "";
+        #proxy_hide_header Vary;
         
+        # 代理头
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_set_header X-Forwarded-Port \$server_port;
         
-        proxy_pass http://${B_IP}:${B_PORT};
-    }
-    
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|bmp|swf|eot|svg|ttf|woff|woff2|webp)\$ {
-        proxy_pass http://${B_IP}:${B_PORT};
-
-        proxy_set_header Host               \$host;
-        proxy_set_header X-Real-IP          \$remote_addr;
-        proxy_set_header X-Forwarded-For    \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto  \$scheme;
-        proxy_set_header X-Forwarded-Port   \$server_port;
-
-        proxy_http_version 1.1;
-
-        # 代理静态缓存
+        # 缓存配置
         proxy_cache my_proxy_cache;
-        proxy_cache_lock on;
-        proxy_cache_background_update on;
-        proxy_cache_use_stale  error timeout invalid_header updating http_500 http_502 http_503 http_504;
-        proxy_cache_methods GET HEAD;
+        proxy_cache_valid 200 302 304 30d;
+        proxy_cache_valid 404 1m;
+        proxy_cache_valid any 10s;
+        proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
 
-        # 浏览器缓存
+        # 忽略后端缓存头
+        #proxy_ignore_headers Cache-Control Expires;      
+        
+        # 性能优化
         expires 30d;
         etag on;
-
-        # 高并发优化
-        aio           threads;
+        sendfile on;
+        tcp_nopush on;
         log_not_found off;
-        access_log    off;
+        access_log off;
+    }
+    
+    # ===== 动态内容 =====
+    location / {
+        proxy_pass http://${B_IP}:${B_PORT};
+        
+        # WebSocket支持
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$connection_upgrade;
+        
+        # 代理头
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Port \$server_port;
     }
 }
 EOF
@@ -721,10 +791,12 @@ add_load_balancing_site() {
     done
     
     cat > ${NGINX_SITES_AVAILABLE_DIR}/${DOMAIN} << EOF
+# ===== WebSocket 智能判断 =====
 map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    ''      close;
+    default      "";       
+    websocket    "upgrade"; 
 }
+
 
 upstream ${UPSTREAM_NAME} {
     keepalive          320;
@@ -734,6 +806,7 @@ upstream ${UPSTREAM_NAME} {
 $(echo -e "${SERVER_LIST}")
 }
 
+# ===== HTTP → HTTPS =====
 server {
     listen 80;
     listen [::]:80;
@@ -743,12 +816,12 @@ server {
     location /.well-known/acme-challenge/ {
         root /var/www/html;
     }
-    
     location / {
         return 301 https://\$host\$request_uri;
     }
 }
 
+# ===== HTTPS 443 =====
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
@@ -763,58 +836,91 @@ server {
     ssl_certificate \$acme_certificate;
     ssl_certificate_key \$acme_certificate_key;
     ssl_certificate_cache max=2;
-
-
-    location / {
-        proxy_pass http://${UPSTREAM_NAME};
-
-        proxy_connect_timeout       2s;
-        proxy_send_timeout          5s;
-        proxy_read_timeout          8s;
-        proxy_next_upstream         error timeout invalid_header http_500 http_502 http_503 http_504;
-        proxy_next_upstream_tries   2;
-
-        proxy_set_header Host               \$host;
-        proxy_set_header X-Real-IP          \$remote_addr;
-        proxy_set_header X-Forwarded-For    \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto  \$scheme;
-        proxy_set_header X-Forwarded-Port   \$server_port;
-
-        # WebSocket / keepalive
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade    \$http_upgrade;
-        proxy_set_header   Connection \$connection_upgrade;
-
-
-    }
-
-
+    
+    gzip on;
+    gzip_min_length 1024;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript 
+              application/json application/javascript application/xml 
+              application/rss+xml image/svg+xml;
+    
+    brotli on;
+    brotli_comp_level 6;
+    brotli_types text/plain text/css text/xml text/javascript 
+                 application/json application/javascript application/xml 
+                 application/rss+xml image/svg+xml;
+    
+    # ===== 静态资源 =====
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|bmp|swf|eot|svg|ttf|woff|woff2|webp)\$ {
         proxy_pass http://${UPSTREAM_NAME};
 
+        # HTTP/1.1 持久连接
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        # 超时控制
+        proxy_connect_timeout 1s;
+        proxy_send_timeout 2s;
+        proxy_read_timeout 3s;
+        
+        # 故障转移配置
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_next_upstream_timeout 5s;
+        proxy_next_upstream_tries 2;
+        
+        
+        # 获取原始文件（禁用后端压缩）
+        proxy_set_header Accept-Encoding "";
+        #proxy_hide_header Vary;
+        
+        # 代理头
         proxy_set_header Host               \$host;
         proxy_set_header X-Real-IP          \$remote_addr;
         proxy_set_header X-Forwarded-For    \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto  \$scheme;
         proxy_set_header X-Forwarded-Port   \$server_port;
-
-        proxy_http_version 1.1;
-
-        # 代理静态缓存
+        
+        # 缓存配置
         proxy_cache my_proxy_cache;
-        proxy_cache_lock on;
-        proxy_cache_background_update on;
-        proxy_cache_use_stale  error timeout invalid_header updating http_500 http_502 http_503 http_504;
-        proxy_cache_methods GET HEAD;
-
-        # 浏览器缓存
+        proxy_cache_valid 200 302 304 30d;
+        proxy_cache_valid 404 1m;
+        proxy_cache_valid any 10s;
+        proxy_cache_use_stale error timeout invalid_header updating http_500 http_502 http_503 http_504;
+        
+        # 忽略后端缓存头
+        #proxy_ignore_headers Cache-Control Expires;
+        
+        # 性能优化
         expires 30d;
         etag on;
-
-        # 高并发优化
-        aio           threads;
+        sendfile on;
+        tcp_nopush on;
         log_not_found off;
-        access_log    off;
+        access_log off;
+    }
+    
+    # ===== 动态内容 =====
+    location / {
+        proxy_pass http://${UPSTREAM_NAME};
+
+        # 超时控制（比静态稍长）
+        proxy_connect_timeout 2s;
+        proxy_send_timeout 5s;
+        proxy_read_timeout 8s;
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        
+        # WebSocket支持
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    \$http_upgrade;
+        proxy_set_header   Connection \$connection_upgrade;
+        
+        # 代理头
+        proxy_set_header Host               \$host;
+        proxy_set_header X-Real-IP          \$remote_addr;
+        proxy_set_header X-Forwarded-For    \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto  \$scheme;
+        proxy_set_header X-Forwarded-Port   \$server_port;
     }
 }
 EOF
@@ -1057,6 +1163,7 @@ full_install() {
     install_rust
     create_directories
     download_sources
+    compile_brotli_libs
     compile_nginx
     configure_system
     
@@ -1079,6 +1186,7 @@ full_install() {
     echo "  - 配置目录: ${NGINX_CONF_DIR}"
     echo "  - 日志目录: ${NGINX_LOG_DIR}"
     echo "  - ACME 模块: 已启用"
+    echo "  - Brotli 模块: 已启用"
     echo "  - 证书目录: ${NGINX_CONF_DIR}/acme"
     echo -e "\n${YELLOW}下一步:${NC}"
     echo "  使用菜单选项 2-6 添加您的第一个站点"
