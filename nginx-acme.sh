@@ -718,7 +718,7 @@ server {
         
         # 缓存配置
         proxy_cache my_proxy_cache;
-        proxy_cache_key '$scheme$host$request_uri$is_args$args';
+        proxy_cache_key "\$scheme\$host\$request_uri\$is_args\$args;"
         proxy_cache_valid 200 302 304 30d;
         proxy_cache_valid 404 1m;
         proxy_cache_valid any 10s;
@@ -883,7 +883,7 @@ server {
         
         # 缓存配置
         proxy_cache my_proxy_cache;
-        proxy_cache_key '$scheme$host$request_uri$is_args$args';
+        proxy_cache_key "\$scheme\$host\$request_uri\$is_args\$args;"
         proxy_cache_valid 200 302 304 30d;
         proxy_cache_valid 404 1m;
         proxy_cache_valid any 10s;
