@@ -229,7 +229,7 @@ compile_nginx() {
     [ $? -eq 0 ] && print_success "Nginx 编译安装成功" || { print_error "编译失败"; exit 1; }
 }
 
-# 7. 配置环境
+# 6. 配置环境
 configure_system() {
     # 创建用户
     if ! id "${NGINX_USER}" &>/dev/null; then
@@ -581,6 +581,7 @@ stop_nginx() {
     fi
 }
 
+
 # 卸载 Nginx
 uninstall_nginx() {
     echo -e "\n${RED}========================================${NC}"
@@ -882,7 +883,7 @@ server {
         
         # 缓存配置
         proxy_cache my_proxy_cache;
-		proxy_cache_key "$scheme$host$request_uri$is_args$args";
+        proxy_cache_key "$scheme$host$request_uri$is_args$args";
         proxy_cache_valid 200 302 304 30d;
         proxy_cache_valid 404 1m;
         proxy_cache_valid any 10s;
@@ -1105,6 +1106,7 @@ server {
     proxy_connect_timeout 10s;
 }
 EOF
+
     
     # 启用配置
     ln -sf ${NGINX_STREAMS_AVAILABLE_DIR}/${CONFIG_NAME} ${NGINX_STREAMS_ENABLED_DIR}/
