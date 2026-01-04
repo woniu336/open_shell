@@ -340,7 +340,7 @@ adjust_swap_policy() {
     cp /etc/sysctl.conf /etc/sysctl.conf.bak
     sudo sed -i '/^vm.swappiness/d' /etc/sysctl.conf
     sudo find /etc/sysctl.d/ -type f -name "*.conf" -exec sed -i '/^vm.swappiness/d' {} \;
-    echo "vm.swappiness = 5" | sudo tee /etc/sysctl.d/99-swap.conf
+    echo "vm.swappiness = 10" | sudo tee /etc/sysctl.d/99-swap.conf
     sudo sysctl --system
     show_success "SWAP使用策略调整完成！"
 }
