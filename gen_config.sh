@@ -220,13 +220,13 @@ ${websites_json}
     ],
     "excludePatterns": [
       "^/(?:api|ajax)/",
-      "^/index\\.php/ajax/",
-      "^/index\\.php/user/ajax_ulog$",
-      "^/health$",
+      "^/index\\\\.php/ajax/",
+      "^/index\\\\.php/user/ajax_ulog\$",
+      "^/health\$",
       "^/_(?:nuxt|next)/",
-      "favicon\\.ico$",
-      "robots\\.txt$",
-      "sitemap\\.xml$"
+      "favicon\\\\.ico\$",
+      "robots\\\\.txt\$",
+      "sitemap\\\\.xml\$"
     ],
     "excludeIPs": [
       "127.0.0.1",
