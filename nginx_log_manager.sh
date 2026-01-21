@@ -85,6 +85,7 @@ RSYNC_PASSWORD="${RSYNC_PASSWORD:-}"
 CENTER_IP="${CENTER_IP:-}"
 CLIENT_LOG_BASE="${CLIENT_LOG_BASE:-/var/log/nginx}"
 SYNC_LOGS="${SYNC_LOGS:-}"
+SYNC_ROTATED="${SYNC_ROTATED:-yes}"
 EOF
     chmod 600 "$CONFIG_FILE"
 }
@@ -519,46 +520,79 @@ client_create_sync_script() {
         [ -n "$log" ] && logs_array="${logs_array}  \"${log}\"\n"
     done
 
-    cat > "$script_file" << EOF
+    cat > "$script_file" << 'SCRIPT_EOF'
 #!/bin/bash
 # /usr/local/bin/sync_nginx_logs.sh
 # 自动生成，请通过管理脚本修改配置
-set -e
 
+SCRIPT_EOF
+
+    cat >> "$script_file" << EOF
 CENTER_IP="${CENTER_IP}"
 PORT=${RSYNC_PORT:-$DEFAULT_RSYNC_PORT}
 RSYNC_USER="${RSYNC_USER:-$DEFAULT_RSYNC_USER}"
 PASSFILE="/root/.rsync_pass"
 LOG_BASE="${CLIENT_LOG_BASE:-/var/log/nginx}"
 HOSTNAME=\$(hostname -s)
+SYNC_ROTATED="${SYNC_ROTATED:-yes}"
 
-# 要同步的日志
-LOGS=(
+# 要同步的日志基名（不含轮转后缀）
+LOG_BASES=(
 $(echo -e "$logs_array"))
+EOF
 
-for log in "\${LOGS[@]}"; do
-    SRC="\$LOG_BASE/\$log"
+    cat >> "$script_file" << 'SCRIPT_EOF'
 
-    if [ ! -f "\$SRC" ]; then
-        echo "[\$(date '+%F %T')] 文件不存在: \$SRC"
-        continue
+# 同步单个文件的函数
+sync_file() {
+    local src="$1"
+    local dest_name="$2"
+
+    if [ ! -f "$src" ]; then
+        return 0
     fi
 
-    echo "[\$(date '+%F %T')] 开始同步: \$SRC"
-    /usr/bin/rsync -avz \\
-        --inplace \\
-        --timeout=180 \\
-        --bwlimit=2000 \\
-        --password-file="\$PASSFILE" \\
-        "\$SRC" \\
-        "rsync://\$RSYNC_USER@\$CENTER_IP:\$PORT/active/\$HOSTNAME/\$log"
-    if [ \$? -eq 0 ]; then
-        echo "[\$(date '+%F %T')] 同步完成: \$SRC"
+    echo "[$(date '+%F %T')] 开始同步: $src"
+    /usr/bin/rsync -avz \
+        --inplace \
+        --timeout=180 \
+        --bwlimit=2000 \
+        --password-file="$PASSFILE" \
+        "$src" \
+        "rsync://$RSYNC_USER@$CENTER_IP:$PORT/active/$HOSTNAME/$dest_name"
+
+    if [ $? -eq 0 ]; then
+        echo "[$(date '+%F %T')] 同步完成: $src"
     else
-        echo "[\$(date '+%F %T')] 同步失败: \$SRC"
+        echo "[$(date '+%F %T')] 同步失败: $src"
+    fi
+}
+
+for log_base in "${LOG_BASES[@]}"; do
+    # 1. 同步主日志文件
+    SRC="$LOG_BASE/$log_base"
+    if [ -f "$SRC" ]; then
+        sync_file "$SRC" "$log_base"
+    else
+        echo "[$(date '+%F %T')] 主日志不存在: $SRC"
+    fi
+
+    # 2. 同步轮转的日志文件（如果启用）
+    if [ "$SYNC_ROTATED" = "yes" ]; then
+        # 匹配模式: xxx.log.1, xxx.log.2.gz, xxx.log.3.gz 等
+        # 使用 find 查找所有轮转文件
+        while IFS= read -r -d '' rotated_file; do
+            if [ -f "$rotated_file" ]; then
+                # 获取文件名
+                file_name=$(basename "$rotated_file")
+                sync_file "$rotated_file" "$file_name"
+            fi
+        done < <(find "$LOG_BASE" -maxdepth 1 -name "${log_base}.*" -print0 2>/dev/null | sort -zV)
     fi
 done
-EOF
+
+echo "[$(date '+%F %T')] ========== 同步任务完成 =========="
+SCRIPT_EOF
 
     chmod +x "$script_file"
     print_success "同步脚本已创建: $script_file"
@@ -566,7 +600,7 @@ EOF
     echo ""
     echo "脚本内容预览:"
     echo "----------------------------------------"
-    head -30 "$script_file"
+    head -50 "$script_file"
     echo "----------------------------------------"
 }
 
@@ -668,13 +702,23 @@ client_quick_setup() {
     fi
     SYNC_LOGS=$(echo "$logs_input" | tr ',' '\n' | tr ' ' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' | sort -u | tr '\n' ',' | sed 's/,$//')
 
-    # 5. 保存配置
+    # 5. 是否同步轮转日志
+    echo ""
+    echo "是否同步轮转日志？（如 .log.1, .log.2.gz 等）"
+    read -p "同步轮转日志？[Y/n]: " sync_rotated
+    if [ "$sync_rotated" = "n" ] || [ "$sync_rotated" = "N" ]; then
+        SYNC_ROTATED="no"
+    else
+        SYNC_ROTATED="yes"
+    fi
+
+    # 6. 保存配置
     save_config
 
-    # 6. 创建同步脚本
+    # 7. 创建同步脚本
     client_create_sync_script
 
-    # 7. 配置定时任务
+    # 8. 配置定时任务
     client_setup_cron
 
     echo ""
@@ -690,6 +734,42 @@ client_quick_setup() {
     fi
 }
 
+# 切换轮转日志同步
+client_toggle_rotated() {
+    echo ""
+    if [ "$SYNC_ROTATED" = "yes" ]; then
+        print_info "当前设置: 同步轮转日志 (已启用)"
+    else
+        print_info "当前设置: 仅同步主日志 (轮转日志已禁用)"
+    fi
+
+    echo ""
+    echo "轮转日志包括："
+    echo "  - xxx-access.log.1"
+    echo "  - xxx-access.log.2.gz"
+    echo "  - xxx-access.log.3.gz"
+    echo "  等..."
+    echo ""
+
+    if [ "$SYNC_ROTATED" = "yes" ]; then
+        read -p "是否禁用轮转日志同步？(y/N): " confirm
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+            SYNC_ROTATED="no"
+            save_config
+            print_success "已禁用轮转日志同步"
+        fi
+    else
+        read -p "是否启用轮转日志同步？(Y/n): " confirm
+        if [ "$confirm" != "n" ] && [ "$confirm" != "N" ]; then
+            SYNC_ROTATED="yes"
+            save_config
+            print_success "已启用轮转日志同步"
+        fi
+    fi
+
+    print_warning "请重新创建同步脚本以使配置生效"
+}
+
 # 客户端菜单
 client_menu() {
     while true; do
@@ -700,25 +780,28 @@ client_menu() {
         echo "  2. 配置 Rsync 密码"
         echo "  3. 配置日志目录"
         echo "  4. 配置同步日志文件"
-        echo "  5. 创建/更新同步脚本"
-        echo "  6. 添加/更新定时任务"
-        echo "  7. 测试同步"
-        echo "  8. 查看同步日志"
-        echo "  9. 一键配置（推荐首次使用）"
+        echo "  5. 开关轮转日志同步 [当前: ${SYNC_ROTATED:-yes}]"
+        echo "  6. 创建/更新同步脚本"
+        echo "  7. 添加/更新定时任务"
+        echo "  8. 测试同步"
+        echo "  9. 查看同步日志"
+        echo "  10. 一键配置（推荐首次使用）"
+        echo "  11. 显示当前配置"
         echo ""
         echo "  0. 返回主菜单"
         echo ""
-        read -p "请选择操作 [0-9]: " choice
+        read -p "请选择操作 [0-11]: " choice
 
         case $choice in
             1) client_set_center_ip; press_any_key ;;
             2) client_set_password; press_any_key ;;
             3) client_set_log_dir; press_any_key ;;
             4) client_set_sync_logs; press_any_key ;;
-            5) client_create_sync_script; press_any_key ;;
-            6) client_setup_cron; press_any_key ;;
-            7) client_test_sync; press_any_key ;;
-            8)
+            5) client_toggle_rotated; press_any_key ;;
+            6) client_create_sync_script; press_any_key ;;
+            7) client_setup_cron; press_any_key ;;
+            8) client_test_sync; press_any_key ;;
+            9)
                 echo ""
                 if [ -f "/var/log/sync_nginx_logs.log" ]; then
                     tail -50 /var/log/sync_nginx_logs.log
@@ -727,7 +810,23 @@ client_menu() {
                 fi
                 press_any_key
                 ;;
-            9) client_quick_setup; press_any_key ;;
+            10) client_quick_setup; press_any_key ;;
+            11)
+                echo ""
+                echo -e "${CYAN}========== 客户端当前配置 ==========${NC}"
+                echo "日志中心 IP: ${CENTER_IP:-未配置}"
+                echo "日志目录: ${CLIENT_LOG_BASE:-/var/log/nginx}"
+                echo "同步轮转日志: ${SYNC_ROTATED:-yes}"
+                echo "同步的日志文件:"
+                if [ -n "$SYNC_LOGS" ]; then
+                    echo "$SYNC_LOGS" | tr ',' '\n' | while read log; do
+                        [ -n "$log" ] && echo "  - $log"
+                    done
+                else
+                    echo "  (未配置)"
+                fi
+                press_any_key
+                ;;
             0) return ;;
             *) print_error "无效选择"; sleep 1 ;;
         esac
