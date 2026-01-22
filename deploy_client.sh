@@ -106,22 +106,23 @@ module(load="omrelp")
 module(load="imudp")
 input(type="imudp" address="127.0.0.1" port="514")
 
-template(name="NginxLogFormat" type="string"
-  string="%timestamp:::date-rfc3339% server=${SERVER_NAME} ip=${SERVER_IP} %syslogtag%%msg%\n"
-)
+# [FIX] 移除了 NginxLogFormat 模板，直接使用默认转发格式
+# 这样可以保留 syslogtag，确保服务端规则能够正确匹配
 
 if (\$syslogtag contains "_access") or (\$syslogtag contains "_error") then {
   action(
     type="omrelp"
     target="${LOG_CENTER}"
     port="${RELP_PORT}"
-    template="NginxLogFormat"
+    # 注意：这里不再使用 template="NginxLogFormat"
+    # 服务端会通过 fromhost-ip 和 syslogtag 自动格式化日志
     queue.type="LinkedList"
     queue.size="50000"
     queue.filename="nginx_fwd"
     queue.saveonshutdown="on"
     action.resumeRetryCount="-1"
   )
+  stop
 }
 
 if (\$syslogtag contains "_access") then {
@@ -135,6 +136,7 @@ EOF
 
     log_info "rsyslog 配置完成"
 }
+
 
 #========================================
 # 5. Nginx 配置提示
