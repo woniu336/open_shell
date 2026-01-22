@@ -151,8 +151,8 @@ configure_logrotate() {
     cat > /etc/logrotate.d/nginx-log-center << ROTATE_EOF
 ${LOG_DIR}/active/*.log {
     daily
-    rotate 30
-    copytruncate     # [FIX] rsyslog 正在写
+    rotate 7
+    copytruncate
     compress
     delaycompress
     missingok
