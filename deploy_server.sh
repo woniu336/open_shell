@@ -207,7 +207,7 @@ create_cleanup_script() {
     cat > /usr/local/bin/log_center_cleanup.sh << EOF
 #!/bin/bash
 LOG_DIR="${LOG_DIR}"
-find "\$LOG_DIR/archive" -name "*.gz" -mtime +90 -delete 2>/dev/null
+find "\$LOG_DIR/archive" -name "*.gz" -mtime +15 -delete 2>/dev/null
 find "\$LOG_DIR/archive" -type d -empty -delete 2>/dev/null
 EOF
     chmod +x /usr/local/bin/log_center_cleanup.sh
