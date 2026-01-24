@@ -1,6 +1,5 @@
 #!/bin/bash
-# deploy_server.sh - 日志中心服务端部署脚本（修正版）
-
+# deploy_server_optimized.sh - 日志中心服务端部署脚本（精简优化版）
 
 set -euo pipefail
 
@@ -51,16 +50,23 @@ install_packages() {
 }
 
 #========================================
-# 2. 创建目录
+# 2. 创建目录 (仅保留 active 和 errors)
 #========================================
 create_directories() {
-    log_step "创建目录结构..."
+    log_step "创建优化的目录结构..."
 
-    mkdir -p "${LOG_DIR}"/{active,fixed,archive,errors,temp}
+    # 1. 实时日志：按客户端IP分类
+    mkdir -p "${LOG_DIR}/active"
+    
+    # 2. 错误日志：单独存储，方便排查
+    mkdir -p "${LOG_DIR}/errors"
+
+    # 3. 系统运行日志目录
     mkdir -p /var/log/rsyslog_center
 
+    # 设置权限
     chown -R syslog:adm "${LOG_DIR}" 2>/dev/null || chown -R root:root "${LOG_DIR}"
-    chmod 755 "${LOG_DIR}"
+    chmod -R 755 "${LOG_DIR}"
 
     tree -L 1 "${LOG_DIR}"
 }
@@ -73,10 +79,11 @@ backup_configs() {
     mkdir -p "$BACKUP_DIR"
     [ -f /etc/rsyslog.conf ] && cp /etc/rsyslog.conf "$BACKUP_DIR/"
     [ -d /etc/rsyslog.d ] && cp -r /etc/rsyslog.d "$BACKUP_DIR/"
+    log_info "配置已备份至: $BACKUP_DIR"
 }
 
 #========================================
-# 4. rsyslog 配置
+# 4. rsyslog 配置 (精简版，只写一份文件)
 #========================================
 configure_rsyslog() {
     log_step "生成 rsyslog 配置..."
@@ -84,29 +91,27 @@ configure_rsyslog() {
     rm -f /etc/rsyslog.d/10-log-center.conf
 
     cat > /etc/rsyslog.d/10-log-center.conf << RSYSLOG_EOF
-# 日志中心配置（自动生成）
+# 日志中心配置（精简优化版）
 # Server: ${CENTER_IP}
 
 module(load="imrelp")
 module(load="imtcp")
 module(load="imudp")
 
+# 开启监听
 input(type="imrelp" port="${RELP_PORT}" ruleset="nginx_logs")
 input(type="imtcp"  port="${TCP_PORT}" ruleset="nginx_logs")
 input(type="imudp"  port="${UDP_PORT}" ruleset="nginx_logs")
 
+# 模板：Active 日志路径 (按 IP 分目录)
 template(name="ActivePath" type="string"
  string="${LOG_DIR}/active/%fromhost-ip%/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_access--end%.log")
 
+# 模板：Error 日志路径 (按 IP 分目录)
 template(name="ErrorPath" type="string"
  string="${LOG_DIR}/errors/%fromhost-ip%/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_error--end%.log")
 
-template(name="FixedPath" type="string"
- string="${LOG_DIR}/fixed/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_(access|error)--end%.log")
-
-template(name="ArchivePath" type="string"
- string="${LOG_DIR}/archive/%\$year%/%\$month%/%\$day%/%fromhost-ip%/%syslogtag%.log")
-
+# 模板：日志格式 (去除开头多余空格)
 template(name="LogFmt" type="list") {
     property(name="msg" droplastlf="on" position.from="2")
     constant(value="\n")
@@ -114,36 +119,35 @@ template(name="LogFmt" type="list") {
 
 ruleset(name="nginx_logs") {
 
+    # 处理 Access 日志
     if (\$syslogtag contains '_access') then {
         action(type="omfile" dynaFile="ActivePath" template="LogFmt"
                dirCreateMode="0755" fileCreateMode="0640"
                asyncWriting="on")
-        action(type="omfile" dynaFile="FixedPath" template="LogFmt"
-               asyncWriting="on")
-        action(type="omfile" dynaFile="ArchivePath" template="LogFmt"
-               asyncWriting="on")
-        stop    # [FIX] 防止重复匹配
+        stop    # 阻止继续向下匹配
     }
 
+    # 处理 Error 日志
     if (\$syslogtag contains '_error') then {
         action(type="omfile" dynaFile="ErrorPath" template="LogFmt"
                dirCreateMode="0755" fileCreateMode="0640"
                asyncWriting="on")
-        action(type="omfile" dynaFile="FixedPath" template="LogFmt"
-               asyncWriting="on")
-        stop    # [FIX]
+        stop
     }
 }
 RSYSLOG_EOF
+
+    log_info "rsyslog 配置生成完毕"
 }
 
 #========================================
-# 5. logrotate
+# 5. logrotate (仅对 active 和 errors 生效)
 #========================================
 configure_logrotate() {
     log_step "配置 logrotate..."
 
     cat > /etc/logrotate.d/nginx-log-center << ROTATE_EOF
+# Active 日志轮转 (保留7天)
 ${LOG_DIR}/active/*/*.log {
     daily
     rotate 7
@@ -155,18 +159,11 @@ ${LOG_DIR}/active/*/*.log {
     create 0640 syslog adm
 }
 
-${LOG_DIR}/fixed/*.log {
-    daily
-    rotate 7
-    compress
-    delaycompress
-    missingok
-    notifempty
-}
-
+# Error 日志轮转 (保留14天，因为错误日志通常更重要，需要更久追溯)
 ${LOG_DIR}/errors/*/*.log {
     daily
     rotate 14
+    copytruncate
     compress
     delaycompress
     missingok
@@ -182,7 +179,7 @@ configure_firewall() {
     log_step "配置防火墙..."
 
     if ! command -v ufw &>/dev/null; then
-        log_warn "ufw 不存在，跳过"
+        log_warn "ufw 不存在，跳过防火墙配置"
         return
     fi
 
@@ -195,16 +192,19 @@ configure_firewall() {
     fi
 }
 
-
 #========================================
-# 7. 清理脚本（只管 archive）
+# 7. 清理脚本 (清理压缩包)
 #========================================
 create_cleanup_script() {
+    # 由于 archive 目录已删除，这里主要用于清理 logrotate 生成的旧压缩包
+    # logrotate 自身会控制数量，但为了保险，清理 30 天以前的旧 .gz 文件
     cat > /usr/local/bin/log_center_cleanup.sh << EOF
 #!/bin/bash
+# 清理超过 30 天的已压缩日志 (logrotate 应该已经删除了，但这作为双重保险)
 LOG_DIR="${LOG_DIR}"
-find "\$LOG_DIR/archive" -name "*.gz" -mtime +15 -delete 2>/dev/null
-find "\$LOG_DIR/archive" -type d -empty -delete 2>/dev/null
+find "\$LOG_DIR/active" -name "*.gz" -mtime +30 -delete 2>/dev/null
+find "\$LOG_DIR/errors" -name "*.gz" -mtime +30 -delete 2>/dev/null
+find "\$LOG_DIR" -type d -empty -delete 2>/dev/null
 EOF
     chmod +x /usr/local/bin/log_center_cleanup.sh
 }
@@ -222,16 +222,21 @@ EOF
 # 9. 重启验证
 #========================================
 restart_services() {
+    log_step "重启 rsyslog 服务..."
     rsyslogd -N1
     systemctl restart rsyslog
     systemctl enable rsyslog
+    log_info "服务状态: $(systemctl is-active rsyslog)"
 }
 
 #========================================
 # 主流程
 #========================================
 main() {
-    [ "$(id -u)" -eq 0 ] || { log_error "请用 root"; exit 1; }
+    [ "$(id -u)" -eq 0 ] || { log_error "请使用 root 用户运行此脚本"; exit 1; }
+
+    log_info "开始部署日志中心 (优化版)..."
+    log_info "日志存储根目录: ${LOG_DIR}"
 
     install_packages
     create_directories
@@ -243,9 +248,17 @@ main() {
     configure_cron
     restart_services
 
+    echo ""
     log_info "日志中心部署完成 ✅"
-    log_info "测试：logger -t site1_access 'hello log center'"
-    log_info "监听日志中 (Real-time): tail -f ${LOG_DIR}/active/*.log"
+    log_info "-------------------------------------------"
+    log_info "目录结构:"
+    log_info "  实时日志: ${LOG_DIR}/active/{IP}/"
+    log_info "  错误日志: ${LOG_DIR}/errors/{IP}/"
+    log_info "-------------------------------------------"
+    log_info "测试命令:"
+    log_info "  logger -t site1_access 'hello world'"
+    log_info "  tail -f ${LOG_DIR}/active/127.0.0.1/site1_access.log"
+    log_info "-------------------------------------------"
 }
 
 main
