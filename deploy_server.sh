@@ -1,6 +1,7 @@
 #!/bin/bash
 # deploy_server.sh - 日志中心服务端部署脚本（修正版）
 
+
 set -euo pipefail
 
 #========================================
@@ -95,25 +96,19 @@ input(type="imtcp"  port="${TCP_PORT}" ruleset="nginx_logs")
 input(type="imudp"  port="${UDP_PORT}" ruleset="nginx_logs")
 
 template(name="ActivePath" type="string"
- string="${LOG_DIR}/active/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_access--end%_%fromhost-ip%.log")
+ string="${LOG_DIR}/active/%fromhost-ip%/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_access--end%.log")
 
 template(name="ErrorPath" type="string"
- string="${LOG_DIR}/errors/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_error--end%_%fromhost-ip%.log")
+ string="${LOG_DIR}/errors/%fromhost-ip%/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_error--end%.log")
 
 template(name="FixedPath" type="string"
  string="${LOG_DIR}/fixed/%syslogtag:R,ERE,1,DFLT:([a-zA-Z0-9_-]+)_(access|error)--end%.log")
 
 template(name="ArchivePath" type="string"
- string="${LOG_DIR}/archive/%\$year%/%\$month%/%\$day%/%syslogtag%_%fromhost-ip%.log")
+ string="${LOG_DIR}/archive/%\$year%/%\$month%/%\$day%/%fromhost-ip%/%syslogtag%.log")
 
 template(name="LogFmt" type="list") {
-    property(name="timereported" dateFormat="rfc3339")
-    constant(value=" ")
-    property(name="fromhost-ip")
-    constant(value=" ")
-    property(name="syslogtag")
-    constant(value=" ")
-    property(name="msg" droplastlf="on")
+    property(name="msg" droplastlf="on" position.from="2")
     constant(value="\n")
 }
 
@@ -149,7 +144,7 @@ configure_logrotate() {
     log_step "配置 logrotate..."
 
     cat > /etc/logrotate.d/nginx-log-center << ROTATE_EOF
-${LOG_DIR}/active/*.log {
+${LOG_DIR}/active/*/*.log {
     daily
     rotate 7
     copytruncate
@@ -169,7 +164,7 @@ ${LOG_DIR}/fixed/*.log {
     notifempty
 }
 
-${LOG_DIR}/errors/*.log {
+${LOG_DIR}/errors/*/*.log {
     daily
     rotate 14
     compress
@@ -199,6 +194,7 @@ configure_firewall() {
         log_warn "ufw 未启用，仅添加规则（未强制 enable）"
     fi
 }
+
 
 #========================================
 # 7. 清理脚本（只管 archive）

@@ -142,13 +142,19 @@ EOF
 # 5. Nginx 配置提示
 #========================================
 print_nginx_hint() {
-    log_info "请在 Nginx server 块中添加以下内容："
+    log_info "请在 Nginx server 块（或 http 块）中添加以下内容："
     echo ""
-
+    echo "    # 1. 定义通用日志格式"
+    echo "    log_format syslog_combined"
+    echo "        '\$remote_addr - \$remote_user [\$time_local] '"
+    echo "        '\"\$request\" \$status \$body_bytes_sent '"
+    echo "        '\"\$http_referer\" \"\$http_user_agent\"';"
+    echo ""
+    echo "    # 2. 站点日志配置"
     for s in $SITES; do
-        echo "# 站点: $s"
-        echo "access_log syslog:server=127.0.0.1:514,facility=local7,tag=${s}_access,severity=info syslog_combined;"
-        echo "error_log  syslog:server=127.0.0.1:514,facility=local7,tag=${s}_error,severity=error;"
+        echo "    # 站点: $s"
+        echo "    access_log syslog:server=127.0.0.1:514,facility=local7,tag=${s}_access,severity=info syslog_combined;"
+        echo "    error_log  syslog:server=127.0.0.1:514,facility=local7,tag=${s}_error,severity=error;"
         echo ""
     done
 }
