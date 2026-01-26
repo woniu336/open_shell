@@ -182,7 +182,6 @@ generate_full_config() {
     local first_key=true
     IFS=',' read -ra KEYS <<< "$access_keys"
     for key in "${KEYS[@]}"; do
-        # 去除空格
         key=$(echo "$key" | xargs)
         if [ -n "$key" ]; then
             if [ "$first_key" = true ]; then
@@ -194,7 +193,7 @@ generate_full_config() {
         fi
     done
 
-    # 生成完整配置
+    # 生成完整配置 (适配最新模板)
     cat << EOF
 {
   "websites": [
@@ -204,33 +203,42 @@ ${websites_json}
     "logDestination": "file",
     "taskInterval": "1m",
     "logRetentionDays": 30,
+    "parseBatchSize": 100,
+    "ipGeoCacheLimit": 1000000,
+    "ipGeoApiUrl": "http://ip-api.com/batch",
     "demoMode": false,
     "accessKeys": [${access_keys_json}],
     "language": "zh-CN"
   },
+  "database": {
+    "driver": "postgres",
+    "dsn": "postgres://nginxpulse:nginxpulse@127.0.0.1:5432/nginxpulse?sslmode=disable",
+    "maxOpenConns": 10,
+    "maxIdleConns": 5,
+    "connMaxLifetime": "30m"
+  },
   "server": {
-    "Port": ":8088"
+    "Port": ":8089"
   },
   "pvFilter": {
     "statusCodeInclude": [
-      200,
-      204,
-      301,
-      302
+      200
     ],
     "excludePatterns": [
-      "^/(?:api|ajax)/",
-      "^/index\\\\.php/ajax/",
-      "^/index\\\\.php/user/ajax_ulog\$",
-      "^/health\$",
+      "favicon.ico$",
+      "robots.txt$",
+      "sitemap.xml$",
+      "^/health$",
       "^/_(?:nuxt|next)/",
-      "favicon\\\\.ico\$",
-      "robots\\\\.txt\$",
-      "sitemap\\\\.xml\$"
+      "rss.xml$",
+      "feed.xml$",
+      "atom.xml$"
     ],
     "excludeIPs": [
-      "127.0.0.1",
-      "::1"
+      "127.0.0.1", 
+      "::1", 
+      "10.10.0.1", 
+      "192.168.30.21"
     ]
   }
 }
