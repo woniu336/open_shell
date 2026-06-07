@@ -21,7 +21,7 @@ NC='\033[0m'
 # 标准路径定义
 NGINX_PREFIX="/usr/local/nginx"
 BUILD_DIR="/usr/local/src/nginx-build"
-NGINX_VERSION="1.28.0"
+NGINX_VERSION="1.30.2"
 
 # 标准系统路径
 NGINX_CONF_DIR="/etc/nginx"
