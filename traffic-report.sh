@@ -2,20 +2,32 @@
 # ===== 流量日报脚本：统计流量并发送到 ntfy =====
 # 每天 10:00 由 cron 调用：0 10 * * * /usr/local/bin/traffic-report.sh
 
-# --- 配置 ---
-NTFY_URL="https://ntfy.sh"   # ntfy 服务器地址
-TOPIC="xxx"                  # 通知主题
-IFACE="eth0"                 # 主网卡接口
+# --- 配置（按需修改） ---
+NTFY_URL="https://ntfy.sh"   # 你的 ntfy 服务器地址
+TOPIC="xxx"                  # 通知主题（每台服务器可不同，如 traffic-<主机名>）
+IFACE="eth0"                      # 主网卡接口（ip -o link 查看）
 HOST="$(hostname)"
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-# -------------
+# -------------------------
 
 STAT_SRC="vnstat"
-if command -v vnstat >/dev/null 2>&1 && vnstat --oneline -i "$IFACE" 2>/dev/null | grep -q '|'; then
-    # 当月 rx|tx|total
-    read -r MRX MTX MTOTAL <<< "$(vnstat --oneline -i "$IFACE" | awk -F';' '{split($5,a,"|"); print a[1], a[2], a[3]}')"
-    # 今日 rx|tx|total
-    read -r TRX TTX TTOTAL <<< "$(vnstat --oneline -i "$IFACE" | awk -F';' '{split($3,a,"|"); print a[1], a[2], a[3]}')"
+if command -v vnstat >/dev/null 2>&1 && LINE=$(vnstat --oneline -i "$IFACE" 2>/dev/null) && [[ "$LINE" == *";"* ]]; then
+    # 兼容 vnstat 新旧两种 oneline 格式（每个值单独一行，避免单位空格被拆分）：
+    #   旧格式(≤2.6): iface;date;day rx|tx|total;week rx|tx|total;month rx|tx|total;total...
+    #   新格式(2.7+): [n;]iface;date;day_rx;day_tx;day_total;rate;month;m_rx;m_tx;m_total;m_rate;...
+    { read -r TRX; read -r TTX; read -r TTOTAL; read -r MRX; read -r MTX; read -r MTOTAL; } <<< "$(echo "$LINE" | awk -F';' -v iface="$IFACE" '
+        {
+            if ($0 ~ /\|/) {
+                split($3,d,"|"); split($5,m,"|");
+                print d[1]; print d[2]; print d[3]; print m[1]; print m[2]; print m[3]
+            } else {
+                for (i=1;i<=NF;i++) if ($i==iface) break;
+                print $(i+2); print $(i+3); print $(i+4); print $(i+7); print $(i+8); print $(i+9)
+            }
+        }')"
+    # 空值保护（新装 vnstat 可能还没有当月数据）
+    [ -z "$MRX" ] && MRX="N/A"; [ -z "$MTX" ] && MTX="N/A"; [ -z "$MTOTAL" ] && MTOTAL="N/A"
+    [ -z "$TRX" ] && TRX="N/A"; [ -z "$TTX" ] && TTX="N/A"; [ -z "$TTOTAL" ] && TTOTAL="N/A"
 else
     # 备用：/proc/net/dev（开机以来累计，重启清零）
     read -r RX TX <<< "$(awk -v i="$IFACE" -F'[: ]+' '$2==i {print $3, $11}' /proc/net/dev)"
